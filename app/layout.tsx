@@ -10,6 +10,12 @@ const outfit = Outfit({
 export const metadata: Metadata = {
   title: "Playr | Maneja tus cuentas y perfiles de manera sencilla",
   description: "Playr es una aplicación web que te permite gestionar tus cuentas y perfiles de manera sencilla y eficiente. Con Playr, puedes organizar tus plataformas de streaming, facilitando el acceso y la administración de tu información y credenciales.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+  },
 };
 
 export default function RootLayout({

@@ -3,6 +3,8 @@
 import { z } from "zod";
 import { createClient } from "@/app/lib/supabase/server";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { translateAuthError } from "@lib/supabase/auth-errors";
 
 const schema = z.object({
     email: z
@@ -67,12 +69,9 @@ export const loginAction = async (initialState: LoginState, formData: FormData) 
         return {
             success: false,
             errors: {},
-            message: error.message,
+            message: translateAuthError(error.message),
         } satisfies LoginState
     }
 
-    return {
-        success: true,
-        errors: {},
-    } satisfies LoginState
+    redirect("/administrar")
 }

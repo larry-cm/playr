@@ -3,9 +3,8 @@ import { cookies } from "next/headers";
 import { supabaseUrl, supabaseKey } from "@lib/const";
 
 
-
-export const createClient = (cookieStore: Awaited<ReturnType<typeof cookies>>) => {
-  return createServerClient(
+const createClient =
+  (cookieStore: Awaited<ReturnType<typeof cookies>>) => createServerClient(
     supabaseUrl!,
     supabaseKey!,
     {
@@ -25,4 +24,6 @@ export const createClient = (cookieStore: Awaited<ReturnType<typeof cookies>>) =
       },
     },
   );
-};
+
+
+export const createSupabase = async () => createClient(await cookies())

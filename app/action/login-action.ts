@@ -1,8 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { createClient } from "@/app/lib/supabase/server";
-import { cookies } from "next/headers";
+import { createSupabase } from "@/app/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { translateAuthError } from "@lib/supabase/auth-errors";
 
@@ -56,10 +55,7 @@ export const loginAction = async (initialState: LoginState, formData: FormData) 
             errors: z.flattenError(data.error).fieldErrors,
         } satisfies LoginState
     }
-
-    const cookieStore = await cookies()
-    const supabase = createClient(cookieStore)
-
+    const supabase = await createSupabase()
     const { error } = await supabase.auth.signInWithPassword({
         email: data.data.email,
         password: data.data.password,

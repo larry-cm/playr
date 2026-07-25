@@ -1,8 +1,8 @@
 "use server";
 
 import { z } from "zod";
-import { createClient } from "@/app/lib/supabase/server";
-import { cookies, headers } from "next/headers";
+import { createSupabase } from "@/app/lib/supabase/server";
+import { headers } from "next/headers";
 import { translateAuthError } from "@lib/supabase/auth-errors";
 
 const schema = z.object({
@@ -33,12 +33,10 @@ export const forgotPasswordAction = async (initialState: ForgotPasswordState, fo
         } satisfies ForgotPasswordState
     }
 
-    const cookieStore = await cookies()
-    const supabase = createClient(cookieStore)
-
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || (await headers()).get('origin') || 'http://localhost:3000'
     const redirectTo = `${siteUrl}/reestablecer`
 
+    const supabase = await createSupabase()
     const { error } = await supabase.auth.resetPasswordForEmail(data.data.email, {
         redirectTo,
     })

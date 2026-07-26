@@ -3,18 +3,35 @@ import Card from "@ui/card";
 import PlayrLogo from "@ui/playr-logo";
 import Alert from "@ui/alert";
 import Input from "@ui/input";
+import type { ValidationState } from "@ui/input";
 import Button from "@ui/button";
 import { forgotPasswordAction } from "@action/forgot-password-action";
 import { useActionState, useState } from "react";
 import type { ForgotPasswordState } from "@action/forgot-password-action";
 import { Mail, ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { validateEmail } from "@lib/validation";
 
 const initialState: ForgotPasswordState = { success: false, errors: {} };
+
+function getValidation(
+  touched: boolean,
+  error: string | null,
+  value: string,
+  required: boolean,
+): ValidationState {
+  if (!touched) return "idle";
+  if (error) return "invalid";
+  if (required && !value) return "invalid";
+  return "valid";
+}
 
 export default function ForgotPasswordPage() {
   const [state, action, isLoading] = useActionState(forgotPasswordAction, initialState);
   const [email, setEmail] = useState("");
+  const [touched, setTouched] = useState(false);
+
+  const emailError = validateEmail(email);
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-8">
@@ -51,9 +68,11 @@ export default function ForgotPasswordPage() {
                 label="Correo electrónico"
                 placeholder="ejemplo@correo.com"
                 leftIcon={<Mail className="w-4 h-4" />}
-                error={state?.errors?.email}
+                error={state?.errors?.email ?? (touched ? emailError ?? undefined : undefined)}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                onBlur={() => setTouched(true)}
+                validation={getValidation(touched, emailError, email, true)}
               />
 
               <Button type="submit" isLoading={isLoading} size="lg">

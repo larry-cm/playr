@@ -3,6 +3,7 @@ import Card from "@ui/card";
 import PlayrLogo from "@ui/playr-logo";
 import Alert from "@ui/alert";
 import Input from "@ui/input";
+import type { ValidationState } from "@ui/input";
 import PasswordInput from "@ui/password-input";
 import Checkbox from "@ui/checkbox";
 import Button from "@ui/button";
@@ -11,13 +12,34 @@ import { useActionState, useState } from "react";
 import type { LoginState } from "@action/login-action";
 import { Mail } from "lucide-react";
 import Link from "next/link";
+import { validateEmail } from "@lib/validation";
 
 const initialState: LoginState = { success: false, errors: {} };
+
+function getValidation(
+  touched: boolean,
+  error: string | null,
+  value: string,
+  required: boolean,
+): ValidationState {
+  if (!touched) return "idle";
+  if (error) return "invalid";
+  if (required && !value) return "invalid";
+  return "valid";
+}
 
 export default function Home() {
   const [state, action, isLoading] = useActionState(loginAction, initialState);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [touched, setTouched] = useState({ email: false, password: false });
+
+  const touch = (field: "email" | "password") => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+  };
+
+  const emailError = validateEmail(email);
+  const passwordError = !password ? "Ingresa una contraseña." : null;
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-8">
@@ -53,18 +75,22 @@ export default function Home() {
               label="Correo electrónico"
               placeholder="ejemplo@correo.com"
               leftIcon={<Mail className="w-4 h-4" />}
-              error={state?.errors?.email}
+              error={state?.errors?.email ?? (touched.email ? emailError ?? undefined : undefined)}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onBlur={() => touch("email")}
+              validation={getValidation(touched.email, emailError, email, true)}
             />
 
             <PasswordInput
               id="contraseña"
               name="contraseña"
               label="Contraseña"
-              error={state?.errors?.password}
+              error={state?.errors?.password ?? (touched.password ? passwordError ?? undefined : undefined)}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onBlur={() => touch("password")}
+              validation={getValidation(touched.password, passwordError, password, true)}
             />
 
             <div className="flex items-center justify-between">

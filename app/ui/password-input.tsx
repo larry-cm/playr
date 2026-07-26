@@ -1,7 +1,7 @@
 "use client";
 import { type ChangeEvent, useState } from "react";
 import { Lock, Eye, EyeOff } from "lucide-react";
-import Input from "@ui/input";
+import Input, { type ValidationState } from "@ui/input";
 
 interface PasswordInputProps {
   id?: string;
@@ -11,6 +11,9 @@ interface PasswordInputProps {
   placeholder?: string;
   value?: string;
   onChange?: (e: ChangeEvent<HTMLInputElement>) => void;
+  onBlur?: React.FocusEventHandler<HTMLInputElement>;
+  required?: boolean;
+  validation?: ValidationState;
 }
 
 export default function PasswordInput({
@@ -21,6 +24,9 @@ export default function PasswordInput({
   placeholder = "••••••••",
   value,
   onChange,
+  onBlur,
+  required,
+  validation,
 }: PasswordInputProps) {
   const [showPassword, setShowPassword] = useState(false);
 
@@ -34,6 +40,9 @@ export default function PasswordInput({
       error={error}
       value={value}
       onChange={onChange}
+      onBlur={onBlur}
+      required={required}
+      validation={validation}
       leftIcon={<Lock className="w-4 h-4" />}
       rightIcon={
         <button

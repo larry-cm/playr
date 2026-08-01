@@ -8,6 +8,7 @@ interface PasswordInputProps {
   name?: string;
   label?: string;
   error?: string | string[];
+  message?: string | string[];
   placeholder?: string;
   value?: string;
   onChange?: (e: ChangeEvent<HTMLInputElement>) => void;
@@ -21,6 +22,7 @@ export default function PasswordInput({
   name = "password",
   label = "Contraseña",
   error,
+  message,
   placeholder = "••••••••",
   value,
   onChange,
@@ -43,6 +45,7 @@ export default function PasswordInput({
       onBlur={onBlur}
       required={required}
       validation={validation}
+      message={message}
       leftIcon={<Lock className="w-4 h-4" />}
       rightIcon={
         <button

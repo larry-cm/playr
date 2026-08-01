@@ -75,18 +75,20 @@ export default function Home() {
               label="Correo electrónico"
               placeholder="ejemplo@correo.com"
               leftIcon={<Mail className="w-4 h-4" />}
-              error={state?.errors?.email ?? (touched.email ? emailError ?? undefined : undefined)}
+             error={state?.errors?.email ?? emailError ?? undefined}
+             message="Ingresa un correo electrónico."
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               onBlur={() => touch("email")}
               validation={getValidation(touched.email, emailError, email, true)}
             />
-
+ 
             <PasswordInput
               id="contraseña"
               name="contraseña"
               label="Contraseña"
-              error={state?.errors?.password ?? (touched.password ? passwordError ?? undefined : undefined)}
+              error={state?.errors?.password ?? passwordError ?? undefined}
+              message="Ingresa una contraseña."
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               onBlur={() => touch("password")}

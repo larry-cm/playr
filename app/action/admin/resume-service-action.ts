@@ -10,7 +10,7 @@ export async function resumeServicesAction() {
     ]);
 
     return {
-        clients: clients.count ?? 0,
+        customers: clients.count ?? 0,
         accounts: accounts.count ?? 0,
         profiles: profiles.count ?? 0,
     };

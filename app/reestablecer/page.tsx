@@ -151,18 +151,20 @@ export default function ResetPasswordPage() {
                       id="new-password"
                       name="new-password"
                       label="Nueva contraseña"
-                      error={errors?.password}
+                      error={errors?.password ?? passwordError ?? undefined}
+                      message="Ingresa una contraseña."
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       onBlur={() => setTouched((p) => ({ ...p, password: true }))}
                       validation={getValidation(touched.password, passwordError, password, true)}
                     />
-
+ 
                     <PasswordInput
                       id="confirm-password"
                       name="confirm-password"
                       label="Confirmar contraseña"
-                      error={errors?.confirmPassword}
+                      error={errors?.confirmPassword ?? confirmPasswordError ?? undefined}
+                      message="Confirma tu nueva contraseña."
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       onBlur={() => setTouched((p) => ({ ...p, confirmPassword: true }))}

@@ -7,6 +7,7 @@ export type ValidationState = "idle" | "valid" | "invalid";
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string | string[];
+  message?: string | string[];
   leftIcon?: ReactNode;
   rightIcon?: ReactNode;
   required?: boolean;
@@ -19,9 +20,26 @@ const borderByValidation: Record<ValidationState, string> = {
   invalid: "border-red-500/50 focus:border-red-400 focus:ring-red-400/40",
 };
 
+const textByValidation: Record<ValidationState, string> = {
+  idle: "text-secondary",
+  valid: "text-emerald-400",
+  invalid: "text-red-400",
+};
+
 const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, leftIcon, rightIcon, required, className = "", id, validation, ...rest }, ref) => {
-    const borderClass = borderByValidation[validation ?? "idle"];
+  ({ label, error, message, leftIcon, rightIcon, required, className = "", id, validation, ...rest }, ref) => {
+    const validationState = validation ?? "idle";
+    const borderClass = borderByValidation[validationState];
+    const textClass = textByValidation[validationState];
+    const messages = error
+      ? Array.isArray(error)
+        ? error
+        : [error]
+      : message
+      ? Array.isArray(message)
+        ? message
+        : [message]
+      : [];
 
     return (
       <div className="flex flex-col gap-1.5">
@@ -48,16 +66,14 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             </div>
           )}
         </div>
-        {error && (
-          <div className="flex flex-col gap-0.5 mt-0.5">
-            {(Array.isArray(error) ? error : [error]).map((msg, i) => (
-              <p key={i} className="text-red-400 text-xs flex items-center gap-1">
-                <TriangleAlert className="w-3 h-3 shrink-0" />
-                {msg}
-              </p>
-            ))}
-          </div>
-        )}
+        <div className="flex flex-col gap-0.5 mt-0.5 min-h-[1.25rem]">
+          {messages.map((msg, i) => (
+            <p key={i} className={`${textClass} text-xs flex items-center gap-1`}>
+              <TriangleAlert className="w-3 h-3 shrink-0" />
+              {msg}
+            </p>
+          ))}
+        </div>
       </div>
     );
   },

@@ -162,14 +162,15 @@ export default function CrearClientePage() {
                 label="Correo electrónico"
                 placeholder="ejemplo@correo.com"
                 leftIcon={<Mail className="w-4 h-4" />}
-                error={state?.errors?.email ?? (touched.email ? emailError ?? undefined : undefined)}
-                value={form.email}
-                onChange={setInput("email")}
-                onBlur={() => touch("email")}
-                validation={getValidation(touched.email, emailError, form.email, true)}
-                required
+               error={state?.errors?.email ?? emailError ?? undefined}
+               message="Ingresa un correo electrónico."
+               value={form.email}
+               onChange={setInput("email")}
+               onBlur={() => touch("email")}
+               validation={getValidation(touched.email, emailError, form.email, true)}
+               required
               />
-
+ 
               <Input
                 id="username"
                 name="username"
@@ -177,19 +178,21 @@ export default function CrearClientePage() {
                 label="Nombre de usuario"
                 placeholder="usuario"
                 leftIcon={<User className="w-4 h-4" />}
-                error={state?.errors?.username ?? (touched.username ? usernameError ?? undefined : undefined)}
+                error={state?.errors?.username ?? usernameError ?? undefined}
+                message="Ingresa un nombre de usuario."
                 value={form.username}
                 onChange={setInput("username")}
                 onBlur={() => touch("username")}
                 validation={getValidation(touched.username, usernameError, form.username, true)}
                 required
               />
-
+ 
               <PasswordInput
                 id="password"
                 name="password"
                 label="Contraseña"
-                error={state?.errors?.password ?? (touched.password ? passwordError ?? undefined : undefined)}
+                error={state?.errors?.password ?? passwordError ?? undefined}
+                message="Ingresa una contraseña."
                 value={form.password}
                 onChange={setInput("password")}
                 onBlur={() => touch("password")}
@@ -220,10 +223,8 @@ export default function CrearClientePage() {
               onNumberChange={setInput("celularNumero")}
               onBlur={() => touch("celularNumero")}
               codeError={state?.errors?.celular_codigo}
-              numberError={
-                state?.errors?.celular_numero ??
-                (touched.celularNumero ? phoneError ?? undefined : undefined)
-              }
+              numberError={state?.errors?.celular_numero ?? phoneError ?? undefined}
+              message="Ingresa tu número de celular."
               label="Celular"
               numberPlaceholder="123 456 7890"
               validation={getValidation(touched.celularNumero, phoneError, form.celularNumero, false)}

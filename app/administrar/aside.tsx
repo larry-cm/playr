@@ -8,12 +8,6 @@ import { supabase } from "@/app/lib/supabase/client";
 import logoPlayr from "@/public/favicon.svg"
 import Image from "next/image";
 
-interface NavItem {
-    name: string;
-    href: string;
-    icon: React.ComponentType<{ className?: string }>;
-    roles: string[];
-}
 
 interface AsideProps {
     sidebarOpen: boolean;

@@ -7,9 +7,8 @@ import type { ValidationState } from "@ui/input";
 import PasswordInput from "@ui/password-input";
 import Checkbox from "@ui/checkbox";
 import Button from "@ui/button";
-import { loginAction } from "@action/login-action";
 import { useActionState, useState } from "react";
-import type { LoginState } from "@action/login-action";
+import { type LoginState, loginAction } from "@action/login/login-action";
 import { Mail } from "lucide-react";
 import Link from "next/link";
 import { validateEmail } from "@lib/validation";
@@ -75,14 +74,14 @@ export default function Home() {
               label="Correo electrónico"
               placeholder="ejemplo@correo.com"
               leftIcon={<Mail className="w-4 h-4" />}
-             error={state?.errors?.email ?? emailError ?? undefined}
-             message="Ingresa un correo electrónico."
+              error={state?.errors?.email ?? emailError ?? undefined}
+              message="Ingresa un correo electrónico."
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               onBlur={() => touch("email")}
               validation={getValidation(touched.email, emailError, email, true)}
             />
- 
+
             <PasswordInput
               id="contraseña"
               name="contraseña"

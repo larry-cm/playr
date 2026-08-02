@@ -17,6 +17,12 @@ const borderByValidation: Record<ValidationState, string> = {
   invalid: "border-red-500/50 focus:border-red-400 focus:ring-red-400/40",
 };
 
+const textByValidation: Record<ValidationState, string> = {
+  idle: "text-secondary",
+  valid: "text-emerald-400",
+  invalid: "text-red-400",
+};
+
 interface PhoneInputProps {
   codeValue?: string;
   numberValue?: string;
@@ -25,6 +31,7 @@ interface PhoneInputProps {
   onBlur?: React.FocusEventHandler<HTMLInputElement>;
   codeError?: string | string[];
   numberError?: string | string[];
+  message?: string | string[];
   label?: string;
   numberPlaceholder?: string;
   required?: boolean;
@@ -62,6 +69,16 @@ export default function PhoneInput({
     ...(Array.isArray(codeError) ? codeError : codeError ? [codeError] : []),
     ...(Array.isArray(numberError) ? numberError : numberError ? [numberError] : []),
   ];
+ 
+  const validationState = validation ?? "idle";
+  const textClass = textByValidation[validationState];
+  const messages = allErrors.length > 0
+    ? allErrors
+    : message
+    ? Array.isArray(message)
+      ? message
+      : [message]
+    : [];
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -108,16 +125,14 @@ export default function PhoneInput({
           />
         </div>
       </div>
-      {allErrors.length > 0 && (
-        <div className="flex flex-col gap-0.5 mt-0.5">
-          {allErrors.map((msg, i) => (
-            <p key={i} className="text-red-400 text-xs flex items-center gap-1">
-              <TriangleAlert className="w-3 h-3 shrink-0" />
-              {msg}
-            </p>
-          ))}
-        </div>
-      )}
+      <div className="flex flex-col gap-0.5 mt-0.5 min-h-[1.25rem]">
+        {messages.map((msg, i) => (
+          <p key={i} className={`${textClass} text-xs flex items-center gap-1`}>
+            <TriangleAlert className="w-3 h-3 shrink-0" />
+            {msg}
+          </p>
+        ))}
+      </div>
     </div>
   );
 }

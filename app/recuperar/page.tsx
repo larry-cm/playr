@@ -68,7 +68,8 @@ export default function ForgotPasswordPage() {
                 label="Correo electrónico"
                 placeholder="ejemplo@correo.com"
                 leftIcon={<Mail className="w-4 h-4" />}
-                error={state?.errors?.email ?? (touched ? emailError ?? undefined : undefined)}
+                error={state?.errors?.email ?? emailError ?? undefined}
+                message="Ingresa un correo electrónico."
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 onBlur={() => setTouched(true)}

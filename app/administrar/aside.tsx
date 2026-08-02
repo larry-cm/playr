@@ -1,12 +1,13 @@
 "use client";
 
-import { LogOut, X } from "lucide-react";
+import { LayoutDashboard, LogOut, X } from "lucide-react";
 
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/app/lib/supabase/client";
 import logoPlayr from "@/public/favicon.svg"
 import Image from "next/image";
+
 interface NavItem {
     name: string;
     href: string;
@@ -15,17 +16,20 @@ interface NavItem {
 }
 
 interface AsideProps {
-    items: NavItem[];
     sidebarOpen: boolean;
     setSidebarOpen: (open: boolean) => void;
     role: string;
 }
 
-export default function Aside({ items, sidebarOpen, setSidebarOpen, role }: AsideProps) {
+const navItems = [
+    { name: "Administrar", href: "/administrar", icon: LayoutDashboard, roles: ["admin", "manager", "user"] },
+    { name: "Clientes", href: "/administrar/clientes", icon: LayoutDashboard, roles: ["admin", "manager"] },
+];
+export default function Aside({ sidebarOpen, setSidebarOpen, role }: AsideProps) {
     const pathname = usePathname();
     const router = useRouter();
 
-    const filteredItems = items.filter(item => !item.roles || item.roles.includes(role));
+    const filteredItems = navItems.filter(item => !item.roles || item.roles.includes(role));
 
     return (
         <aside

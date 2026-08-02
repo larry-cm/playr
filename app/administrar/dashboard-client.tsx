@@ -1,13 +1,8 @@
 "use client";
 
-import { LayoutDashboard, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
 import { useState } from "react";
 import Aside from "@/app/administrar/aside";
-
-
-const navItems = [
-    { name: "Administrar", href: "/administrar", icon: LayoutDashboard, roles: ["admin", "manager", "user"] },
-];
 
 export default function DashboardClient({
     children,
@@ -33,7 +28,7 @@ export default function DashboardClient({
                 <div className="w-9" />
             </header>
 
-            <div className="flex min-h-screen">
+            <div className="flex min-h-screen md:py-12">
                 {/* Overlay */}
                 {sidebarOpen && (
                     <div
@@ -43,7 +38,7 @@ export default function DashboardClient({
                 )}
 
                 {/* Sidebar */}
-                <Aside items={navItems} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} role={role} />
+                <Aside sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} role={role} />
 
                 {/* Main content */}
                 <main className="flex-1 p-4 sm:p-6 lg:p-8 pt-14 lg:pt-8 overflow-auto">

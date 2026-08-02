@@ -2,14 +2,20 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Button from "@ui/button";
+import Input from "@ui/input";
+import type { ValidationState } from "@ui/input";
 import Modal from "@ui/modal";
+import CopyInput from "@ui/copy-input";
 import { Eye, Edit, Trash2, Search, Plus } from "lucide-react";
+import { validateEmail, validatePassword, validateUsername } from "@lib/validation";
 
 interface TableProps<T extends Record<string, unknown>> {
     header: string[];
     data: T[];
     className?: string;
     showActions?: boolean;
+    onEditSave?: (row: T, index: number) => void;
+    onDelete?: (index: number) => void;
 }
 
 const formatCellValue = (value: unknown) => {
@@ -41,11 +47,14 @@ export default function Table<T extends Record<string, unknown>>({
     data,
     className = "",
     showActions = true,
+    onEditSave,
+    onDelete,
 }: Readonly<TableProps<T>>) {
     const [rows, setRows] = useState<T[]>(data);
     const [viewRow, setViewRow] = useState<T | null>(null);
     const [editRowIndex, setEditRowIndex] = useState<number | null>(null);
     const [editedRow, setEditedRow] = useState<Record<string, any> | null>(null);
+    const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
     const [isConfirmIndex, setIsConfirmIndex] = useState<number | null>(null);
     const [search, setSearch] = useState("");
 
@@ -53,28 +62,42 @@ export default function Table<T extends Record<string, unknown>>({
         setRows(data);
     }, [data]);
 
-    const openView = (row: T) => setViewRow(row);
-    const closeView = () => setViewRow(null);
+    const openView = (row: T) => {
+        setViewRow(row);
+        const copy: Record<string, any> = {};
+        header.forEach((h) => (copy[h] = (row as any)[h]));
+        setEditedRow(copy);
+    };
+    const closeView = () => {
+        setViewRow(null);
+        setEditedRow(null);
+    };
 
     const openEdit = (row: T, index: number) => {
         setEditRowIndex(index);
         const copy: Record<string, any> = {};
         header.forEach((h) => (copy[h] = (row as any)[h]));
         setEditedRow(copy);
+        setTouchedFields({});
     };
 
     const closeEdit = () => {
         setEditRowIndex(null);
         setEditedRow(null);
+        setTouchedFields({});
     };
 
     const saveEdit = () => {
         if (editRowIndex === null || editedRow === null) return;
+        const updatedRow = editedRow as unknown as T;
+
         setRows((prev) => {
             const next = [...prev];
-            next[editRowIndex] = editedRow as unknown as T;
+            next[editRowIndex] = updatedRow;
             return next;
         });
+
+        onEditSave?.(updatedRow, editRowIndex);
         closeEdit();
     };
 
@@ -83,6 +106,7 @@ export default function Table<T extends Record<string, unknown>>({
     const doDelete = () => {
         if (isConfirmIndex === null) return;
         setRows((prev) => prev.filter((_, i) => i !== isConfirmIndex));
+        onDelete?.(isConfirmIndex);
         setIsConfirmIndex(null);
     };
 
@@ -99,6 +123,108 @@ export default function Table<T extends Record<string, unknown>>({
             }),
         );
     }, [rows, search, header]);
+
+    const getFieldValidation = (column: string, value: unknown): { error: string | null; validation: ValidationState; message: string } => {
+        const normalized = column.toLowerCase();
+        const text = String(value ?? "");
+        let error: string | null = null;
+        let message = "Ingresa un valor.";
+
+        if (/\b(email|correo)\b/i.test(normalized)) {
+            error = validateEmail(text);
+            message = "Ingresa un correo electrónico.";
+        } else if (/\b(password|contraseña|pass)\b/i.test(normalized)) {
+            error = validatePassword(text);
+            message = "Ingresa una contraseña.";
+        } else if (/\b(user(name)?|usuario|nombre)\b/i.test(normalized)) {
+            error = validateUsername(text);
+            message = "Ingresa un nombre de usuario.";
+        }
+
+        const validation: ValidationState = error ? "invalid" : text ? "valid" : "idle";
+        return { error, validation, message };
+    };
+
+    const renderField = (column: string, val: unknown, readOnly: boolean) => {
+        const isBool = typeof val === "boolean";
+        const isDateField = typeof val === "string" && (
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(val) ||
+            /^\d{4}-\d{2}-\d{2}$/.test(val) ||
+            /\b(?:date|fecha|time|hora)\b/i.test(column)
+        );
+        const isCopyable = !isBool && !Array.isArray(val) && typeof val !== "object" && !isDateField;
+        const { error: rawError, validation: rawValidation, message } = !readOnly
+            ? getFieldValidation(column, val)
+            : { error: null, validation: "idle" as ValidationState, message: "" };
+        const touched = !readOnly && Boolean(touchedFields[column]);
+        const error = touched ? rawError : null;
+        const validation = touched ? rawValidation : "idle" as ValidationState;
+
+        const updateField = (value: unknown) => {
+            if (readOnly || editedRow === null) return;
+            setEditedRow({ ...editedRow, [column]: value });
+        };
+
+        if (isBool) {
+            return (
+                <label className="inline-flex items-center gap-2">
+                    <input
+                        type="checkbox"
+                        checked={!!val}
+                        disabled={readOnly}
+                        onChange={(e) => updateField(e.target.checked)}
+                        className="cursor-pointer rounded border-white/10 bg-white/5 text-accent disabled:cursor-not-allowed"
+                    />
+                    <span className="text-sm text-white/90">{(editedRow as any)?.[column] ? "Sí" : "No"}</span>
+                </label>
+            );
+        }
+
+        if (Array.isArray(val) || typeof val === "object") {
+            return (
+                <textarea
+                    className="w-full bg-white/3 p-2 rounded text-sm"
+                    rows={3}
+                    readOnly={readOnly}
+                    value={JSON.stringify(val)}
+                    onChange={readOnly ? undefined : (e) => {
+                        try {
+                            updateField(JSON.parse(e.target.value));
+                        } catch {
+                            updateField(e.target.value);
+                        }
+                    }}
+                />
+            );
+        }
+
+        if (isCopyable && readOnly) {
+            return (
+                <CopyInput
+                    value={String(val ?? "")}
+                    readOnly
+                    copyLabel="Copiar"
+                    successLabel="Copiado"
+                />
+            );
+        }
+
+        return (
+            <Input
+                className="bg-white/3"
+                value={String(val ?? "")}
+                readOnly={readOnly}
+                onChange={readOnly ? undefined : (e) => {
+                    updateField(e.target.value);
+                    setTouchedFields((prev) => ({ ...prev, [column]: true }));
+                }}
+                onBlur={readOnly ? undefined : () => setTouchedFields((prev) => ({ ...prev, [column]: true }))}
+                error={readOnly ? undefined : error ?? undefined}
+                message={readOnly ? undefined : message}
+                validation={readOnly ? undefined : validation}
+            />
+        );
+    };
 
     return (
         <div className={`w-full ${className}`} style={{ color: 'var(--color-foreground)' }}>
@@ -274,38 +400,31 @@ export default function Table<T extends Record<string, unknown>>({
 
             {/* View Modal */}
             <Modal isOpen={!!viewRow} title="Ver registro" onClose={closeView}>
-                <pre className="whitespace-pre-wrap text-xs bg-white/3 p-3 rounded">{viewRow ? JSON.stringify(viewRow, null, 2) : ""}</pre>
+
+                <div className="flex flex-col gap-3">
+                    {header.map((column) => (
+                        <div key={column} className="flex flex-col gap-1">
+                            <label className="text-xs text-secondary font-medium">{column}</label>
+                            {renderField(column, editedRow?.[column], true)}
+                        </div>
+                    ))}
+                </div>
             </Modal>
 
             {/* Edit Modal */}
             <Modal isOpen={editRowIndex !== null} title={editRowIndex !== null ? `Editar registro #${editRowIndex + 1}` : undefined} onClose={closeEdit}>
                 {editedRow && (
                     <div className="flex flex-col gap-3">
-                        {header.map((column) => {
-                            const val = editedRow[column];
-                            const isBool = typeof val === "boolean";
-                            return (
-                                <div key={column} className="flex flex-col gap-1">
-                                    <label className="text-xs text-secondary font-medium">{column}</label>
-                                    {isBool ? (
-                                        <label className="inline-flex items-center gap-2">
-                                            <input type="checkbox" checked={!!val} onChange={(e) => setEditedRow({ ...editedRow, [column]: e.target.checked })} />
-                                            <span className="text-sm text-white/90">{(editedRow as any)[column] ? "Sí" : "No"}</span>
-                                        </label>
-                                    ) : Array.isArray(val) || typeof val === "object" ? (
-                                        <textarea className="w-full bg-white/3 p-2 rounded text-sm" rows={3} value={JSON.stringify(val)} onChange={(e) => {
-                                            try { setEditedRow({ ...editedRow, [column]: JSON.parse(e.target.value) }); } catch { setEditedRow({ ...editedRow, [column]: e.target.value }); }
-                                        }} />
-                                    ) : (
-                                        <input className="w-full bg-white/3 p-2 rounded text-sm" value={String(val ?? "")} onChange={(e) => setEditedRow({ ...editedRow, [column]: e.target.value })} />
-                                    )}
-                                </div>
-                            );
-                        })}
+                        {header.map((column) => (
+                            <div key={column} className="flex flex-col gap-1">
+                                <label className="text-xs text-secondary font-medium">{column}</label>
+                                {renderField(column, editedRow[column], false)}
+                            </div>
+                        ))}
 
                         <div className="flex items-center justify-end gap-2 mt-2">
-                            <Button variant="ghost" size="sm" onClick={closeEdit}>Cancelar</Button>
-                            <Button variant="primary" size="sm" onClick={saveEdit}>Guardar</Button>
+                            <Button variant="ghost" onClick={closeEdit}>Cancelar</Button>
+                            <Button variant="primary" onClick={saveEdit}>Guardar</Button>
                         </div>
                     </div>
                 )}
@@ -315,8 +434,8 @@ export default function Table<T extends Record<string, unknown>>({
             <Modal isOpen={isConfirmIndex !== null} title="Confirmar eliminación" onClose={cancelDelete}>
                 <div className="text-sm text-white/90">¿Eliminar este registro? Esta acción no se puede deshacer.</div>
                 <div className="flex items-center justify-end gap-2 mt-4">
-                    <Button variant="ghost" size="sm" onClick={cancelDelete}>Cancelar</Button>
-                    <Button variant="primary" size="sm" onClick={doDelete}>Eliminar</Button>
+                    <Button variant="ghost" onClick={cancelDelete}>Cancelar</Button>
+                    <Button variant="primary" onClick={doDelete}>Eliminar</Button>
                 </div>
             </Modal>
         </div>

@@ -3,15 +3,15 @@ import { List, Monitor, Network, Users, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
 interface ViewServerProps {
-    perfiles?: number;
-    cuentas?: number;
-    clientes?: number;
+    services?: {
+        profiles?: number;
+        accounts?: number;
+        customers?: number;
+    }
 }
 
 export default function ViewServer({
-    perfiles = 0,
-    cuentas = 0,
-    clientes = 0,
+    services: { profiles = 0, accounts = 0, customers = 0 } = {}
 }: Readonly<ViewServerProps>) {
     return (
         <Card className="h-full flex flex-col">
@@ -35,7 +35,7 @@ export default function ViewServer({
                         <Monitor className="w-6 h-6 text-accent" />
                     </Link>
                     <div className="text-center">
-                        <p className="text-4xl font-bold leading-none">{perfiles}</p>
+                        <p className="text-4xl font-bold leading-none">{profiles}</p>
                         <Link
                             href="/administrar/perfiles"
                             className="flex items-center justify-center gap-1 mt-2 group"
@@ -55,7 +55,7 @@ export default function ViewServer({
                         <Network className="w-6 h-6 text-accent" />
                     </Link>
                     <div className="text-center">
-                        <p className="text-4xl font-bold leading-none">{cuentas}</p>
+                        <p className="text-4xl font-bold leading-none">{accounts}</p>
                         <Link
                             href="/administrar/cuentas"
                             className="flex items-center justify-center gap-1 mt-2 group"
@@ -73,7 +73,7 @@ export default function ViewServer({
                         <Users className="w-6 h-6 text-accent" />
                     </Link>
                     <div className="text-center">
-                        <p className="text-4xl font-bold leading-none">{clientes}</p>
+                        <p className="text-4xl font-bold leading-none">{customers}</p>
                         <Link
                             href="/administrar/clientes"
                             className="flex items-center justify-center gap-1 mt-2 group"

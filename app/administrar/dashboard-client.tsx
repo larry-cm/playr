@@ -2,7 +2,7 @@
 
 import { LayoutDashboard, Menu } from "lucide-react";
 import { useState } from "react";
-import Aside from "./aside";
+import Aside from "@/app/administrar/aside";
 
 const navItems = [
     { name: "Administrar", href: "/administrar", icon: LayoutDashboard, roles: ["admin", "manager", "user"] },

@@ -1,13 +1,12 @@
 "use client";
 
-import { LayoutDashboard, Menu, UserPlus } from "lucide-react";
+import { LayoutDashboard, Menu } from "lucide-react";
 import { useState } from "react";
-import Aside from "./aside";
+import Aside from "@/app/administrar/aside";
 
 
 const navItems = [
     { name: "Administrar", href: "/administrar", icon: LayoutDashboard, roles: ["admin", "manager", "user"] },
-    { name: "Crear Cliente", href: "/administrar/crear-cliente", icon: UserPlus, roles: ["admin", "manager"] },
 ];
 
 export default function DashboardClient({

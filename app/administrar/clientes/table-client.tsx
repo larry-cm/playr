@@ -1,0 +1,30 @@
+"use client";
+import Table from "@ui/table";
+import { editCustomerAction } from "@action/admin/cusomers/edit-customer-action"
+import { deleteCustomerAction } from "@action/admin/cusomers/delete-customer-action";
+
+export default function TableClient({ customers }: { customers: any[] }) {
+    const header = ["Nombre", "Correo", "Teléfono", "Fecha de Creación"];
+
+    const saveEditCustomer = async (formData: any) => {
+        const error = await editCustomerAction({
+            id: formData["Id"],
+            email: formData["Correo"],
+            name: formData["Nombre"],
+            phone: formData["Teléfono"],
+            createAt: formData["Fecha de Creación"]
+        });
+        if (error) console.error("Error al editar el cliente -> " + error);
+    }
+
+    const deleteCustomer = async (id: string) => {
+        const error = await deleteCustomerAction({ id });
+        if (error) console.error("Error al eliminar el cliente -> " + error);
+    }
+
+    return (
+        <article>
+            <Table header={header} data={customers} onEditSave={saveEditCustomer} onDelete={deleteCustomer} />
+        </article>
+    );
+}

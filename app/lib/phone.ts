@@ -9,7 +9,6 @@ export function formatColombianNumberPhone(input: string): string {
 
     // Un celular colombiano válido tiene 10 dígitos y empieza por 3
     if (digits.length !== 10 || !digits.startsWith('3')) {
-        console.error('Número de celular colombiano inválido');
         return "error"
     }
 

@@ -14,8 +14,8 @@ interface TableProps<T extends Record<string, unknown>> {
     data: T[];
     className?: string;
     showActions?: boolean;
-    onEditSave?: (row: T, index: number) => void;
-    onDelete?: (index: number) => void;
+    onEditSave?: (row: T, id: string | number) => void;
+    onDelete?: (id: string, index: number) => void;
 }
 
 const formatCellValue = (value: unknown) => {
@@ -52,62 +52,63 @@ export default function Table<T extends Record<string, unknown>>({
 }: Readonly<TableProps<T>>) {
     const [rows, setRows] = useState<T[]>(data);
     const [viewRow, setViewRow] = useState<T | null>(null);
-    const [editRowIndex, setEditRowIndex] = useState<number | null>(null);
+    const [editRowId, setEditRowId] = useState<string | number | null>(null);
     const [editedRow, setEditedRow] = useState<Record<string, any> | null>(null);
     const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
-    const [isConfirmIndex, setIsConfirmIndex] = useState<number | null>(null);
+    const [isConfirmId, setIsConfirmId] = useState<string | null>(null);
     const [search, setSearch] = useState("");
 
     useEffect(() => {
         setRows(data);
     }, [data]);
 
+    const getRowId = (row: T, index: number): string => {
+        return (row as any)?.Id ?? (row as any)?.id ?? index;
+    };
+
     const openView = (row: T) => {
         setViewRow(row);
-        const copy: Record<string, any> = {};
-        header.forEach((h) => (copy[h] = (row as any)[h]));
-        setEditedRow(copy);
+        setEditedRow({ ...row });
     };
+
     const closeView = () => {
         setViewRow(null);
         setEditedRow(null);
     };
 
     const openEdit = (row: T, index: number) => {
-        setEditRowIndex(index);
-        const copy: Record<string, any> = {};
-        header.forEach((h) => (copy[h] = (row as any)[h]));
-        setEditedRow(copy);
+        const id = getRowId(row, index);
+        setEditRowId(id);
+        setEditedRow({ ...row });
         setTouchedFields({});
     };
 
     const closeEdit = () => {
-        setEditRowIndex(null);
+        setEditRowId(null);
         setEditedRow(null);
         setTouchedFields({});
     };
 
     const saveEdit = () => {
-        if (editRowIndex === null || editedRow === null) return;
+        if (editRowId === null || editedRow === null) return;
         const updatedRow = editedRow as unknown as T;
 
-        setRows((prev) => {
-            const next = [...prev];
-            next[editRowIndex] = updatedRow;
-            return next;
-        });
+        setRows((prev) =>
+            prev.map((r, i) => (getRowId(r, i) === editRowId ? updatedRow : r))
+        );
 
-        onEditSave?.(updatedRow, editRowIndex);
+        onEditSave?.(updatedRow, editRowId);
         closeEdit();
     };
 
-    const confirmDelete = (index: number) => setIsConfirmIndex(index);
-    const cancelDelete = () => setIsConfirmIndex(null);
+    const confirmDelete = (row: T, index: number) => setIsConfirmId(getRowId(row, index));
+    const cancelDelete = () => setIsConfirmId(null);
     const doDelete = () => {
-        if (isConfirmIndex === null) return;
-        setRows((prev) => prev.filter((_, i) => i !== isConfirmIndex));
-        onDelete?.(isConfirmIndex);
-        setIsConfirmIndex(null);
+        if (isConfirmId === null) return;
+        const targetIndex = rows.findIndex((r, i) => getRowId(r, i) === isConfirmId);
+        setRows((prev) => prev.filter((r, i) => getRowId(r, i) !== isConfirmId));
+        onDelete?.(isConfirmId, targetIndex);
+        setIsConfirmId(null);
     };
 
     const filteredRows = useMemo(() => {
@@ -302,7 +303,7 @@ export default function Table<T extends Record<string, unknown>>({
                                                             onClick={() => openView(row)}
                                                             aria-label="Ver"
                                                             title="Ver"
-                                                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-(--color-accent)/10 hover:text-(--color-accent) focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/25"
+                                                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent) focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/25"
                                                         >
                                                             <Eye className="h-4 w-4" />
                                                         </button>
@@ -311,13 +312,13 @@ export default function Table<T extends Record<string, unknown>>({
                                                             onClick={() => openEdit(row, rowIndex)}
                                                             aria-label="Editar"
                                                             title="Editar"
-                                                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-(--color-accent)/10 hover:text-(--color-accent) focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/25"
+                                                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent) focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/25"
                                                         >
                                                             <Edit className="h-4 w-4" />
                                                         </button>
                                                         <button
                                                             type="button"
-                                                            onClick={() => confirmDelete(rowIndex)}
+                                                            onClick={() => confirmDelete(row, rowIndex)}
                                                             aria-label="Eliminar"
                                                             title="Eliminar"
                                                             className="flex h-9 w-9 items-center justify-center rounded-xl border border-red-400/20 bg-red-500/10 text-red-400 transition-all duration-200 hover:border-red-400/30 hover:bg-red-500/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/25"
@@ -372,20 +373,20 @@ export default function Table<T extends Record<string, unknown>>({
                                         <button
                                             type="button"
                                             onClick={() => openView(row)}
-                                            className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 px-3 text-sm text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-(--color-accent)/10 hover:text-(--color-accent)"
+                                            className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 px-3 text-sm text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent)"
                                         >
                                             <Eye className="mr-2 h-4 w-4" />Ver
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => openEdit(row, rowIndex)}
-                                            className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 px-3 text-sm text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-(--color-accent)/10 hover:text-(--color-accent)"
+                                            className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 px-3 text-sm text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent)"
                                         >
                                             <Edit className="mr-2 h-4 w-4" />Editar
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => confirmDelete(rowIndex)}
+                                            onClick={() => confirmDelete(row, rowIndex)}
                                             className="inline-flex h-9 items-center justify-center rounded-xl border border-red-400/20 bg-red-500/10 px-3 text-sm text-red-400 transition-all duration-200 hover:border-red-400/30 hover:bg-red-500/15"
                                         >
                                             <Trash2 className="mr-2 h-4 w-4" />Eliminar
@@ -412,7 +413,7 @@ export default function Table<T extends Record<string, unknown>>({
             </Modal>
 
             {/* Edit Modal */}
-            <Modal isOpen={editRowIndex !== null} title={editRowIndex !== null ? `Editar registro #${editRowIndex + 1}` : undefined} onClose={closeEdit}>
+            <Modal isOpen={editRowId !== null} title={editRowId !== null ? "Editar registro" : undefined} onClose={closeEdit}>
                 {editedRow && (
                     <div className="flex flex-col gap-3">
                         {header.map((column) => (
@@ -431,7 +432,7 @@ export default function Table<T extends Record<string, unknown>>({
             </Modal>
 
             {/* Confirm Delete Modal */}
-            <Modal isOpen={isConfirmIndex !== null} title="Confirmar eliminación" onClose={cancelDelete}>
+            <Modal isOpen={isConfirmId !== null} title="Confirmar eliminación" onClose={cancelDelete}>
                 <div className="text-sm text-white/90">¿Eliminar este registro? Esta acción no se puede deshacer.</div>
                 <div className="flex items-center justify-end gap-2 mt-4">
                     <Button variant="ghost" onClick={cancelDelete}>Cancelar</Button>

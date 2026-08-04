@@ -1,7 +1,7 @@
 "use client";
 import Table from "@ui/table";
-import { editCustomerAction } from "@action/admin/cusomers/edit-customer-action"
-import { deleteCustomerAction } from "@action/admin/cusomers/delete-customer-action";
+import { editCustomerAction } from "@/app/action/manager-and-admin/customers/edit-customer-action"
+import { deleteCustomerAction } from "@/app/action/manager-and-admin/customers/delete-customer-action";
 
 export default function TableClient({ customers }: { customers: any[] }) {
     const header = ["Nombre", "Correo", "Teléfono", "Fecha de Creación"];

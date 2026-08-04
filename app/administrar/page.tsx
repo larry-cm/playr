@@ -1,5 +1,5 @@
 import { getRoleUser } from "@action/get-role-action";
-import { resumeServicesAction } from "@action/admin/resume-service-action";
+import { resumeServicesAction } from "@action/manager-and-admin/resume-service-action";
 import ViewUser from "@/app/administrar/view-user";
 import ViewManagerAndAdmin from "@/app/administrar/view-manager-and-admin";
 

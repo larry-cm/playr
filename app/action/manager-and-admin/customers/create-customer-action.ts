@@ -1,14 +1,9 @@
 "use server";
 
 import { z } from "zod";
-import { createSupabase } from "@/app/lib/supabase/server";
-import { getCountryByCode } from "@lib/countries";
 
 const schema = z.object({
     email: z
-        .string({
-            message: "Ingresa un correo electrónico.",
-        })
         .email({
             message: "Ingresa un correo electrónico válido.",
         }),
@@ -70,6 +65,7 @@ export const createClientAction = async (initialState: CreateClientState, formDa
     }
 
     if (data.data.celular_numero) {
+        const { getCountryByCode } = await import("@lib/countries")
         const country = getCountryByCode(data.data.celular_codigo!)
         if (!country) {
             return {
@@ -88,6 +84,7 @@ export const createClientAction = async (initialState: CreateClientState, formDa
         }
     }
 
+    const { createSupabase } = await import("@lib/supabase/server");
     const supabase = await createSupabase()
 
     const metadata: Record<string, string> = {

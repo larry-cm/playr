@@ -28,7 +28,7 @@ export default function DashboardClient({
                 <div className="w-9" />
             </header>
 
-            <div className="flex min-h-screen md:py-12">
+            <div className="flex min-h-screen py-12 lg:py-0">
                 {/* Overlay */}
                 {sidebarOpen && (
                     <div

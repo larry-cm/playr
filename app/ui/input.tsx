@@ -36,10 +36,10 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         ? error
         : [error]
       : message
-      ? Array.isArray(message)
-        ? message
-        : [message]
-      : []
+        ? Array.isArray(message)
+          ? message
+          : [message]
+        : []
 
     return (
       <div className="flex flex-col gap-1.5">
@@ -57,7 +57,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           <input
             ref={ref}
             id={id}
-            className={`w-full bg-white/[0.05] border rounded-xl py-2.5 text-sm text-white placeholder-muted outline-none transition-all duration-200 focus:border-accent focus:ring-1 focus:ring-accent/40 ${leftIcon ? "pl-10" : "pl-3.5"} ${rightIcon ? "pr-10" : "pr-3.5"} ${borderClass} ${className}`}
+            className={`w-full bg-white/5 border rounded-xl py-2.5 text-sm text-white placeholder-muted outline-none transition-all duration-200 focus:border-accent focus:ring-1 focus:ring-accent/40 ${leftIcon ? "pl-10" : "pl-3.5"} ${rightIcon ? "pr-10" : "pr-3.5"} ${borderClass} ${className}`}
             {...rest}
           />
           {rightIcon && (
@@ -66,7 +66,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             </div>
           )}
         </div>
-        <div className="flex flex-col gap-0.5 mt-0.5 min-h-[1.25rem]">
+        <div className="flex flex-col gap-0.5 mt-0.5 min-h-5">
           {messages.map((msg, i) => (
             <p key={i} className={`${textClass} text-xs flex items-center gap-1`}>
               <TriangleAlert className="w-3 h-3 shrink-0" />

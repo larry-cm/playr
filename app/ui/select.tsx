@@ -34,16 +34,16 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
           <select
             ref={ref}
             id={id}
-            className={`w-full appearance-none bg-white/[0.05] border rounded-xl py-2.5 text-sm text-white placeholder-muted outline-none transition-all duration-200 focus:border-accent focus:ring-1 focus:ring-accent/40 ${leftIcon ? "pl-10" : "pl-3.5"} pr-10 ${error ? "border-red-500/50 focus:border-red-400 focus:ring-red-400/40" : "border-white/[0.1]"} ${className}`}
+            className={`w-full appearance-none bg-white/5 border rounded-xl py-2.5 text-sm text-white placeholder-muted outline-none transition-all duration-200 focus:border-accent focus:ring-1 focus:ring-accent/40 ${leftIcon ? "pl-10" : "pl-3.5"} pr-10 ${error ? "border-red-500/50 focus:border-red-400 focus:ring-red-400/40" : "border-white/10"} ${className}`}
             {...rest}
           >
             {placeholder && (
-              <option value="" disabled className="bg-[#0a0a0f] text-muted">
+              <option value="" disabled className="bg-background text-muted">
                 {placeholder}
               </option>
             )}
             {options.map((opt) => (
-              <option key={opt.value} value={opt.value} className="bg-[#0a0a0f] text-white">
+              <option key={opt.value} value={opt.value} className="bg-background text-white">
                 {opt.label}
               </option>
             ))}

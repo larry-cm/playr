@@ -39,7 +39,7 @@ interface PhoneInputProps {
 }
 
 export default function PhoneInput({
-  codeValue = "+52",
+  codeValue = "+57",
   numberValue = "",
   onCodeChange,
   onNumberChange,
@@ -49,6 +49,7 @@ export default function PhoneInput({
   label = "Celular",
   numberPlaceholder = "123 456 7890",
   required,
+  message,
   validation,
 }: PhoneInputProps) {
   const country = getCountryByCode(codeValue)
@@ -69,16 +70,16 @@ export default function PhoneInput({
     ...(Array.isArray(codeError) ? codeError : codeError ? [codeError] : []),
     ...(Array.isArray(numberError) ? numberError : numberError ? [numberError] : []),
   ]
- 
+
   const validationState = validation ?? "idle"
   const textClass = textByValidation[validationState]
   const messages = allErrors.length > 0
     ? allErrors
     : message
-    ? Array.isArray(message)
-      ? message
-      : [message]
-    : []
+      ? Array.isArray(message)
+        ? message
+        : [message]
+      : []
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -86,7 +87,7 @@ export default function PhoneInput({
         <label className="text-sm font-medium text-secondary">{label}{required && <span className="text-accent ml-0.5">*</span>}</label>
       )}
       <div className="flex gap-2">
-        <div className="w-[72px] shrink-0">
+        <div className="w-18 shrink-0">
           <SelectDropdown
             options={countryOptions}
             value={codeValue}
@@ -121,11 +122,11 @@ export default function PhoneInput({
             onBlur={onBlur}
             placeholder={numberPlaceholder}
             maxLength={maxDigits}
-            className={`w-full bg-white/[0.05] border rounded-xl py-2.5 pl-10 pr-3.5 text-sm text-white placeholder-muted outline-none transition-all duration-200 focus:border-accent focus:ring-1 focus:ring-accent/40 ${borderByValidation[validation ?? "idle"]}`}
+            className={`w-full bg-white/5 border rounded-xl py-2.5 pl-10 pr-3.5 text-sm text-white placeholder-muted outline-none transition-all duration-200 focus:border-accent focus:ring-1 focus:ring-accent/40 ${borderByValidation[validation ?? "idle"]}`}
           />
         </div>
       </div>
-      <div className="flex flex-col gap-0.5 mt-0.5 min-h-[1.25rem]">
+      <div className="flex flex-col gap-0.5 mt-0.5 min-h-5">
         {messages.map((msg, i) => (
           <p key={i} className={`${textClass} text-xs flex items-center gap-1`}>
             <TriangleAlert className="w-3 h-3 shrink-0" />

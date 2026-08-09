@@ -1,17 +1,16 @@
 "use client"
-import Card from "@ui/card"
-import PlayrLogo from "@ui/playr-logo"
-import Alert from "@ui/alert"
-import Input from "@ui/input"
-import type { ValidationState } from "@ui/input"
-import PasswordInput from "@ui/password-input"
-import Checkbox from "@ui/checkbox"
-import Button from "@ui/button"
-import { useActionState, useState } from "react"
-import { type LoginState, loginAction } from "@action/login/login-action"
+
 import { Mail } from "lucide-react"
-import Link from "next/link"
+import { type LoginState, loginAction } from "@action/login/login-action"
+import { useActionState, useState } from "react"
 import { validateEmail } from "@lib/validation"
+import Alert from "@ui/alert"
+import Button from "@ui/button"
+import Card from "@ui/card"
+import Input, { type ValidationState } from "@ui/input"
+import Link from "next/link"
+import PasswordInput from "@ui/password-input"
+import PlayrLogo from "@ui/playr-logo"
 
 const initialState: LoginState = { success: false, errors: {} }
 
@@ -94,8 +93,11 @@ export default function Home() {
               validation={getValidation(touched.password, passwordError, password, true)}
             />
 
-            <div className="flex items-center justify-between">
-              <Checkbox id="recordar" name="recordar" label="Recordarme" />
+            <Button type="submit" isLoading={isLoading} size="lg">
+              Iniciar sesión
+            </Button>
+
+            <div className="flex items-center justify-center">
               <Link
                 href="/recuperar"
                 className="text-sm text-secondary hover:text-white transition-colors"
@@ -103,15 +105,11 @@ export default function Home() {
                 ¿Olvidaste tu contraseña?
               </Link>
             </div>
-
-            <Button type="submit" isLoading={isLoading} size="lg">
-              Iniciar sesión
-            </Button>
           </form>
         </Card>
 
         <p className="text-center text-xs text-muted mt-6 select-none">
-          &copy; 2026 Playr. Todos los derechos reservados.
+          &copy; 2026 Playr es una organización privada con todos los derechos reservados.
         </p>
       </div>
     </main>

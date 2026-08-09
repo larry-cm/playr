@@ -93,7 +93,7 @@ export default function ForgotPasswordPage() {
         </Card>
 
         <p className="text-center text-xs text-muted mt-6 select-none">
-          &copy; 2026 Playr. Todos los derechos reservados.
+          &copy; 2026 Playr es una organización privada con todos los derechos reservados.
         </p>
       </div>
     </main>

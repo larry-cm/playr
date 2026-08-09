@@ -35,7 +35,7 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role }: AsideProps)
             ].join(" ")}
         >
             {/* Logo */}
-            <div className="flex items-center justify-between px-2 py-3 mb-6">
+            <div className="flex items-center justify-between px-2 py-3 mb-8">
                 <Link href="/administrar" className="flex items-center gap-2.5">
                     <Image src={logoPlayr} width="28" height="28" alt="Playr" />
                     <span className="text-xl font-bold tracking-tight text-white">Playr</span>

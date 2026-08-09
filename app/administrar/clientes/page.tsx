@@ -7,9 +7,9 @@ export default async function PageAdministrarClientes() {
     const customers = await getAllCustomersAction()
     const hasError = customers === null
     return (
-        <section className="flex flex-col gap-6">
+        <section className="flex flex-col gap-4">
             <header>
-                <h1 className="text-2xl font-bold tracking-tight mb-2">Administrar Clientes</h1>
+                <h1 className="text-2xl font-bold tracking-tight">Administrar Clientes</h1>
                 <p className="text-sm text-muted-foreground">Crea, edita y elimina clientes de tu aplicación.</p>
             </header>
 

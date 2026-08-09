@@ -7,7 +7,7 @@ import type { ValidationState } from "@ui/input";
 import Modal from "@ui/modal";
 import CopyInput from "@ui/copy-input";
 import { Eye, Edit, Trash2, Search, Plus } from "lucide-react";
-import { validateEmail, validatePassword, validateUsername } from "@lib/validation";
+import { validateEmail, validatePassword, validateUsername } from "@lib/validation"
 
 interface TableProps<T extends Record<string, unknown>> {
     header: string[];
@@ -16,6 +16,7 @@ interface TableProps<T extends Record<string, unknown>> {
     showActions?: boolean;
     onEditSave?: (row: T, id: string | number) => void;
     onDelete?: (id: string, index: number) => void;
+    onCreateSave?: (row: Record<string, any>) => void;
 }
 
 const formatCellValue = (value: unknown) => {
@@ -49,9 +50,12 @@ export default function Table<T extends Record<string, unknown>>({
     showActions = true,
     onEditSave,
     onDelete,
+    onCreateSave,
 }: Readonly<TableProps<T>>) {
     const [rows, setRows] = useState<T[]>(data);
     const [viewRow, setViewRow] = useState<T | null>(null);
+    const [viewCreate, setViewCreate] = useState<boolean>(false);
+    const [createRow, setCreateRow] = useState<Record<string, any> | null>(null);
     const [editRowId, setEditRowId] = useState<string | number | null>(null);
     const [editedRow, setEditedRow] = useState<Record<string, any> | null>(null);
     const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
@@ -69,6 +73,26 @@ export default function Table<T extends Record<string, unknown>>({
     const openView = (row: T) => {
         setViewRow(row);
         setEditedRow({ ...row });
+    };
+
+    const openCreate = () => {
+        setCreateRow({});
+        setTouchedFields({});
+        setViewCreate(true);
+    };
+
+    const createNewRow = () => {
+        setRows((prev) => [...prev, createRow as T]);
+        if (createRow) {
+            onCreateSave?.(createRow);
+        }
+        closeCreate();
+    };
+
+    const closeCreate = () => {
+        setViewCreate(false);
+        setCreateRow(null);
+        setTouchedFields({});
     };
 
     const closeView = () => {
@@ -162,8 +186,12 @@ export default function Table<T extends Record<string, unknown>>({
         const validation = touched ? rawValidation : "idle" as ValidationState;
 
         const updateField = (value: unknown) => {
-            if (readOnly || editedRow === null) return;
-            setEditedRow({ ...editedRow, [column]: value });
+            if (readOnly) return;
+            if (viewCreate) {
+                setCreateRow((prev) => ({ ...(prev ?? {}), [column]: value }));
+            } else if (editedRow !== null) {
+                setEditedRow({ ...editedRow, [column]: value });
+            }
         };
 
         if (isBool) {
@@ -176,7 +204,7 @@ export default function Table<T extends Record<string, unknown>>({
                         onChange={(e) => updateField(e.target.checked)}
                         className="cursor-pointer rounded border-white/10 bg-white/5 text-accent disabled:cursor-not-allowed"
                     />
-                    <span className="text-sm text-white/90">{(editedRow as any)?.[column] ? "Sí" : "No"}</span>
+                    <span className="text-sm text-white/90">{val ? "Sí" : "No"}</span>
                 </label>
             );
         }
@@ -253,7 +281,10 @@ export default function Table<T extends Record<string, unknown>>({
                                 />
                             </div>
 
-                            <Button variant="primary" leftIcon={<Plus className="h-4 w-4" />}>
+                            <Button
+                                onClick={openCreate}
+                                variant="primary"
+                                leftIcon={<Plus className="h-4 w-4" />}>
                                 Agregar
                             </Button>
                         </div>
@@ -398,6 +429,22 @@ export default function Table<T extends Record<string, unknown>>({
                     ))
                 )}
             </div>
+
+            {/* Create Modal */}
+            <Modal isOpen={viewCreate} title="Crear registro" onClose={closeCreate}>
+                <div className="flex flex-col gap-3">
+                    {header.map((column) => (
+                        <div key={column} className="flex flex-col gap-1">
+                            <label className="text-xs text-secondary font-medium">{column}</label>
+                            {renderField(column, createRow?.[column], false)}
+                        </div>
+                    ))}
+                </div>
+                <div className="flex items-center justify-end gap-2 mt-2">
+                    <Button variant="ghost" onClick={closeCreate}>Cancelar</Button>
+                    <Button variant="primary" onClick={createNewRow}>Crear</Button>
+                </div>
+            </Modal>
 
             {/* View Modal */}
             <Modal isOpen={!!viewRow} title="Ver registro" onClose={closeView}>

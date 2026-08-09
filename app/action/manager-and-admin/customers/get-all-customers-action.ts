@@ -18,7 +18,7 @@ export async function getAllCustomersAction() {
         }
         return data
             .filter(customers =>
-                formatColombianNumberPhone(customers.phone) !== "error" && formatColombianDate(customers.created_at) !== "error"
+                formatColombianNumberPhone(customers?.phone) !== "error" && formatColombianDate(customers?.created_at ?? "") !== "error"
             )
             .map((customer) => ({
                 Id: customer.id,
@@ -28,7 +28,7 @@ export async function getAllCustomersAction() {
                 "Fecha de Creación": formatColombianDate(customer.created_at)
             }));
     } catch (error) {
-        return null;
+        return [];
     }
 
 }

@@ -1,7 +1,8 @@
 export function formatColombianNumberPhone(input: string): string {
     // Elimina todo lo que no sea dígito
-    let digits = input.replace(/\D/g, '');
+    let digits = input?.replace(/\D/g, '');
 
+    if (!digits?.length) return "--"
     // Si viene con el indicativo del país (57), lo removemos para normalizar
     if (digits.startsWith('57') && digits.length > 10) {
         digits = digits.slice(2);

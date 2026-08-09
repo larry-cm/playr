@@ -1,12 +1,12 @@
-"use client";
+"use client"
 
-import { LayoutDashboard, LogOut, X } from "lucide-react";
+import { LayoutDashboard, LogOut, X } from "lucide-react"
 
-import { usePathname, useRouter } from "next/navigation";
-import Link from "next/link";
-import { supabase } from "@/app/lib/supabase/client";
+import { usePathname, useRouter } from "next/navigation"
+import Link from "next/link"
+import { supabase } from "@lib/supabase/client"
 import logoPlayr from "@/public/favicon.svg"
-import Image from "next/image";
+import Image from "next/image"
 
 
 interface AsideProps {
@@ -18,12 +18,12 @@ interface AsideProps {
 const navItems = [
     { name: "Administrar", href: "/administrar", icon: LayoutDashboard, roles: ["admin", "manager", "user"] },
     { name: "Clientes", href: "/administrar/clientes", icon: LayoutDashboard, roles: ["admin", "manager"] },
-];
+]
 export default function Aside({ sidebarOpen, setSidebarOpen, role }: AsideProps) {
-    const pathname = usePathname();
-    const router = useRouter();
+    const pathname = usePathname()
+    const router = useRouter()
 
-    const filteredItems = navItems.filter(item => !item.roles || item.roles.includes(role));
+    const filteredItems = navItems.filter(item => !item.roles || item.roles.includes(role))
 
     return (
         <aside
@@ -52,8 +52,8 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role }: AsideProps)
             {/* Navigation */}
             <nav className="flex-1 space-y-1">
                 {filteredItems.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = pathname === item.href;
+                    const Icon = item.icon
+                    const isActive = pathname === item.href
                     return (
                         <Link
                             key={item.href}
@@ -67,7 +67,7 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role }: AsideProps)
                             <Icon className="w-4 h-4 shrink-0" />
                             {item.name}
                         </Link>
-                    );
+                    )
                 })}
             </nav>
 
@@ -75,8 +75,8 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role }: AsideProps)
             <div className="pt-4 mt-4 border-t border-white/6">
                 <button
                     onClick={async () => {
-                        await supabase.auth.signOut();
-                        router.push("/");
+                        await supabase.auth.signOut()
+                        router.push("/")
                     }}
                     className="flex items-center gap-3 px-3 py-2.5 w-full rounded-xl text-sm text-secondary hover:text-white hover:bg-white/5 transition-all duration-200"
                 >
@@ -85,5 +85,5 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role }: AsideProps)
                 </button>
             </div>
         </aside>
-    );
+    )
 }

@@ -1,6 +1,6 @@
-"use client";
-import { type InputHTMLAttributes } from "react";
-import { Check } from "lucide-react";
+"use client"
+import { type InputHTMLAttributes } from "react"
+import { Check } from "lucide-react"
 
 interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "children"> {
   label: string;
@@ -26,5 +26,5 @@ export default function Checkbox({ label, error, id, className = "", ...rest }: 
         </div>
       )}
     </div>
-  );
+  )
 }

@@ -1,8 +1,8 @@
-"use client";
+"use client"
 
-import { Menu } from "lucide-react";
-import { useState } from "react";
-import Aside from "@/app/administrar/aside";
+import { Menu } from "lucide-react"
+import { useState } from "react"
+import Aside from "@/app/administrar/aside"
 
 export default function DashboardClient({
     children,
@@ -11,7 +11,7 @@ export default function DashboardClient({
     children: React.ReactNode;
     role: string;
 }>) {
-    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [sidebarOpen, setSidebarOpen] = useState(false)
 
     return (
         <>
@@ -48,5 +48,5 @@ export default function DashboardClient({
                 </main>
             </div>
         </>
-    );
+    )
 }

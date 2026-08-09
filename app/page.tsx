@@ -1,19 +1,19 @@
-"use client";
-import Card from "@ui/card";
-import PlayrLogo from "@ui/playr-logo";
-import Alert from "@ui/alert";
-import Input from "@ui/input";
-import type { ValidationState } from "@ui/input";
-import PasswordInput from "@ui/password-input";
-import Checkbox from "@ui/checkbox";
-import Button from "@ui/button";
-import { useActionState, useState } from "react";
-import { type LoginState, loginAction } from "@action/login/login-action";
-import { Mail } from "lucide-react";
-import Link from "next/link";
-import { validateEmail } from "@lib/validation";
+"use client"
+import Card from "@ui/card"
+import PlayrLogo from "@ui/playr-logo"
+import Alert from "@ui/alert"
+import Input from "@ui/input"
+import type { ValidationState } from "@ui/input"
+import PasswordInput from "@ui/password-input"
+import Checkbox from "@ui/checkbox"
+import Button from "@ui/button"
+import { useActionState, useState } from "react"
+import { type LoginState, loginAction } from "@action/login/login-action"
+import { Mail } from "lucide-react"
+import Link from "next/link"
+import { validateEmail } from "@lib/validation"
 
-const initialState: LoginState = { success: false, errors: {} };
+const initialState: LoginState = { success: false, errors: {} }
 
 function getValidation(
   touched: boolean,
@@ -21,24 +21,24 @@ function getValidation(
   value: string,
   required: boolean,
 ): ValidationState {
-  if (!touched) return "idle";
-  if (error) return "invalid";
-  if (required && !value) return "invalid";
-  return "valid";
+  if (!touched) return "idle"
+  if (error) return "invalid"
+  if (required && !value) return "invalid"
+  return "valid"
 }
 
 export default function Home() {
-  const [state, action, isLoading] = useActionState(loginAction, initialState);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [touched, setTouched] = useState({ email: false, password: false });
+  const [state, action, isLoading] = useActionState(loginAction, initialState)
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [touched, setTouched] = useState({ email: false, password: false })
 
   const touch = (field: "email" | "password") => {
-    setTouched((prev) => ({ ...prev, [field]: true }));
-  };
+    setTouched((prev) => ({ ...prev, [field]: true }))
+  }
 
-  const emailError = validateEmail(email);
-  const passwordError = !password ? "Ingresa una contraseña." : null;
+  const emailError = validateEmail(email)
+  const passwordError = !password ? "Ingresa una contraseña." : null
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-8">
@@ -115,5 +115,5 @@ export default function Home() {
         </p>
       </div>
     </main>
-  );
+  )
 }

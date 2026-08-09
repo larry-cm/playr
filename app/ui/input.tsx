@@ -1,6 +1,6 @@
-"use client";
-import { type InputHTMLAttributes, type ReactNode, forwardRef } from "react";
-import { TriangleAlert } from "lucide-react";
+"use client"
+import { type InputHTMLAttributes, type ReactNode, forwardRef } from "react"
+import { TriangleAlert } from "lucide-react"
 
 export type ValidationState = "idle" | "valid" | "invalid";
 
@@ -18,19 +18,19 @@ const borderByValidation: Record<ValidationState, string> = {
   idle: "border-white/[0.1]",
   valid: "border-emerald-500/50 focus:border-emerald-400 focus:ring-emerald-400/40",
   invalid: "border-red-500/50 focus:border-red-400 focus:ring-red-400/40",
-};
+}
 
 const textByValidation: Record<ValidationState, string> = {
   idle: "text-secondary",
   valid: "text-emerald-400",
   invalid: "text-red-400",
-};
+}
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ label, error, message, leftIcon, rightIcon, required, className = "", id, validation, ...rest }, ref) => {
-    const validationState = validation ?? "idle";
-    const borderClass = borderByValidation[validationState];
-    const textClass = textByValidation[validationState];
+    const validationState = validation ?? "idle"
+    const borderClass = borderByValidation[validationState]
+    const textClass = textByValidation[validationState]
     const messages = error
       ? Array.isArray(error)
         ? error
@@ -39,7 +39,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
       ? Array.isArray(message)
         ? message
         : [message]
-      : [];
+      : []
 
     return (
       <div className="flex flex-col gap-1.5">
@@ -75,10 +75,10 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           ))}
         </div>
       </div>
-    );
+    )
   },
-);
+)
 
-Input.displayName = "Input";
+Input.displayName = "Input"
 
-export default Input;
+export default Input

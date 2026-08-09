@@ -1,8 +1,8 @@
-"use client";
+"use client"
 
-import { useCallback, useRef, useState, type ForwardedRef, forwardRef } from "react";
-import { ClipboardCopy, Check } from "lucide-react";
-import Input, { type ValidationState } from "@ui/input";
+import { useCallback, useRef, useState, forwardRef } from "react"
+import { ClipboardCopy, Check } from "lucide-react"
+import Input, { type ValidationState } from "@ui/input"
 
 interface CopyInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "type"> {
     label?: string;
@@ -34,51 +34,51 @@ const CopyInput = forwardRef<HTMLInputElement, CopyInputProps>(
         },
         ref,
     ) => {
-        const [copied, setCopied] = useState(false);
-        const inputRef = useRef<HTMLInputElement>(null);
+        const [copied, setCopied] = useState(false)
+        const inputRef = useRef<HTMLInputElement>(null)
 
         const setRefs = useCallback(
             (node: HTMLInputElement | null) => {
-                inputRef.current = node;
+                inputRef.current = node
 
-                if (!ref) return;
+                if (!ref) return
                 if (typeof ref === "function") {
-                    ref(node);
+                    ref(node)
                 } else {
-                    (ref as React.MutableRefObject<HTMLInputElement | null>).current = node;
+                    (ref as React.MutableRefObject<HTMLInputElement | null>).current = node
                 }
             },
             [ref],
-        );
+        )
 
         const getCurrentText = () => {
             if (inputRef.current) {
-                return inputRef.current.value;
+                return inputRef.current.value
             }
 
             if (value !== undefined) {
-                return String(value ?? "");
+                return String(value ?? "")
             }
 
             if (defaultValue !== undefined) {
-                return String(defaultValue ?? "");
+                return String(defaultValue ?? "")
             }
 
-            return "";
-        };
+            return ""
+        }
 
         const copyToClipboard = async () => {
-            const text = getCurrentText().trim();
-            if (!text) return;
+            const text = getCurrentText().trim()
+            if (!text) return
 
             try {
-                await navigator.clipboard.writeText(text);
-                setCopied(true);
-                window.setTimeout(() => setCopied(false), 1800);
+                await navigator.clipboard.writeText(text)
+                setCopied(true)
+                window.setTimeout(() => setCopied(false), 1800)
             } catch {
                 // ignore clipboard errors silently
             }
-        };
+        }
 
         return (
             <Input
@@ -109,10 +109,10 @@ const CopyInput = forwardRef<HTMLInputElement, CopyInputProps>(
                 }
                 {...rest}
             />
-        );
+        )
     },
-);
+)
 
-CopyInput.displayName = "CopyInput";
+CopyInput.displayName = "CopyInput"
 
-export default CopyInput;
+export default CopyInput

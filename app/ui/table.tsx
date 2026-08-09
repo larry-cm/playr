@@ -1,12 +1,12 @@
-"use client";
+"use client"
 
-import { useEffect, useMemo, useState } from "react";
-import Button from "@ui/button";
-import Input from "@ui/input";
-import type { ValidationState } from "@ui/input";
-import Modal from "@ui/modal";
-import CopyInput from "@ui/copy-input";
-import { Eye, Edit, Trash2, Search, Plus } from "lucide-react";
+import { useEffect, useMemo, useState } from "react"
+import Button from "@ui/button"
+import Input from "@ui/input"
+import type { ValidationState } from "@ui/input"
+import Modal from "@ui/modal"
+import CopyInput from "@ui/copy-input"
+import { Eye, Edit, Trash2, Search, Plus } from "lucide-react"
 import { validateEmail, validatePassword, validateUsername } from "@lib/validation"
 
 interface TableProps<T extends Record<string, unknown>> {
@@ -21,27 +21,27 @@ interface TableProps<T extends Record<string, unknown>> {
 
 const formatCellValue = (value: unknown) => {
     if (value === null || value === undefined) {
-        return "--";
+        return "--"
     }
 
     if (typeof value === "boolean") {
-        return value ? "Sí" : "No";
+        return value ? "Sí" : "No"
     }
 
     if (Array.isArray(value)) {
-        return value.join(", ");
+        return value.join(", ")
     }
 
     if (typeof value === "object") {
         try {
-            return JSON.stringify(value);
+            return JSON.stringify(value)
         } catch {
-            return String(value);
+            return String(value)
         }
     }
 
-    return String(value);
-};
+    return String(value)
+}
 
 export default function Table<T extends Record<string, unknown>>({
     header,
@@ -52,147 +52,147 @@ export default function Table<T extends Record<string, unknown>>({
     onDelete,
     onCreateSave,
 }: Readonly<TableProps<T>>) {
-    const [rows, setRows] = useState<T[]>(data);
-    const [viewRow, setViewRow] = useState<T | null>(null);
-    const [viewCreate, setViewCreate] = useState<boolean>(false);
-    const [createRow, setCreateRow] = useState<Record<string, any> | null>(null);
-    const [editRowId, setEditRowId] = useState<string | number | null>(null);
-    const [editedRow, setEditedRow] = useState<Record<string, any> | null>(null);
-    const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
-    const [isConfirmId, setIsConfirmId] = useState<string | null>(null);
-    const [search, setSearch] = useState("");
+    const [rows, setRows] = useState<T[]>(data)
+    const [viewRow, setViewRow] = useState<T | null>(null)
+    const [viewCreate, setViewCreate] = useState<boolean>(false)
+    const [createRow, setCreateRow] = useState<Record<string, any> | null>(null)
+    const [editRowId, setEditRowId] = useState<string | number | null>(null)
+    const [editedRow, setEditedRow] = useState<Record<string, any> | null>(null)
+    const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({})
+    const [isConfirmId, setIsConfirmId] = useState<string | null>(null)
+    const [search, setSearch] = useState("")
 
     useEffect(() => {
-        setRows(data);
-    }, [data]);
+        setRows(data)
+    }, [data])
 
     const getRowId = (row: T, index: number): string => {
-        return (row as any)?.Id ?? (row as any)?.id ?? index;
-    };
+        return (row as any)?.Id ?? (row as any)?.id ?? index
+    }
 
     const openView = (row: T) => {
-        setViewRow(row);
-        setEditedRow({ ...row });
-    };
+        setViewRow(row)
+        setEditedRow({ ...row })
+    }
 
     const openCreate = () => {
-        setCreateRow({});
-        setTouchedFields({});
-        setViewCreate(true);
-    };
+        setCreateRow({})
+        setTouchedFields({})
+        setViewCreate(true)
+    }
 
     const createNewRow = () => {
-        setRows((prev) => [...prev, createRow as T]);
+        setRows((prev) => [...prev, createRow as T])
         if (createRow) {
-            onCreateSave?.(createRow);
+            onCreateSave?.(createRow)
         }
-        closeCreate();
-    };
+        closeCreate()
+    }
 
     const closeCreate = () => {
-        setViewCreate(false);
-        setCreateRow(null);
-        setTouchedFields({});
-    };
+        setViewCreate(false)
+        setCreateRow(null)
+        setTouchedFields({})
+    }
 
     const closeView = () => {
-        setViewRow(null);
-        setEditedRow(null);
-    };
+        setViewRow(null)
+        setEditedRow(null)
+    }
 
     const openEdit = (row: T, index: number) => {
-        const id = getRowId(row, index);
-        setEditRowId(id);
-        setEditedRow({ ...row });
-        setTouchedFields({});
-    };
+        const id = getRowId(row, index)
+        setEditRowId(id)
+        setEditedRow({ ...row })
+        setTouchedFields({})
+    }
 
     const closeEdit = () => {
-        setEditRowId(null);
-        setEditedRow(null);
-        setTouchedFields({});
-    };
+        setEditRowId(null)
+        setEditedRow(null)
+        setTouchedFields({})
+    }
 
     const saveEdit = () => {
-        if (editRowId === null || editedRow === null) return;
-        const updatedRow = editedRow as unknown as T;
+        if (editRowId === null || editedRow === null) return
+        const updatedRow = editedRow as unknown as T
 
         setRows((prev) =>
             prev.map((r, i) => (getRowId(r, i) === editRowId ? updatedRow : r))
-        );
+        )
 
-        onEditSave?.(updatedRow, editRowId);
-        closeEdit();
-    };
+        onEditSave?.(updatedRow, editRowId)
+        closeEdit()
+    }
 
-    const confirmDelete = (row: T, index: number) => setIsConfirmId(getRowId(row, index));
-    const cancelDelete = () => setIsConfirmId(null);
+    const confirmDelete = (row: T, index: number) => setIsConfirmId(getRowId(row, index))
+    const cancelDelete = () => setIsConfirmId(null)
     const doDelete = () => {
-        if (isConfirmId === null) return;
-        const targetIndex = rows.findIndex((r, i) => getRowId(r, i) === isConfirmId);
-        setRows((prev) => prev.filter((r, i) => getRowId(r, i) !== isConfirmId));
-        onDelete?.(isConfirmId, targetIndex);
-        setIsConfirmId(null);
-    };
+        if (isConfirmId === null) return
+        const targetIndex = rows.findIndex((r, i) => getRowId(r, i) === isConfirmId)
+        setRows((prev) => prev.filter((r, i) => getRowId(r, i) !== isConfirmId))
+        onDelete?.(isConfirmId, targetIndex)
+        setIsConfirmId(null)
+    }
 
     const filteredRows = useMemo(() => {
-        const query = search.trim().toLowerCase();
-        if (!query) return rows;
+        const query = search.trim().toLowerCase()
+        if (!query) return rows
 
         return rows.filter((row) =>
             header.some((column) => {
-                const value = (row as any)[column];
-                if (value === null || value === undefined) return false;
-                const text = formatCellValue(value).toLowerCase();
-                return text.includes(query);
+                const value = (row as any)[column]
+                if (value === null || value === undefined) return false
+                const text = formatCellValue(value).toLowerCase()
+                return text.includes(query)
             }),
-        );
-    }, [rows, search, header]);
+        )
+    }, [rows, search, header])
 
     const getFieldValidation = (column: string, value: unknown): { error: string | null; validation: ValidationState; message: string } => {
-        const normalized = column.toLowerCase();
-        const text = String(value ?? "");
-        let error: string | null = null;
-        let message = "Ingresa un valor.";
+        const normalized = column.toLowerCase()
+        const text = String(value ?? "")
+        let error: string | null = null
+        let message = "Ingresa un valor."
 
         if (/\b(email|correo)\b/i.test(normalized)) {
-            error = validateEmail(text);
-            message = "Ingresa un correo electrónico.";
+            error = validateEmail(text)
+            message = "Ingresa un correo electrónico."
         } else if (/\b(password|contraseña|pass)\b/i.test(normalized)) {
-            error = validatePassword(text);
-            message = "Ingresa una contraseña.";
+            error = validatePassword(text)
+            message = "Ingresa una contraseña."
         } else if (/\b(user(name)?|usuario|nombre)\b/i.test(normalized)) {
-            error = validateUsername(text);
-            message = "Ingresa un nombre de usuario.";
+            error = validateUsername(text)
+            message = "Ingresa un nombre de usuario."
         }
 
-        const validation: ValidationState = error ? "invalid" : text ? "valid" : "idle";
-        return { error, validation, message };
-    };
+        const validation: ValidationState = error ? "invalid" : text ? "valid" : "idle"
+        return { error, validation, message }
+    }
 
     const renderField = (column: string, val: unknown, readOnly: boolean) => {
-        const isBool = typeof val === "boolean";
+        const isBool = typeof val === "boolean"
         const isDateField = typeof val === "string" && (
             /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(val) ||
             /^\d{4}-\d{2}-\d{2}$/.test(val) ||
             /\b(?:date|fecha|time|hora)\b/i.test(column)
-        );
-        const isCopyable = !isBool && !Array.isArray(val) && typeof val !== "object" && !isDateField;
+        )
+        const isCopyable = !isBool && !Array.isArray(val) && typeof val !== "object" && !isDateField
         const { error: rawError, validation: rawValidation, message } = !readOnly
             ? getFieldValidation(column, val)
-            : { error: null, validation: "idle" as ValidationState, message: "" };
-        const touched = !readOnly && Boolean(touchedFields[column]);
-        const error = touched ? rawError : null;
-        const validation = touched ? rawValidation : "idle" as ValidationState;
+            : { error: null, validation: "idle" as ValidationState, message: "" }
+        const touched = !readOnly && Boolean(touchedFields[column])
+        const error = touched ? rawError : null
+        const validation = touched ? rawValidation : "idle" as ValidationState
 
         const updateField = (value: unknown) => {
-            if (readOnly) return;
+            if (readOnly) return
             if (viewCreate) {
-                setCreateRow((prev) => ({ ...(prev ?? {}), [column]: value }));
+                setCreateRow((prev) => ({ ...(prev ?? {}), [column]: value }))
             } else if (editedRow !== null) {
-                setEditedRow({ ...editedRow, [column]: value });
+                setEditedRow({ ...editedRow, [column]: value })
             }
-        };
+        }
 
         if (isBool) {
             return (
@@ -206,7 +206,7 @@ export default function Table<T extends Record<string, unknown>>({
                     />
                     <span className="text-sm text-white/90">{val ? "Sí" : "No"}</span>
                 </label>
-            );
+            )
         }
 
         if (Array.isArray(val) || typeof val === "object") {
@@ -218,13 +218,13 @@ export default function Table<T extends Record<string, unknown>>({
                     value={JSON.stringify(val)}
                     onChange={readOnly ? undefined : (e) => {
                         try {
-                            updateField(JSON.parse(e.target.value));
+                            updateField(JSON.parse(e.target.value))
                         } catch {
-                            updateField(e.target.value);
+                            updateField(e.target.value)
                         }
                     }}
                 />
-            );
+            )
         }
 
         if (isCopyable && readOnly) {
@@ -235,7 +235,7 @@ export default function Table<T extends Record<string, unknown>>({
                     copyLabel="Copiar"
                     successLabel="Copiado"
                 />
-            );
+            )
         }
 
         return (
@@ -244,16 +244,16 @@ export default function Table<T extends Record<string, unknown>>({
                 value={String(val ?? "")}
                 readOnly={readOnly}
                 onChange={readOnly ? undefined : (e) => {
-                    updateField(e.target.value);
-                    setTouchedFields((prev) => ({ ...prev, [column]: true }));
+                    updateField(e.target.value)
+                    setTouchedFields((prev) => ({ ...prev, [column]: true }))
                 }}
                 onBlur={readOnly ? undefined : () => setTouchedFields((prev) => ({ ...prev, [column]: true }))}
                 error={readOnly ? undefined : error ?? undefined}
                 message={readOnly ? undefined : message}
                 validation={readOnly ? undefined : validation}
             />
-        );
-    };
+        )
+    }
 
     return (
         <div className={`w-full ${className}`} style={{ color: 'var(--color-foreground)' }}>
@@ -314,7 +314,7 @@ export default function Table<T extends Record<string, unknown>>({
                                     </tr>
                                 ) : (
                                     filteredRows.map((row, rowIndex) => (
-                                        <tr key={rowIndex} tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') openView(row); }} className="group transition-colors hover:bg-white/3 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/25">
+                                        <tr key={rowIndex} tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') openView(row) }} className="group transition-colors hover:bg-white/3 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/25">
                                             {header.map((column, colIndex) => (
                                                 <td key={`${rowIndex}-${column}`} className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                                     <div
@@ -487,5 +487,5 @@ export default function Table<T extends Record<string, unknown>>({
                 </div>
             </Modal>
         </div>
-    );
+    )
 }

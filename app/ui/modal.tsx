@@ -1,7 +1,7 @@
-"use client";
+"use client"
 
-import { ReactNode, useEffect } from "react";
-import { X } from "lucide-react";
+import { ReactNode, useEffect } from "react"
+import { X } from "lucide-react"
 
 interface ModalProps {
   isOpen: boolean;
@@ -13,19 +13,19 @@ interface ModalProps {
 export default function Modal({ isOpen, title, onClose, children }: ModalProps) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onClose()
     }
     if (isOpen) {
-      document.addEventListener("keydown", onKey);
-      document.body.style.overflow = "hidden";
+      document.addEventListener("keydown", onKey)
+      document.body.style.overflow = "hidden"
     }
     return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [isOpen, onClose]);
+      document.removeEventListener("keydown", onKey)
+      document.body.style.overflow = ""
+    }
+  }, [isOpen, onClose])
 
-  if (!isOpen) return null;
+  if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -52,5 +52,5 @@ export default function Modal({ isOpen, title, onClose, children }: ModalProps) 
         <div className="mt-4 text-sm text-white/90">{children}</div>
       </div>
     </div>
-  );
+  )
 }

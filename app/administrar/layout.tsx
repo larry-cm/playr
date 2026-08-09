@@ -1,12 +1,12 @@
-import { getRoleUser } from "@action/get-role-action";
-import DashboardClient from "./dashboard-client";
+import { getRoleUser } from "@action/get-role-action"
+import DashboardClient from "@/app/administrar/dashboard-client"
 
 export default async function DashboardLayout({
     children,
 }: Readonly<{
     children: React.ReactNode;
 }>) {
-    const role = await getRoleUser();
+    const role = await getRoleUser()
 
-    return <DashboardClient role={role}>{children}</DashboardClient>;
+    return <DashboardClient role={role}>{children}</DashboardClient>
 }

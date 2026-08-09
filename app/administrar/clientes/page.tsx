@@ -1,11 +1,11 @@
-import TableClient from "@/app/administrar/clientes/table-client";
-import Card from "@ui/card";
-import { AlertCircle } from "lucide-react";
+import TableClient from "@/app/administrar/clientes/table-client"
+import Card from "@ui/card"
+import { AlertCircle } from "lucide-react"
 
 export default async function PageAdministrarClientes() {
-    const { getAllCustomersAction } = await import("@/app/action/manager-and-admin/customers/get-all-customers-action");
-    const customers = await getAllCustomersAction();
-    const hasError = customers === null;
+    const { getAllCustomersAction } = await import("@action/manager-and-admin/customers/get-all-customers-action")
+    const customers = await getAllCustomersAction()
+    const hasError = customers === null
     return (
         <section className="flex flex-col gap-6">
             <header>
@@ -31,5 +31,5 @@ export default async function PageAdministrarClientes() {
                 )
             }
         </section>
-    );
+    )
 }

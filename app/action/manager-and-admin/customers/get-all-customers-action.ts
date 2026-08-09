@@ -1,9 +1,9 @@
 "use server"
 
 export async function getAllCustomersAction() {
-    const { createSupabase } = await import("@lib/supabase/server");
-    const { formatColombianDate } = await import("@lib/date");
-    const { formatColombianNumberPhone } = await import("@lib/phone");
+    const { createSupabase } = await import("@lib/supabase/server")
+    const { formatColombianDate } = await import("@lib/date")
+    const { formatColombianNumberPhone } = await import("@lib/phone")
 
     const supabase = await createSupabase()
     try {
@@ -11,10 +11,10 @@ export async function getAllCustomersAction() {
             .schema("main")
             .from("client")
             .select("id,username,email,phone,created_at")
-            .eq("exist", true);
+            .eq("exist", true)
 
         if (error) {
-            return null;
+            return null
         }
         return data
             .filter(customers =>
@@ -26,9 +26,9 @@ export async function getAllCustomersAction() {
                 Correo: customer.email,
                 Teléfono: formatColombianNumberPhone(customer.phone),
                 "Fecha de Creación": formatColombianDate(customer.created_at)
-            }));
+            }))
     } catch (error) {
-        return [];
+        return []
     }
 
 }

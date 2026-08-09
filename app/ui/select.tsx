@@ -1,6 +1,6 @@
-"use client";
-import { type SelectHTMLAttributes, type ReactNode, forwardRef } from "react";
-import { TriangleAlert, ChevronDown } from "lucide-react";
+"use client"
+import { type SelectHTMLAttributes, type ReactNode, forwardRef } from "react"
+import { TriangleAlert, ChevronDown } from "lucide-react"
 
 interface SelectOption {
   value: string;
@@ -63,10 +63,10 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
           </div>
         )}
       </div>
-    );
+    )
   },
-);
+)
 
-Select.displayName = "Select";
+Select.displayName = "Select"
 
-export default Select;
+export default Select

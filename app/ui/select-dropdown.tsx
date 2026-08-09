@@ -1,7 +1,7 @@
-"use client";
-import { useState, useRef, useEffect, type ReactNode } from "react";
-import { TriangleAlert, ChevronDown, Search } from "lucide-react";
-import type { ValidationState } from "@ui/input";
+"use client"
+import { useState, useRef, useEffect, type ReactNode } from "react"
+import { TriangleAlert, ChevronDown, Search } from "lucide-react"
+import type { ValidationState } from "@ui/input"
 
 export interface DropdownOption {
   value: string;
@@ -28,7 +28,7 @@ const borderByValidation: Record<ValidationState, string> = {
   idle: "border-white/[0.1]",
   valid: "border-emerald-500/50 focus:border-emerald-400 focus:ring-emerald-400/40",
   invalid: "border-red-500/50 focus:border-red-400 focus:ring-red-400/40",
-};
+}
 
 export default function SelectDropdown({
   options,
@@ -43,52 +43,52 @@ export default function SelectDropdown({
   id,
   validation,
 }: SelectDropdownProps) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState("")
+  const containerRef = useRef<HTMLDivElement>(null)
 
-  const selected = options.find((o) => o.value === value);
+  const selected = options.find((o) => o.value === value)
 
   const filtered = search
     ? options.filter((o) => {
-        const text = o.dropdownLabel ?? o.label;
-        return text.toLowerCase().includes(search.toLowerCase());
+        const text = o.dropdownLabel ?? o.label
+        return text.toLowerCase().includes(search.toLowerCase())
       })
-    : options;
+    : options
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setSearch("");
+        setOpen(false)
+        setSearch("")
       }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
 
   const handleSelect = (opt: DropdownOption) => {
-    onChange(opt.value);
-    setOpen(false);
-    setSearch("");
-  };
+    onChange(opt.value)
+    setOpen(false)
+    setSearch("")
+  }
 
   const handleButtonKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
     if (!open && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      e.preventDefault();
-      setSearch(e.key);
-      setOpen(true);
+      e.preventDefault()
+      setSearch(e.key)
+      setOpen(true)
     }
-  };
+  }
 
   const focusSearchInput = (el: HTMLInputElement | null) => {
     if (el && open) {
-      el.focus();
+      el.focus()
       if (search) {
-        el.setSelectionRange(search.length, search.length);
+        el.setSelectionRange(search.length, search.length)
       }
     }
-  };
+  }
 
   return (
     <div className="flex flex-col gap-1.5" ref={containerRef}>
@@ -166,5 +166,5 @@ export default function SelectDropdown({
         </div>
       )}
     </div>
-  );
+  )
 }

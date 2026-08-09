@@ -1,17 +1,17 @@
-"use client";
-import { useEffect, useState } from "react";
-import { supabase } from "@lib/supabase/client";
-import Card from "@ui/card";
-import PlayrLogo from "@ui/playr-logo";
-import Alert from "@ui/alert";
-import PasswordInput from "@ui/password-input";
-import type { ValidationState } from "@ui/input";
-import Button from "@ui/button";
-import type { Session } from "@supabase/supabase-js";
-import Link from "next/link";
-import { ArrowLeft, LogIn } from "lucide-react";
-import { translateAuthError } from "@lib/supabase/auth-errors";
-import { validatePassword, validateConfirmPassword } from "@lib/validation";
+"use client"
+import { useEffect, useState } from "react"
+import { supabase } from "@lib/supabase/client"
+import Card from "@ui/card"
+import PlayrLogo from "@ui/playr-logo"
+import Alert from "@ui/alert"
+import PasswordInput from "@ui/password-input"
+import type { ValidationState } from "@ui/input"
+import Button from "@ui/button"
+import type { Session } from "@supabase/supabase-js"
+import Link from "next/link"
+import { ArrowLeft, LogIn } from "lucide-react"
+import { translateAuthError } from "@lib/supabase/auth-errors"
+import { validatePassword, validateConfirmPassword } from "@lib/validation"
 
 function getValidation(
   touched: boolean,
@@ -19,54 +19,54 @@ function getValidation(
   value: string,
   required: boolean,
 ): ValidationState {
-  if (!touched) return "idle";
-  if (error) return "invalid";
-  if (required && !value) return "invalid";
-  return "valid";
+  if (!touched) return "idle"
+  if (error) return "invalid"
+  if (required && !value) return "invalid"
+  return "valid"
 }
 
 export default function ResetPasswordPage() {
-  const [session, setSession] = useState<Session | null | "loading">("loading");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [errors, setErrors] = useState<Record<string, string[]>>({});
-  const [touched, setTouched] = useState({ password: false, confirmPassword: false });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [session, setSession] = useState<Session | null | "loading">("loading")
+  const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [errors, setErrors] = useState<Record<string, string[]>>({})
+  const [touched, setTouched] = useState({ password: false, confirmPassword: false })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [success, setSuccess] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
-    });
-  }, []);
+      setSession(s)
+    })
+  }, [])
 
-  const passwordError = validatePassword(password);
-  const confirmPasswordError = validateConfirmPassword(password, confirmPassword);
+  const passwordError = validatePassword(password)
+  const confirmPasswordError = validateConfirmPassword(password, confirmPassword)
 
   const validate = (): boolean => {
-    const newErrors: Record<string, string[]> = {};
-    if (passwordError) newErrors.password = [passwordError];
-    if (confirmPasswordError) newErrors.confirmPassword = [confirmPasswordError];
-    setErrors(newErrors);
-    setTouched({ password: true, confirmPassword: true });
-    return Object.keys(newErrors).length === 0;
-  };
+    const newErrors: Record<string, string[]> = {}
+    if (passwordError) newErrors.password = [passwordError]
+    if (confirmPasswordError) newErrors.confirmPassword = [confirmPasswordError]
+    setErrors(newErrors)
+    setTouched({ password: true, confirmPassword: true })
+    return Object.keys(newErrors).length === 0
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitError(null);
-    if (!validate()) return;
-    setIsSubmitting(true);
-    const { error } = await supabase.auth.updateUser({ password });
+    e.preventDefault()
+    setSubmitError(null)
+    if (!validate()) return
+    setIsSubmitting(true)
+    const { error } = await supabase.auth.updateUser({ password })
     if (error) {
-      setSubmitError(translateAuthError(error.message));
-      setIsSubmitting(false);
-      return;
+      setSubmitError(translateAuthError(error.message))
+      setIsSubmitting(false)
+      return
     }
-    setSuccess(true);
-    setIsSubmitting(false);
-  };
+    setSuccess(true)
+    setIsSubmitting(false)
+  }
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-8">
       <div className="w-full max-w-md animate-[fadeIn_0.6s_ease-out]">

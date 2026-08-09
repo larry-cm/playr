@@ -1,4 +1,4 @@
-"use client";
+"use client"
 
 export default function PlayrLogo() {
   return (
@@ -15,5 +15,5 @@ export default function PlayrLogo() {
       </svg>
       <span className="text-2xl font-bold tracking-tight text-white">Playr</span>
     </div>
-  );
+  )
 }

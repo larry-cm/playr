@@ -6,9 +6,11 @@ import Input from "@ui/input"
 import type { ValidationState } from "@ui/input"
 import Modal from "@ui/modal"
 import CopyInput from "@ui/copy-input"
+import PhoneInput from "@ui/phone-input"
 import Alert from "@ui/alert"
 import { Eye, Edit, Trash2, Search, Plus } from "lucide-react"
-import { validateEmail, validatePassword, validateUsername } from "@lib/validation"
+import { validateEmail, validatePassword, validateUsername, validatePhoneValue } from "@lib/validation"
+import { splitPhoneNumber } from "@lib/phone"
 
 /** Resultado que devuelve cada operación contra el servidor. */
 export interface MutationResult<T = Record<string, unknown>> {
@@ -28,6 +30,9 @@ interface TableProps<T extends Record<string, unknown>> {
     onDelete?: (id: string, index: number) => Promise<MutationResult<T>> | MutationResult<T>;
     onCreateSave?: (row: Record<string, unknown>) => Promise<MutationResult<T>> | MutationResult<T>;
 }
+
+/** El modal infiere el tipo de campo por el nombre de la columna. */
+const isPhoneColumn = (column: string) => /\b(tel[eé]fono|celular|phone|m[oó]vil)\b/i.test(column)
 
 const formatCellValue = (value: unknown) => {
     if (value === null || value === undefined) {
@@ -108,6 +113,10 @@ export default function Table<T extends Record<string, unknown>>({
 
     const createNewRow = async () => {
         if (!createRow || isPending) return
+
+        // createRow arranca como {}, que es truthy: sin esta guarda se podía crear vacío.
+        if (invalidColumns(createRow).length > 0) return revealErrors()
+
         setIsPending(true)
         setAlert(null)
 
@@ -154,6 +163,9 @@ export default function Table<T extends Record<string, unknown>>({
 
     const saveEdit = async () => {
         if (editRowId === null || editedRow === null || isPending) return
+
+        if (invalidColumns(editedRow).length > 0) return revealErrors()
+
         const updatedRow = editedRow as unknown as T
         setIsPending(true)
         setAlert(null)
@@ -229,6 +241,9 @@ export default function Table<T extends Record<string, unknown>>({
         } else if (/\b(password|contraseña|pass)\b/i.test(normalized)) {
             error = validatePassword(text)
             message = "Ingresa una contraseña."
+        } else if (isPhoneColumn(column)) {
+            error = validatePhoneValue(text)
+            message = "Ingresa un número de celular."
         } else if (/\b(user(name)?|usuario|nombre)\b/i.test(normalized)) {
             error = validateUsername(text)
             message = "Ingresa un nombre de usuario."
@@ -236,6 +251,20 @@ export default function Table<T extends Record<string, unknown>>({
 
         const validation: ValidationState = error ? "invalid" : text ? "valid" : "idle"
         return { error, validation, message }
+    }
+
+    /** Columnas que el usuario puede escribir en el modal actual. */
+    const editableColumns = () => header.filter((column) => !readOnlyColumns.includes(column))
+
+    /** Devuelve las columnas con error. Es la guarda que faltaba antes de enviar. */
+    const invalidColumns = (row: Record<string, any> | null) =>
+        editableColumns().filter((column) => Boolean(getFieldValidation(column, row?.[column]).error))
+
+    // Al fallar el envío marcamos todo como tocado: renderField ya pinta el error
+    // de cualquier campo tocado, así que no hace falta un estado de errores aparte.
+    const revealErrors = () => {
+        setTouchedFields(Object.fromEntries(editableColumns().map((column) => [column, true])))
+        setAlert({ variant: "error", message: "Revisa los campos marcados." })
     }
 
     const renderField = (column: string, val: unknown, readOnly: boolean) => {
@@ -302,6 +331,45 @@ export default function Table<T extends Record<string, unknown>>({
                     readOnly
                     copyLabel="Copiar"
                     successLabel="Copiado"
+                />
+            )
+        }
+
+        if (isPhoneColumn(column) && !readOnly) {
+            const { code, number } = splitPhoneNumber(String(val ?? ""))
+
+            // PhoneInput avisa del cambio de país y, si el número sobra, lo trunca
+            // en la misma tanda. Calculamos sobre el valor previo para que la segunda
+            // llamada no reescriba el indicativo con el que acaba de quedar obsoleto.
+            const updatePhone = (next: (code: string, number: string) => { code: string; number: string }) => {
+                const apply = (previous: unknown) => {
+                    const prev = splitPhoneNumber(String(previous ?? ""))
+                    const { code: nextCode, number: nextNumber } = next(prev.code, prev.number)
+                    return nextNumber ? `${nextCode} ${nextNumber}` : ""
+                }
+
+                if (viewCreate) {
+                    setCreateRow((prev) => ({ ...(prev ?? {}), [column]: apply(prev?.[column]) }))
+                } else {
+                    setEditedRow((prev) => (prev ? { ...prev, [column]: apply(prev[column]) } : prev))
+                }
+                setTouchedFields((prev) => ({ ...prev, [column]: true }))
+            }
+
+            return (
+                <PhoneInput
+                    label=""
+                    codeValue={code}
+                    numberValue={number}
+                    onCodeChange={(value) => updatePhone((_, current) => ({ code: value, number: current }))}
+                    onNumberChange={(e) => {
+                        const value = e.target.value
+                        updatePhone((current) => ({ code: current, number: value }))
+                    }}
+                    onBlur={() => setTouchedFields((prev) => ({ ...prev, [column]: true }))}
+                    numberError={error ?? undefined}
+                    message={message}
+                    validation={validation}
                 />
             )
         }

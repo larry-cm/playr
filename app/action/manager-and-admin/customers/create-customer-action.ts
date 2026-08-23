@@ -1,37 +1,6 @@
 "use server"
 
-import { z } from "zod"
-
-const schema = z.object({
-    email: z
-        .email({
-            message: "Ingresa un correo electrónico válido.",
-        }),
-
-    password: z
-        .string({
-            message: "Ingresa una contraseña.",
-        })
-        .min(6, {
-            message: "La contraseña debe tener al menos 6 caracteres.",
-        })
-    ,
-    username: z
-        .string({
-            message: "Ingresa un nombre de usuario.",
-        })
-        .min(3, {
-            message: "Mínimo 3 caracteres.",
-        }),
-
-    rol: z.enum(["user", "admin", "manager"], {
-        message: "Selecciona un rol válido.",
-    }).optional().default("user"),
-
-    celular_codigo: z.string().optional().default("+57"),
-
-    celular_numero: z.string().optional(),
-})
+import { createCustomerSchema, firstErrorOf, normalizePhone } from "@lib/customer-schema"
 
 export const createCustomerAction = async (formData: any) => {
     const getVal = (key1: string, key2?: string) => {
@@ -42,33 +11,27 @@ export const createCustomerAction = async (formData: any) => {
         return formData[key1] ?? (key2 ? formData[key2] : undefined) ?? undefined
     }
 
+    // La tabla manda el teléfono como un único texto; un formulario con PhoneInput
+    // suelto mandaría indicativo y número por separado. Aceptamos ambas formas.
+    const getPhone = () => {
+        const single = getVal('Teléfono') || getVal('phone')
+        if (single) return single
+
+        const number = getVal('celular_numero')
+        return number ? `${getVal('celular_codigo') || "+57"} ${number}` : ""
+    }
+
     const raw = {
-        email: getVal('Correo', 'email'),
+        email: getVal('Correo', 'email') ?? "",
         password: getVal('password', 'Contraseña') || "123456",
-        username: getVal('Nombre', 'username') || getVal('name'),
+        username: getVal('Nombre', 'username') || getVal('name') || "",
         rol: getVal('rol', 'Rol') || "user",
-        celular_codigo: getVal('celular_codigo') || "+57",
-        celular_numero: getVal('Teléfono', 'celular_numero') || getVal('phone') || "",
+        phone: getPhone(),
     }
 
-    const data = schema.safeParse(raw)
+    const data = createCustomerSchema.safeParse(raw)
 
-    if (!data.success) {
-        const fieldErrors = z.flattenError(data.error).fieldErrors
-        const firstError = Object.values(fieldErrors).flat()[0]
-        return firstError || "Datos de cliente no válidos."
-    }
-
-    if (data.data.celular_numero) {
-        const { getCountryByCode } = await import("@lib/countries")
-        const country = getCountryByCode(data.data.celular_codigo || "+57")
-        if (country) {
-            const digits = data.data.celular_numero.replace(/\D/g, "")
-            if (digits.length > 0 && (digits.length < country.minDigits || digits.length > country.maxDigits)) {
-                return `El número debe tener entre ${country.minDigits} y ${country.maxDigits} dígitos para ${country.country}.`
-            }
-        }
-    }
+    if (!data.success) return firstErrorOf(data.error)
 
     const { createSupabase } = await import("@lib/supabase/server")
     const supabase = await createSupabase()
@@ -77,8 +40,10 @@ export const createCustomerAction = async (formData: any) => {
         username: data.data.username,
         role: data.data.rol || "user",
     }
-    if (data.data.celular_numero) {
-        metadata.phone = `${data.data.celular_codigo || "+57"} ${data.data.celular_numero}`
+    // Se guarda normalizado ("+57 3001234567"), no el texto tal cual se escribió.
+    const phone = normalizePhone(data.data.phone)
+    if (phone) {
+        metadata.phone = phone
     }
 
     const password = data.data.password || "123456"

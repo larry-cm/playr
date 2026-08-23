@@ -1,4 +1,5 @@
 import { getCountryByCode } from "@lib/countries"
+import { splitPhoneNumber } from "@lib/phone"
 
 export function validateEmail(value: string): string | null {
   if (!value) return "Ingresa un correo electrónico."
@@ -22,11 +23,14 @@ export function validatePasswordSimple(value: string): string | null {
   return null
 }
 
+// Nombre de persona: letras con espacios simples entre palabras, sin números ni símbolos.
 export function validateUsername(value: string): string | null {
   if (!value) return "Ingresa un nombre de usuario."
   if (value.length < 3) return "Mínimo 3 caracteres."
-  if (value.length > 10) return "Máximo 10 caracteres."
-  if (!/^[a-zA-ZáéíóúüñÁÉÍÓÚÜÑ]+$/.test(value)) return "Solo letras, sin espacios ni números."
+  if (value.length > 60) return "Máximo 60 caracteres."
+  if (!/^[a-zA-ZáéíóúüñÁÉÍÓÚÜÑ]+(?: [a-zA-ZáéíóúüñÁÉÍÓÚÜÑ]+)*$/.test(value)) {
+    return "Solo letras y espacios, sin números ni símbolos."
+  }
   return null
 }
 
@@ -39,6 +43,28 @@ export function validatePhone(code: string, number: string): string | null {
     return `El número debe tener entre ${country.minDigits} y ${country.maxDigits} dígitos para ${country.country}.`
   }
   return null
+}
+
+// Un teléfono escrito a mano admite espacios, paréntesis o guiones, pero nunca letras.
+const phoneCharacters = /^[+\d\s()-]+$/
+
+/**
+ * Valida un teléfono guardado como un único texto ("+57 300 123 4567").
+ * `validatePhone` solo cuenta dígitos, de modo que un texto sin ningún número
+ * ("asdasd") le resultaría válido por tratarse como vacío; aquí se rechaza antes
+ * de contar. Sigue siendo opcional cuando no hay nada escrito.
+ */
+export function validatePhoneValue(value: string): string | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+
+  const invalid = "El teléfono solo admite números."
+  if (!phoneCharacters.test(trimmed)) return invalid
+
+  const { code, number } = splitPhoneNumber(trimmed)
+  if (!number) return invalid
+
+  return validatePhone(code, number)
 }
 
 export function validateConfirmPassword(password: string, confirm: string): string | null {

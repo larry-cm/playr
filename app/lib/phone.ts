@@ -1,21 +1,50 @@
-export function formatColombianNumberPhone(input: string): string {
-    // Elimina todo lo que no sea dígito
-    let digits = input?.replace(/\D/g, '')
+import { countries } from "@lib/countries"
 
-    if (!digits?.length) return "--"
-    // Si viene con el indicativo del país (57), lo removemos para normalizar
-    if (digits.startsWith('57') && digits.length > 10) {
-        digits = digits.slice(2)
+// Agrupa los dígitos nacionales de forma legible según su longitud.
+function groupDigits(digits: string): string {
+    switch (digits.length) {
+        case 8:
+            return `${digits.slice(0, 4)} ${digits.slice(4)}`
+        case 9:
+            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`
+        case 10:
+            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`
+        case 11:
+            return `${digits.slice(0, 3)} ${digits.slice(3, 7)} ${digits.slice(7)}`
+        default:
+            return digits
+    }
+}
+
+// Los códigos más largos se prueban primero para que "+1-809" gane sobre "+1".
+const codesByLength = [...countries]
+    .map((country) => ({ ...country, prefix: country.code.replace(/\D/g, "") }))
+    .sort((a, b) => b.prefix.length - a.prefix.length)
+
+/**
+ * Formatea un teléfono de cualquiera de los países soportados en la creación
+ * de clientes. Nunca falla: si no reconoce el indicativo devuelve el valor
+ * recibido tal cual, para no ocultar el registro en el listado.
+ */
+export function formatPhoneNumber(input: string | null | undefined): string {
+    const raw = String(input ?? "").trim()
+    const digits = raw.replace(/\D/g, "")
+
+    if (!digits.length) return "--"
+
+    for (const country of codesByLength) {
+        if (!digits.startsWith(country.prefix)) continue
+
+        const national = digits.slice(country.prefix.length)
+        if (national.length < country.minDigits || national.length > country.maxDigits) continue
+
+        return `${country.code} ${groupDigits(national)}`
     }
 
-    // Un celular colombiano válido tiene 10 dígitos y empieza por 3
-    if (digits.length !== 10 || !digits.startsWith('3')) {
-        return "error"
+    // Sin indicativo reconocible: si parece un celular colombiano lo asumimos como tal.
+    if (digits.length === 10 && digits.startsWith("3")) {
+        return `+57 ${groupDigits(digits)}`
     }
 
-    const parte1 = digits.slice(0, 3) // 300
-    const parte2 = digits.slice(3, 6) // 123
-    const parte3 = digits.slice(6, 10) // 4567
-
-    return `+57 ${parte1} ${parte2} ${parte3}`
+    return raw
 }

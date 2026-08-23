@@ -6,17 +6,27 @@ import Input from "@ui/input"
 import type { ValidationState } from "@ui/input"
 import Modal from "@ui/modal"
 import CopyInput from "@ui/copy-input"
+import Alert from "@ui/alert"
 import { Eye, Edit, Trash2, Search, Plus } from "lucide-react"
 import { validateEmail, validatePassword, validateUsername } from "@lib/validation"
+
+/** Resultado que devuelve cada operación contra el servidor. */
+export interface MutationResult<T = Record<string, unknown>> {
+    ok: boolean;
+    error?: string;
+    row?: T;
+}
 
 interface TableProps<T extends Record<string, unknown>> {
     header: string[];
     data: T[];
     className?: string;
     showActions?: boolean;
-    onEditSave?: (row: T, id: string | number) => void;
-    onDelete?: (id: string, index: number) => void;
-    onCreateSave?: (row: Record<string, any>) => void;
+    /** Columnas que se muestran pero no se pueden editar ni escribir al crear. */
+    readOnlyColumns?: string[];
+    onEditSave?: (row: T, id: string | number) => Promise<MutationResult<T>> | MutationResult<T>;
+    onDelete?: (id: string, index: number) => Promise<MutationResult<T>> | MutationResult<T>;
+    onCreateSave?: (row: Record<string, unknown>) => Promise<MutationResult<T>> | MutationResult<T>;
 }
 
 const formatCellValue = (value: unknown) => {
@@ -48,11 +58,14 @@ export default function Table<T extends Record<string, unknown>>({
     data,
     className = "",
     showActions = true,
+    readOnlyColumns = [],
     onEditSave,
     onDelete,
     onCreateSave,
 }: Readonly<TableProps<T>>) {
     const [rows, setRows] = useState<T[]>(data)
+    const [alert, setAlert] = useState<{ variant: "success" | "error"; message: string } | null>(null)
+    const [isPending, setIsPending] = useState(false)
     const [viewRow, setViewRow] = useState<T | null>(null)
     const [viewCreate, setViewCreate] = useState<boolean>(false)
     const [createRow, setCreateRow] = useState<Record<string, any> | null>(null)
@@ -81,11 +94,37 @@ export default function Table<T extends Record<string, unknown>>({
         setViewCreate(true)
     }
 
-    const createNewRow = () => {
-        setRows((prev) => [...prev, createRow as T])
-        if (createRow) {
-            onCreateSave?.(createRow)
+    // Ejecuta la operación contra el servidor y normaliza cualquier excepción.
+    const runMutation = async (
+        action: () => Promise<MutationResult<T>> | MutationResult<T>,
+        fallbackError: string,
+    ): Promise<MutationResult<T>> => {
+        try {
+            return await action()
+        } catch {
+            return { ok: false, error: fallbackError }
         }
+    }
+
+    const createNewRow = async () => {
+        if (!createRow || isPending) return
+        setIsPending(true)
+        setAlert(null)
+
+        const result = onCreateSave
+            ? await runMutation(() => onCreateSave(createRow), "No se pudo crear el registro.")
+            : { ok: true as const }
+
+        setIsPending(false)
+
+        if (!result.ok) {
+            setAlert({ variant: "error", message: result.error ?? "No se pudo crear el registro." })
+            return
+        }
+
+        // Solo tras confirmar en la base de datos agregamos la fila a la vista.
+        setRows((prev) => [...prev, (result.row ?? createRow) as T])
+        setAlert({ variant: "success", message: "Registro creado correctamente." })
         closeCreate()
     }
 
@@ -113,25 +152,54 @@ export default function Table<T extends Record<string, unknown>>({
         setTouchedFields({})
     }
 
-    const saveEdit = () => {
-        if (editRowId === null || editedRow === null) return
+    const saveEdit = async () => {
+        if (editRowId === null || editedRow === null || isPending) return
         const updatedRow = editedRow as unknown as T
+        setIsPending(true)
+        setAlert(null)
 
+        const result = onEditSave
+            ? await runMutation(() => onEditSave(updatedRow, editRowId), "No se pudo guardar el registro.")
+            : { ok: true as const }
+
+        setIsPending(false)
+
+        if (!result.ok) {
+            setAlert({ variant: "error", message: result.error ?? "No se pudo guardar el registro." })
+            return
+        }
+
+        // Actualizamos únicamente la fila afectada, sin recargar el resto.
+        const confirmedRow = (result.row ?? updatedRow) as T
         setRows((prev) =>
-            prev.map((r, i) => (getRowId(r, i) === editRowId ? updatedRow : r))
+            prev.map((r, i) => (getRowId(r, i) === editRowId ? { ...r, ...confirmedRow } : r))
         )
-
-        onEditSave?.(updatedRow, editRowId)
+        setAlert({ variant: "success", message: "Registro actualizado correctamente." })
         closeEdit()
     }
 
     const confirmDelete = (row: T, index: number) => setIsConfirmId(getRowId(row, index))
     const cancelDelete = () => setIsConfirmId(null)
-    const doDelete = () => {
-        if (isConfirmId === null) return
+    const doDelete = async () => {
+        if (isConfirmId === null || isPending) return
         const targetIndex = rows.findIndex((r, i) => getRowId(r, i) === isConfirmId)
+        setIsPending(true)
+        setAlert(null)
+
+        const result = onDelete
+            ? await runMutation(() => onDelete(isConfirmId, targetIndex), "No se pudo eliminar el registro.")
+            : { ok: true as const }
+
+        setIsPending(false)
+
+        if (!result.ok) {
+            setAlert({ variant: "error", message: result.error ?? "No se pudo eliminar el registro." })
+            return
+        }
+
+        // Quitamos solo el elemento eliminado.
         setRows((prev) => prev.filter((r, i) => getRowId(r, i) !== isConfirmId))
-        onDelete?.(isConfirmId, targetIndex)
+        setAlert({ variant: "success", message: "Registro eliminado correctamente." })
         setIsConfirmId(null)
     }
 
@@ -257,6 +325,16 @@ export default function Table<T extends Record<string, unknown>>({
 
     return (
         <div className={`w-full ${className}`} style={{ color: 'var(--color-foreground)' }}>
+            {alert && (
+                <div className="mb-3">
+                    <Alert
+                        variant={alert.variant}
+                        message={alert.message}
+                        onDismiss={() => setAlert(null)}
+                    />
+                </div>
+            )}
+
             {/* Desktop / wide: standard polished table frame */}
             <div className="hidden md:block relative">
                 <div
@@ -381,7 +459,7 @@ export default function Table<T extends Record<string, unknown>>({
                             className="w-full rounded-xl border border-white/10 bg-white/3 py-2.5 pl-9 pr-3 text-sm text-white outline-none transition focus:border-accent/40 focus:ring-1 focus:ring-accent/20"
                         />
                     </div>
-                    <Button size="sm" variant="primary" leftIcon={<Plus className="h-4 w-4" />}>
+                    <Button size="sm" variant="primary" onClick={openCreate} leftIcon={<Plus className="h-4 w-4" />}>
                         Agregar
                     </Button>
                 </div>
@@ -433,7 +511,8 @@ export default function Table<T extends Record<string, unknown>>({
             {/* Create Modal */}
             <Modal isOpen={viewCreate} title="Crear registro" onClose={closeCreate}>
                 <div className="flex flex-col gap-3">
-                    {header.map((column) => (
+                    {/* Los campos autogenerados (p. ej. la fecha) no se piden al crear. */}
+                    {header.filter((column) => !readOnlyColumns.includes(column)).map((column) => (
                         <div key={column} className="flex flex-col gap-1">
                             <label className="text-xs text-secondary font-medium">{column}</label>
                             {renderField(column, createRow?.[column], false)}
@@ -441,8 +520,10 @@ export default function Table<T extends Record<string, unknown>>({
                     ))}
                 </div>
                 <div className="flex items-center justify-end gap-2 mt-2">
-                    <Button variant="ghost" onClick={closeCreate}>Cancelar</Button>
-                    <Button variant="primary" onClick={createNewRow}>Crear</Button>
+                    <Button variant="ghost" onClick={closeCreate} disabled={isPending}>Cancelar</Button>
+                    <Button variant="primary" onClick={createNewRow} disabled={isPending}>
+                        {isPending ? "Creando..." : "Crear"}
+                    </Button>
                 </div>
             </Modal>
 
@@ -466,13 +547,15 @@ export default function Table<T extends Record<string, unknown>>({
                         {header.map((column) => (
                             <div key={column} className="flex flex-col gap-1">
                                 <label className="text-xs text-secondary font-medium">{column}</label>
-                                {renderField(column, editedRow[column], false)}
+                                {renderField(column, editedRow[column], readOnlyColumns.includes(column))}
                             </div>
                         ))}
 
                         <div className="flex items-center justify-end gap-2 mt-2">
-                            <Button variant="ghost" onClick={closeEdit}>Cancelar</Button>
-                            <Button variant="primary" onClick={saveEdit}>Guardar</Button>
+                            <Button variant="ghost" onClick={closeEdit} disabled={isPending}>Cancelar</Button>
+                            <Button variant="primary" onClick={saveEdit} disabled={isPending}>
+                                {isPending ? "Guardando..." : "Guardar"}
+                            </Button>
                         </div>
                     </div>
                 )}
@@ -482,8 +565,10 @@ export default function Table<T extends Record<string, unknown>>({
             <Modal isOpen={isConfirmId !== null} title="Confirmar eliminación" onClose={cancelDelete}>
                 <div className="text-sm text-white/90">¿Eliminar este registro? Esta acción no se puede deshacer.</div>
                 <div className="flex items-center justify-end gap-2 mt-4">
-                    <Button variant="ghost" onClick={cancelDelete}>Cancelar</Button>
-                    <Button variant="primary" onClick={doDelete}>Eliminar</Button>
+                    <Button variant="ghost" onClick={cancelDelete} disabled={isPending}>Cancelar</Button>
+                    <Button variant="primary" onClick={doDelete} disabled={isPending}>
+                        {isPending ? "Eliminando..." : "Eliminar"}
+                    </Button>
                 </div>
             </Modal>
         </div>

@@ -480,7 +480,7 @@ export default function Table<T extends Record<string, unknown>>({
 
                             <tbody>
                                 {loading ? (
-                                    Array.from({ length: 9 }, (_, i) => (
+                                    Array.from({ length: 4 }, (_, i) => (
                                         <tr key={`skeleton-${i}`}>
                                             {header.map((column) => (
                                                 <td key={column} className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>

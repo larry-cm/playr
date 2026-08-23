@@ -93,5 +93,27 @@ export const createCustomerAction = async (formData: any) => {
         return error.message
     }
 
-    return null
+    // Devolvemos la fila ya creada para que la tabla la pinte sin recargar el resto.
+    const { formatPhoneNumber } = await import("@lib/phone")
+    const { formatColombianDate } = await import("@lib/date")
+
+    const { data: created } = await supabase
+        .schema("main")
+        .from("client")
+        .select("id,username,email,phone,created_at")
+        .eq("email", data.data.email)
+        .eq("exist", true)
+        .maybeSingle()
+
+    const fecha = created?.created_at ? formatColombianDate(created.created_at) : "error"
+
+    return {
+        customer: {
+            Id: created?.id,
+            Nombre: created?.username ?? data.data.username,
+            Correo: created?.email ?? data.data.email,
+            Teléfono: formatPhoneNumber(created?.phone ?? metadata.phone ?? ""),
+            "Fecha de Creación": fecha === "error" ? "--" : fecha,
+        },
+    }
 }

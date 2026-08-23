@@ -1,7 +1,7 @@
-"use client";
-import { type ChangeEvent, useState } from "react";
-import { Lock, Eye, EyeOff } from "lucide-react";
-import Input, { type ValidationState } from "@ui/input";
+"use client"
+import { type ChangeEvent, useState } from "react"
+import { Lock, Eye, EyeOff } from "lucide-react"
+import Input, { type ValidationState } from "@ui/input"
 
 interface PasswordInputProps {
   id?: string;
@@ -30,7 +30,7 @@ export default function PasswordInput({
   required,
   validation,
 }: PasswordInputProps) {
-  const [showPassword, setShowPassword] = useState(false);
+  const [showPassword, setShowPassword] = useState(false)
 
   return (
     <Input
@@ -59,5 +59,5 @@ export default function PasswordInput({
         </button>
       }
     />
-  );
+  )
 }

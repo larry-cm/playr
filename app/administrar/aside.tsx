@@ -1,31 +1,29 @@
-"use client";
+"use client"
 
-import { LogOut, X } from "lucide-react";
+import { LayoutDashboard, LogOut, X } from "lucide-react"
 
-import { usePathname, useRouter } from "next/navigation";
-import Link from "next/link";
-import { supabase } from "@/app/lib/supabase/client";
+import { usePathname, useRouter } from "next/navigation"
+import Link from "next/link"
+import { supabase } from "@lib/supabase/client"
 import logoPlayr from "@/public/favicon.svg"
-import Image from "next/image";
-interface NavItem {
-    name: string;
-    href: string;
-    icon: React.ComponentType<{ className?: string }>;
-    roles: string[];
-}
+import Image from "next/image"
+
 
 interface AsideProps {
-    items: NavItem[];
     sidebarOpen: boolean;
     setSidebarOpen: (open: boolean) => void;
     role: string;
 }
 
-export default function Aside({ items, sidebarOpen, setSidebarOpen, role }: AsideProps) {
-    const pathname = usePathname();
-    const router = useRouter();
+const navItems = [
+    { name: "Administrar", href: "/administrar", icon: LayoutDashboard, roles: ["admin", "manager", "user"] },
+    { name: "Clientes", href: "/administrar/clientes", icon: LayoutDashboard, roles: ["admin", "manager"] },
+]
+export default function Aside({ sidebarOpen, setSidebarOpen, role }: AsideProps) {
+    const pathname = usePathname()
+    const router = useRouter()
 
-    const filteredItems = items.filter(item => !item.roles || item.roles.includes(role));
+    const filteredItems = navItems.filter(item => !item.roles || item.roles.includes(role))
 
     return (
         <aside
@@ -37,7 +35,7 @@ export default function Aside({ items, sidebarOpen, setSidebarOpen, role }: Asid
             ].join(" ")}
         >
             {/* Logo */}
-            <div className="flex items-center justify-between px-2 py-3 mb-6">
+            <div className="flex items-center justify-between px-2 py-3 mb-8">
                 <Link href="/administrar" className="flex items-center gap-2.5">
                     <Image src={logoPlayr} width="28" height="28" alt="Playr" />
                     <span className="text-xl font-bold tracking-tight text-white">Playr</span>
@@ -54,8 +52,8 @@ export default function Aside({ items, sidebarOpen, setSidebarOpen, role }: Asid
             {/* Navigation */}
             <nav className="flex-1 space-y-1">
                 {filteredItems.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = pathname === item.href;
+                    const Icon = item.icon
+                    const isActive = pathname === item.href
                     return (
                         <Link
                             key={item.href}
@@ -69,7 +67,7 @@ export default function Aside({ items, sidebarOpen, setSidebarOpen, role }: Asid
                             <Icon className="w-4 h-4 shrink-0" />
                             {item.name}
                         </Link>
-                    );
+                    )
                 })}
             </nav>
 
@@ -77,8 +75,8 @@ export default function Aside({ items, sidebarOpen, setSidebarOpen, role }: Asid
             <div className="pt-4 mt-4 border-t border-white/6">
                 <button
                     onClick={async () => {
-                        await supabase.auth.signOut();
-                        router.push("/");
+                        await supabase.auth.signOut()
+                        router.push("/")
                     }}
                     className="flex items-center gap-3 px-3 py-2.5 w-full rounded-xl text-sm text-secondary hover:text-white hover:bg-white/5 transition-all duration-200"
                 >
@@ -87,5 +85,5 @@ export default function Aside({ items, sidebarOpen, setSidebarOpen, role }: Asid
                 </button>
             </div>
         </aside>
-    );
+    )
 }

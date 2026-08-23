@@ -1,6 +1,6 @@
-import Card from "@ui/card";
-import { List, Monitor, Network, Users, ChevronRight } from "lucide-react";
-import Link from "next/link";
+import Card from "@ui/card"
+import { List, Monitor, Network, Users, ChevronRight } from "lucide-react"
+import Link from "next/link"
 
 interface ViewServerProps {
     services?: {

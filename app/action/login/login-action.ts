@@ -1,9 +1,9 @@
-"use server";
+"use server"
 
-import { z } from "zod";
-import { createSupabase } from "@lib/supabase/server";
-import { redirect } from "next/navigation";
-import { translateAuthError } from "@lib/supabase/auth-errors";
+import { z } from "zod"
+import { createSupabase } from "@lib/supabase/server"
+import { redirect } from "next/navigation"
+import { translateAuthError } from "@lib/supabase/auth-errors"
 
 const schema = z.object({
     email: z

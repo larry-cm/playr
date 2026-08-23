@@ -1,11 +1,11 @@
-import { getRoleUser } from "@action/get-role-action";
-import { resumeServicesAction } from "@action/admin/resume-service-action";
-import ViewUser from "@/app/administrar/view-user";
-import ViewManagerAndAdmin from "@/app/administrar/view-manager-and-admin";
+import { getRoleUser } from "@action/get-role-action"
+import { resumeServicesAction } from "@action/manager-and-admin/resume-service-action"
+import ViewUser from "@/app/administrar/view-user"
+import ViewManagerAndAdmin from "@/app/administrar/view-manager-and-admin"
 
 export default async function AdministrarPage() {
-    const role = await getRoleUser();
-    const services = await resumeServicesAction();
+    const role = await getRoleUser()
+    const services = await resumeServicesAction()
     return (
         <article className="space-y-8">
             <header>
@@ -15,5 +15,5 @@ export default async function AdministrarPage() {
             {(role === "admin" || role === "manager") && <ViewManagerAndAdmin services={services} />}
             {role === "error" && <p className="text-red-400">Error al verificar tu sesión.</p>}
         </article>
-    );
+    )
 }

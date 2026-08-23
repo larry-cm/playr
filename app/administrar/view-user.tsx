@@ -1,9 +1,9 @@
-"use client";
+"use client"
 
-import Card from "@ui/card";
-import { AlertTriangle, RefreshCw, ChevronRight, Monitor, List } from "lucide-react";
-import Link from "next/link";
-import SoporteCard from "@/app/administrar/soporte-card";
+import Card from "@ui/card"
+import { AlertTriangle, RefreshCw, ChevronRight, Monitor, List } from "lucide-react"
+import Link from "next/link"
+import SoporteCard from "@/app/administrar/soporte-card"
 
 export default function ViewClientPage() {
     return (

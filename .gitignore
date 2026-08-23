@@ -13,6 +13,12 @@
 # testing
 /coverage
 
+# Idea
+/.idea
+
+# Vscode
+/.vscode
+
 # next.js
 /.next/
 /out/
@@ -42,3 +48,4 @@ next-env.d.ts
 
 # Agents
 .github/
+.claude/

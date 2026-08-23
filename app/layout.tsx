@@ -1,11 +1,11 @@
-import type { Metadata } from "next";
-import { Outfit } from "next/font/google";
-import "./globals.css";
+import type { Metadata } from "next"
+import { Outfit } from "next/font/google"
+import "./globals.css"
 
 const outfit = Outfit({
   subsets: ["latin"],
   display: "swap",
-});
+})
 
 export const metadata: Metadata = {
   title: "Playr | Maneja tus cuentas y perfiles de manera sencilla",
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
       { url: "/favicon.svg", type: "image/svg+xml" },
     ],
   },
-};
+}
 
 export default function RootLayout({
   children,
@@ -30,5 +30,5 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
-  );
+  )
 }

@@ -1,13 +1,13 @@
-import { createServerClient } from "@supabase/ssr";
-import { type NextRequest, NextResponse } from "next/server";
-import { supabaseUrl, supabaseKey } from "@lib/const";
+import { createServerClient } from "@supabase/ssr"
+import { type NextRequest, NextResponse } from "next/server"
+import { supabaseUrl, supabaseKey } from "@lib/const"
 
 export const createClient = (request: NextRequest) => {
   let supabaseResponse = NextResponse.next({
     request: {
       headers: request.headers,
     },
-  });
+  })
 
   const supabase = createServerClient(
     supabaseUrl!,
@@ -28,7 +28,7 @@ export const createClient = (request: NextRequest) => {
         },
       },
     },
-  );
+  )
 
   return { supabase, supabaseResponse }
-};
+}

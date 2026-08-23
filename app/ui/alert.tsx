@@ -1,6 +1,6 @@
-"use client";
-import { type ReactNode } from "react";
-import { CircleCheck, CircleAlert, Info, TriangleAlert } from "lucide-react";
+"use client"
+import { type ReactNode } from "react"
+import { CircleCheck, CircleAlert, Info, TriangleAlert } from "lucide-react"
 
 type AlertVariant = "success" | "error" | "warning" | "info";
 
@@ -32,10 +32,10 @@ const variantStyles: Record<AlertVariant, { container: string; text: string; def
     text: "text-blue-400",
     defaultIcon: <Info className="w-5 h-5 shrink-0" />,
   },
-};
+}
 
 export default function Alert({ variant = "info", message, icon, onDismiss }: AlertProps) {
-  const { container, text, defaultIcon } = variantStyles[variant];
+  const { container, text, defaultIcon } = variantStyles[variant]
 
   return (
     <div className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm ${container} ${text}`} role="alert">
@@ -47,5 +47,5 @@ export default function Alert({ variant = "info", message, icon, onDismiss }: Al
         </button>
       )}
     </div>
-  );
+  )
 }

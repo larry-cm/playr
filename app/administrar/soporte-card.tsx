@@ -1,28 +1,28 @@
-"use client";
+"use client"
 
-import { useState, useEffect } from "react";
-import Card from "@ui/card";
-import Button from "@ui/button";
-import { MessageCircle, CircleCheck } from "lucide-react";
-import { supabase } from "@/app/lib/supabase/client";
+import { useState, useEffect } from "react"
+import Card from "@ui/card"
+import Button from "@ui/button"
+import { MessageCircle, CircleCheck } from "lucide-react"
+import { supabase } from "@lib/supabase/client"
 
-const TELEFONO = "521234567890";
+const TELEFONO = "521234567890"
 
 export default function SoporteCard() {
-    const [razon, setRazon] = useState("");
-    const [telefonoUsuario, setTelefonoUsuario] = useState<string | null>(null);
+    const [razon, setRazon] = useState("")
+    const [telefonoUsuario, setTelefonoUsuario] = useState<string | null>(null)
 
     useEffect(() => {
         supabase.auth.getUser().then(({ data }) => {
-            const phone = data.user?.user_metadata?.telefono ?? null;
-            setTelefonoUsuario(phone);
-        });
-    }, []);
+            const phone = data.user?.user_metadata?.telefono ?? null
+            setTelefonoUsuario(phone)
+        })
+    }, [])
 
-    const telefono = telefonoUsuario ?? TELEFONO;
-    const mensaje = `Razón de contacto: ${razon}\n\nCorreo del usuario: [----/new]`;
-    const whatsappUrl = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
-    const puedeEnviar = razon.trim().length > 0;
+    const telefono = telefonoUsuario ?? TELEFONO
+    const mensaje = `Razón de contacto: ${razon}\n\nCorreo del usuario: [----/new]`
+    const whatsappUrl = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`
+    const puedeEnviar = razon.trim().length > 0
 
     return (
         <Card className="h-full">
@@ -79,7 +79,7 @@ export default function SoporteCard() {
                                 whatsappUrl,
                                 "_blank",
                                 "noopener,noreferrer"
-                            );
+                            )
                         }
                     }}
                 >
@@ -87,5 +87,5 @@ export default function SoporteCard() {
                 </Button>
             </div>
         </Card>
-    );
+    )
 }

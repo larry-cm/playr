@@ -1,20 +1,18 @@
-"use client";
-import Card from "@ui/card";
-import PlayrLogo from "@ui/playr-logo";
-import Alert from "@ui/alert";
-import Input from "@ui/input";
-import type { ValidationState } from "@ui/input";
-import PasswordInput from "@ui/password-input";
-import Checkbox from "@ui/checkbox";
-import Button from "@ui/button";
-import { loginAction } from "@action/login-action";
-import { useActionState, useState } from "react";
-import type { LoginState } from "@action/login-action";
-import { Mail } from "lucide-react";
-import Link from "next/link";
-import { validateEmail } from "@lib/validation";
+"use client"
 
-const initialState: LoginState = { success: false, errors: {} };
+import { Mail } from "lucide-react"
+import { type LoginState, loginAction } from "@action/login/login-action"
+import { useActionState, useState } from "react"
+import { validateEmail } from "@lib/validation"
+import Alert from "@ui/alert"
+import Button from "@ui/button"
+import Card from "@ui/card"
+import Input, { type ValidationState } from "@ui/input"
+import Link from "next/link"
+import PasswordInput from "@ui/password-input"
+import PlayrLogo from "@ui/playr-logo"
+
+const initialState: LoginState = { success: false, errors: {} }
 
 function getValidation(
   touched: boolean,
@@ -22,24 +20,24 @@ function getValidation(
   value: string,
   required: boolean,
 ): ValidationState {
-  if (!touched) return "idle";
-  if (error) return "invalid";
-  if (required && !value) return "invalid";
-  return "valid";
+  if (!touched) return "idle"
+  if (error) return "invalid"
+  if (required && !value) return "invalid"
+  return "valid"
 }
 
 export default function Home() {
-  const [state, action, isLoading] = useActionState(loginAction, initialState);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [touched, setTouched] = useState({ email: false, password: false });
+  const [state, action, isLoading] = useActionState(loginAction, initialState)
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [touched, setTouched] = useState({ email: false, password: false })
 
   const touch = (field: "email" | "password") => {
-    setTouched((prev) => ({ ...prev, [field]: true }));
-  };
+    setTouched((prev) => ({ ...prev, [field]: true }))
+  }
 
-  const emailError = validateEmail(email);
-  const passwordError = !password ? "Ingresa una contraseña." : null;
+  const emailError = validateEmail(email)
+  const passwordError = !password ? "Ingresa una contraseña." : null
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-8">
@@ -75,14 +73,14 @@ export default function Home() {
               label="Correo electrónico"
               placeholder="ejemplo@correo.com"
               leftIcon={<Mail className="w-4 h-4" />}
-             error={state?.errors?.email ?? emailError ?? undefined}
-             message="Ingresa un correo electrónico."
+              error={state?.errors?.email ?? emailError ?? undefined}
+              message="Ingresa un correo electrónico."
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               onBlur={() => touch("email")}
               validation={getValidation(touched.email, emailError, email, true)}
             />
- 
+
             <PasswordInput
               id="contraseña"
               name="contraseña"
@@ -95,8 +93,11 @@ export default function Home() {
               validation={getValidation(touched.password, passwordError, password, true)}
             />
 
-            <div className="flex items-center justify-between">
-              <Checkbox id="recordar" name="recordar" label="Recordarme" />
+            <Button type="submit" isLoading={isLoading} size="lg">
+              Iniciar sesión
+            </Button>
+
+            <div className="flex items-center justify-center">
               <Link
                 href="/recuperar"
                 className="text-sm text-secondary hover:text-white transition-colors"
@@ -104,17 +105,13 @@ export default function Home() {
                 ¿Olvidaste tu contraseña?
               </Link>
             </div>
-
-            <Button type="submit" isLoading={isLoading} size="lg">
-              Iniciar sesión
-            </Button>
           </form>
         </Card>
 
         <p className="text-center text-xs text-muted mt-6 select-none">
-          &copy; 2026 Playr. Todos los derechos reservados.
+          &copy; 2026 Playr es una organización privada con todos los derechos reservados.
         </p>
       </div>
     </main>
-  );
+  )
 }

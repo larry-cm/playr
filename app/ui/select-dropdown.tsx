@@ -1,7 +1,7 @@
-"use client";
-import { useState, useRef, useEffect, type ReactNode } from "react";
-import { TriangleAlert, ChevronDown, Search } from "lucide-react";
-import type { ValidationState } from "@ui/input";
+"use client"
+import { useState, useRef, useEffect, type ReactNode } from "react"
+import { TriangleAlert, ChevronDown, Search } from "lucide-react"
+import type { ValidationState } from "@ui/input"
 
 export interface DropdownOption {
   value: string;
@@ -28,7 +28,7 @@ const borderByValidation: Record<ValidationState, string> = {
   idle: "border-white/[0.1]",
   valid: "border-emerald-500/50 focus:border-emerald-400 focus:ring-emerald-400/40",
   invalid: "border-red-500/50 focus:border-red-400 focus:ring-red-400/40",
-};
+}
 
 export default function SelectDropdown({
   options,
@@ -43,52 +43,52 @@ export default function SelectDropdown({
   id,
   validation,
 }: SelectDropdownProps) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState("")
+  const containerRef = useRef<HTMLDivElement>(null)
 
-  const selected = options.find((o) => o.value === value);
+  const selected = options.find((o) => o.value === value)
 
   const filtered = search
     ? options.filter((o) => {
-        const text = o.dropdownLabel ?? o.label;
-        return text.toLowerCase().includes(search.toLowerCase());
-      })
-    : options;
+      const text = o.dropdownLabel ?? o.label
+      return text.toLowerCase().includes(search.toLowerCase())
+    })
+    : options
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setSearch("");
+        setOpen(false)
+        setSearch("")
       }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
 
   const handleSelect = (opt: DropdownOption) => {
-    onChange(opt.value);
-    setOpen(false);
-    setSearch("");
-  };
+    onChange(opt.value)
+    setOpen(false)
+    setSearch("")
+  }
 
   const handleButtonKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
     if (!open && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      e.preventDefault();
-      setSearch(e.key);
-      setOpen(true);
+      e.preventDefault()
+      setSearch(e.key)
+      setOpen(true)
     }
-  };
+  }
 
   const focusSearchInput = (el: HTMLInputElement | null) => {
     if (el && open) {
-      el.focus();
+      el.focus()
       if (search) {
-        el.setSelectionRange(search.length, search.length);
+        el.setSelectionRange(search.length, search.length)
       }
     }
-  };
+  }
 
   return (
     <div className="flex flex-col gap-1.5" ref={containerRef}>
@@ -105,7 +105,7 @@ export default function SelectDropdown({
           id={id}
           onClick={() => setOpen(!open)}
           onKeyDown={handleButtonKeyDown}
-          className={`w-full flex items-center gap-2 bg-white/[0.05] border rounded-xl py-2.5 pl-3.5 pr-10 text-sm text-white outline-none transition-all duration-200 focus:border-accent focus:ring-1 focus:ring-accent/40 ${borderByValidation[validation ?? "idle"]} ${className}`}
+          className={`w-full flex items-center gap-2 bg-white/5 border rounded-xl py-2.5 pl-3.5 pr-10 text-sm text-white outline-none transition-all duration-200 focus:border-accent focus:ring-1 focus:ring-accent/40 ${borderByValidation[validation ?? "idle"]} ${className}`}
         >
           {selected?.icon && <span className="shrink-0">{selected.icon}</span>}
           <span className={`truncate ${selected ? "text-white" : "text-muted"}`}>
@@ -117,8 +117,8 @@ export default function SelectDropdown({
         </button>
 
         {open && (
-          <div className="absolute z-50 mt-1.5 w-full bg-[#0a0a0f] border border-white/[0.1] rounded-xl shadow-2xl overflow-hidden">
-            <div className="relative border-b border-white/[0.06]">
+          <div className="absolute z-50 mt-1.5 w-full bg-background border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+            <div className="relative border-b border-white/6">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none" />
               <input
                 ref={focusSearchInput}
@@ -140,11 +140,10 @@ export default function SelectDropdown({
                     key={opt.value}
                     type="button"
                     onClick={() => handleSelect(opt)}
-                    className={`w-full flex items-center gap-2 px-3.5 py-2.5 text-sm text-left transition-colors hover:bg-white/5 ${
-                      opt.value === value
-                        ? "text-accent bg-accent/5"
-                        : "text-white"
-                    }`}
+                    className={`w-full flex items-center gap-2 px-3.5 py-2.5 text-sm text-left transition-colors hover:bg-white/5 ${opt.value === value
+                      ? "text-accent bg-accent/5"
+                      : "text-white"
+                      }`}
                   >
                     {opt.icon && <span className="shrink-0">{opt.icon}</span>}
                     <span className="truncate">{opt.dropdownLabel ?? opt.label}</span>
@@ -166,5 +165,5 @@ export default function SelectDropdown({
         </div>
       )}
     </div>
-  );
+  )
 }

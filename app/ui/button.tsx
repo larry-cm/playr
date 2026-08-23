@@ -1,6 +1,6 @@
-"use client";
-import { type ButtonHTMLAttributes, type ReactNode } from "react";
-import { LoaderCircle } from "lucide-react";
+"use client"
+import { type ButtonHTMLAttributes, type ReactNode } from "react"
+import { LoaderCircle } from "lucide-react"
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "outline";
 type ButtonSize = "sm" | "md" | "lg";
@@ -22,13 +22,13 @@ const variantStyles: Record<ButtonVariant, string> = {
     "text-secondary hover:text-white hover:bg-white/5 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed",
   outline:
     "border border-white/[0.1] text-white bg-transparent hover:bg-white/5 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed",
-};
+}
 
 const sizeStyles: Record<ButtonSize, string> = {
   sm: "py-1.5 px-3 text-xs rounded-lg gap-1.5",
   md: "py-2 px-4 text-sm rounded-xl gap-2",
   lg: "py-2.5 px-5 text-sm rounded-xl gap-2",
-};
+}
 
 export default function Button({
   variant = "primary",
@@ -55,5 +55,5 @@ export default function Button({
       {isLoading ? <span>{children}</span> : children}
       {!isLoading && rightIcon && <span className="shrink-0">{rightIcon}</span>}
     </button>
-  );
+  )
 }

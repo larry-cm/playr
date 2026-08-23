@@ -29,13 +29,13 @@ export default function Modal({ isOpen, title, onClose, children }: ModalProps) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50" aria-hidden="true" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/70" aria-hidden="true" onClick={onClose} />
 
       <div
         role="dialog"
         aria-modal="true"
-        className="relative z-10 w-full max-w-2xl rounded-2xl backdrop-blur-xl shadow-2xl p-6"
-        style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))', border: '1px solid rgba(255,255,255,0.06)' }}
+        className="relative z-10 w-full max-w-2xl rounded-2xl shadow-2xl p-6"
+        style={{ background: '#12121a', border: '1px solid rgba(255,255,255,0.08)' }}
       >
         <div className="flex items-start justify-between gap-4">
           <h3 className="text-lg font-semibold text-white/95">{title}</h3>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Button from "@ui/button"
 import Input from "@ui/input"
 import type { ValidationState } from "@ui/input"
@@ -77,6 +77,11 @@ export default function Table<T extends Record<string, unknown>>({
     const [editRowId, setEditRowId] = useState<string | number | null>(null)
     const [editedRow, setEditedRow] = useState<Record<string, any> | null>(null)
     const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({})
+    // El indicativo y el número se editan por separado. Si se recalcularan desde el
+    // texto guardado en cada tecla, un valor a medias como "+57 3" volvería a leerse
+    // como el número "573" y el indicativo se iría acumulando.
+    const [phoneDrafts, setPhoneDrafts] = useState<Record<string, { code: string; number: string }>>({})
+    const phoneDraftsRef = useRef<Record<string, { code: string; number: string }>>({})
     const [isConfirmId, setIsConfirmId] = useState<string | null>(null)
     const [search, setSearch] = useState("")
 
@@ -88,6 +93,16 @@ export default function Table<T extends Record<string, unknown>>({
         return (row as any)?.Id ?? (row as any)?.id ?? index
     }
 
+    // Siembra los borradores de teléfono al abrir un modal y los limpia al cerrarlo.
+    const resetPhoneDrafts = (row?: Record<string, unknown> | null) => {
+        const drafts: Record<string, { code: string; number: string }> = {}
+        for (const column of header) {
+            if (isPhoneColumn(column)) drafts[column] = splitPhoneNumber(String(row?.[column] ?? ""))
+        }
+        phoneDraftsRef.current = drafts
+        setPhoneDrafts(drafts)
+    }
+
     const openView = (row: T) => {
         setViewRow(row)
         setEditedRow({ ...row })
@@ -96,6 +111,7 @@ export default function Table<T extends Record<string, unknown>>({
     const openCreate = () => {
         setCreateRow({})
         setTouchedFields({})
+        resetPhoneDrafts(null)
         setViewCreate(true)
     }
 
@@ -141,6 +157,7 @@ export default function Table<T extends Record<string, unknown>>({
         setViewCreate(false)
         setCreateRow(null)
         setTouchedFields({})
+        resetPhoneDrafts(null)
     }
 
     const closeView = () => {
@@ -153,12 +170,14 @@ export default function Table<T extends Record<string, unknown>>({
         setEditRowId(id)
         setEditedRow({ ...row })
         setTouchedFields({})
+        resetPhoneDrafts(row)
     }
 
     const closeEdit = () => {
         setEditRowId(null)
         setEditedRow(null)
         setTouchedFields({})
+        resetPhoneDrafts(null)
     }
 
     const saveEdit = async () => {
@@ -336,22 +355,25 @@ export default function Table<T extends Record<string, unknown>>({
         }
 
         if (isPhoneColumn(column) && !readOnly) {
-            const { code, number } = splitPhoneNumber(String(val ?? ""))
+            const draft = phoneDrafts[column] ?? splitPhoneNumber(String(val ?? ""))
 
-            // PhoneInput avisa del cambio de país y, si el número sobra, lo trunca
-            // en la misma tanda. Calculamos sobre el valor previo para que la segunda
-            // llamada no reescriba el indicativo con el que acaba de quedar obsoleto.
-            const updatePhone = (next: (code: string, number: string) => { code: string; number: string }) => {
-                const apply = (previous: unknown) => {
-                    const prev = splitPhoneNumber(String(previous ?? ""))
-                    const { code: nextCode, number: nextNumber } = next(prev.code, prev.number)
-                    return nextNumber ? `${nextCode} ${nextNumber}` : ""
-                }
+            // El borrador vive en una ref además del estado: al cambiar de país,
+            // PhoneInput avisa del nuevo indicativo y acto seguido trunca el número
+            // si sobra. La ref se actualiza al instante, así que esa segunda llamada
+            // ya lee el indicativo nuevo en vez del que acaba de quedar obsoleto.
+            const updatePhone = (next: (prev: { code: string; number: string }) => { code: string; number: string }) => {
+                const previous = phoneDraftsRef.current[column] ?? draft
+                const updated = next(previous)
 
+                phoneDraftsRef.current = { ...phoneDraftsRef.current, [column]: updated }
+                setPhoneDrafts(phoneDraftsRef.current)
+
+                // En la fila se guarda un único texto: el indicativo va solo al frente.
+                const value = updated.number ? `${updated.code} ${updated.number}` : ""
                 if (viewCreate) {
-                    setCreateRow((prev) => ({ ...(prev ?? {}), [column]: apply(prev?.[column]) }))
+                    setCreateRow((prev) => ({ ...(prev ?? {}), [column]: value }))
                 } else {
-                    setEditedRow((prev) => (prev ? { ...prev, [column]: apply(prev[column]) } : prev))
+                    setEditedRow((prev) => (prev ? { ...prev, [column]: value } : prev))
                 }
                 setTouchedFields((prev) => ({ ...prev, [column]: true }))
             }
@@ -359,12 +381,12 @@ export default function Table<T extends Record<string, unknown>>({
             return (
                 <PhoneInput
                     label=""
-                    codeValue={code}
-                    numberValue={number}
-                    onCodeChange={(value) => updatePhone((_, current) => ({ code: value, number: current }))}
+                    codeValue={draft.code}
+                    numberValue={draft.number}
+                    onCodeChange={(value) => updatePhone((prev) => ({ code: value, number: prev.number }))}
                     onNumberChange={(e) => {
                         const value = e.target.value
-                        updatePhone((current) => ({ code: current, number: value }))
+                        updatePhone((prev) => ({ code: prev.code, number: value }))
                     }}
                     onBlur={() => setTouchedFields((prev) => ({ ...prev, [column]: true }))}
                     numberError={error ?? undefined}
@@ -612,10 +634,11 @@ export default function Table<T extends Record<string, unknown>>({
             <Modal isOpen={editRowId !== null} title={editRowId !== null ? "Editar registro" : undefined} onClose={closeEdit}>
                 {editedRow && (
                     <div className="flex flex-col gap-3">
-                        {header.map((column) => (
+                        {/* Los campos que genera la base de datos no se editan ni se muestran aquí. */}
+                        {editableColumns().map((column) => (
                             <div key={column} className="flex flex-col gap-1">
                                 <label className="text-xs text-secondary font-medium">{column}</label>
-                                {renderField(column, editedRow[column], readOnlyColumns.includes(column))}
+                                {renderField(column, editedRow[column], false)}
                             </div>
                         ))}
 

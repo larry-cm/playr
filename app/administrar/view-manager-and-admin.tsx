@@ -1,4 +1,5 @@
 import Card from "@ui/card"
+import CountUp from "@ui/count-up"
 import { List, Monitor, Network, Users, ChevronRight } from "lucide-react"
 import Link from "next/link"
 
@@ -11,7 +12,7 @@ interface ViewServerProps {
 }
 
 export default function ViewServer({
-    services: { profiles = 0, accounts = 0, customers = 0 } = {}
+    services
 }: Readonly<ViewServerProps>) {
     return (
         <Card className="h-full flex flex-col">
@@ -35,7 +36,9 @@ export default function ViewServer({
                         <Monitor className="w-6 h-6 text-accent" />
                     </Link>
                     <div className="text-center">
-                        <p className="text-4xl font-bold leading-none">{profiles}</p>
+                        <p className="text-4xl font-bold leading-none">
+                            <CountUp value={services ? services.profiles ?? 0 : undefined} />
+                        </p>
                         <Link
                             href="/administrar/perfiles"
                             className="flex items-center justify-center gap-1 mt-2 group"
@@ -55,7 +58,9 @@ export default function ViewServer({
                         <Network className="w-6 h-6 text-accent" />
                     </Link>
                     <div className="text-center">
-                        <p className="text-4xl font-bold leading-none">{accounts}</p>
+                        <p className="text-4xl font-bold leading-none">
+                            <CountUp value={services ? services.accounts ?? 0 : undefined} />
+                        </p>
                         <Link
                             href="/administrar/cuentas"
                             className="flex items-center justify-center gap-1 mt-2 group"
@@ -73,7 +78,9 @@ export default function ViewServer({
                         <Users className="w-6 h-6 text-accent" />
                     </Link>
                     <div className="text-center">
-                        <p className="text-4xl font-bold leading-none">{customers}</p>
+                        <p className="text-4xl font-bold leading-none">
+                            <CountUp value={services ? services.customers ?? 0 : undefined} />
+                        </p>
                         <Link
                             href="/administrar/clientes"
                             className="flex items-center justify-center gap-1 mt-2 group"

@@ -29,6 +29,8 @@ interface TableProps<T extends Record<string, unknown>> {
     onEditSave?: (row: T, id: string | number) => Promise<MutationResult<T>> | MutationResult<T>;
     onDelete?: (id: string, index: number) => Promise<MutationResult<T>> | MutationResult<T>;
     onCreateSave?: (row: Record<string, unknown>) => Promise<MutationResult<T>> | MutationResult<T>;
+    /** True mientras llegan los datos: muestra filas de carga con la misma geometría que las reales. */
+    loading?: boolean;
 }
 
 /** El modal infiere el tipo de campo por el nombre de la columna. */
@@ -67,6 +69,7 @@ export default function Table<T extends Record<string, unknown>>({
     onEditSave,
     onDelete,
     onCreateSave,
+    loading = false,
 }: Readonly<TableProps<T>>) {
     const [rows, setRows] = useState<T[]>(data)
     const [alert, setAlert] = useState<{ variant: "success" | "error"; message: string } | null>(null)
@@ -457,6 +460,8 @@ export default function Table<T extends Record<string, unknown>>({
                             </Button>
                         </div>
 
+                        {/* ponytail: altura fija calibrada a mano; ajústala si el diseño cambia */}
+                        <div className="h-[480px] overflow-y-auto">
                         <table className="w-full border-collapse text-left text-sm" style={{ color: 'var(--color-foreground)' }}>
                             <thead>
                                 <tr>
@@ -474,7 +479,26 @@ export default function Table<T extends Record<string, unknown>>({
                             </thead>
 
                             <tbody>
-                                {filteredRows.length === 0 ? (
+                                {loading ? (
+                                    Array.from({ length: 9 }, (_, i) => (
+                                        <tr key={`skeleton-${i}`}>
+                                            {header.map((column) => (
+                                                <td key={column} className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                    <div className="h-5 w-full animate-pulse rounded-md bg-white/5" />
+                                                </td>
+                                            ))}
+                                            {showActions && (
+                                                <td className="px-4 py-4 align-middle text-right" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                    <div className="inline-flex items-center gap-2">
+                                                        {[0, 1, 2].map((button) => (
+                                                            <div key={button} className="h-9 w-9 animate-pulse rounded-xl bg-white/5" />
+                                                        ))}
+                                                    </div>
+                                                </td>
+                                            )}
+                                        </tr>
+                                    ))
+                                ) : filteredRows.length === 0 ? (
                                     <tr>
                                         <td colSpan={header.length + (showActions ? 1 : 0)} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--color-secondary)' }}>
                                             No hay datos disponibles.
@@ -532,6 +556,7 @@ export default function Table<T extends Record<string, unknown>>({
                                 )}
                             </tbody>
                         </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -554,7 +579,28 @@ export default function Table<T extends Record<string, unknown>>({
                     </Button>
                 </div>
 
-                {filteredRows.length === 0 ? (
+                <div className="h-[480px] overflow-y-auto flex flex-col gap-3">
+                {loading ? (
+                    Array.from({ length: 3 }, (_, i) => (
+                        <div key={`skeleton-${i}`} className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))', border: '1px solid rgba(255,255,255,0.08)' }}>
+                            <div className="p-4">
+                                {header.map((column) => (
+                                    <div key={column} className="flex items-start justify-between gap-3 py-2">
+                                        <div className="h-4 w-16 animate-pulse rounded bg-white/5" />
+                                        <div className="h-4 w-24 animate-pulse rounded bg-white/5" />
+                                    </div>
+                                ))}
+                                {showActions && (
+                                    <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3">
+                                        {[0, 1, 2].map((button) => (
+                                            <div key={button} className="h-9 w-20 animate-pulse rounded-xl bg-white/5" />
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ))
+                ) : filteredRows.length === 0 ? (
                     <div className="px-4 py-6 text-center text-sm" style={{ color: 'var(--color-secondary)' }}>No hay datos disponibles.</div>
                 ) : (
                     filteredRows.map((row, rowIndex) => (
@@ -596,6 +642,7 @@ export default function Table<T extends Record<string, unknown>>({
                         </div>
                     ))
                 )}
+                </div>
             </div>
 
             {/* Create Modal */}

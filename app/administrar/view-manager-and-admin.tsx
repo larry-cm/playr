@@ -1,3 +1,6 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import Card from "@ui/card"
 import { List, Monitor, Network, Users, ChevronRight } from "lucide-react"
 import Link from "next/link"
@@ -10,8 +13,37 @@ interface ViewServerProps {
     }
 }
 
+// Duración fija compartida: todos los contadores llegan a su meta al mismo tiempo.
+const COUNT_DURATION_MS = 900
+
+function Stat({ value }: { value?: number }) {
+    const [display, setDisplay] = useState(0)
+
+    useEffect(() => {
+        if (!value) {
+            setDisplay(0)
+            return
+        }
+        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+            setDisplay(value)
+            return
+        }
+        let raf: number
+        const start = performance.now()
+        const tick = (now: number) => {
+            const progress = Math.min((now - start) / COUNT_DURATION_MS, 1)
+            setDisplay(Math.round(value * (1 - Math.pow(1 - progress, 3))))
+            if (progress < 1) raf = requestAnimationFrame(tick)
+        }
+        raf = requestAnimationFrame(tick)
+        return () => cancelAnimationFrame(raf)
+    }, [value])
+
+    return <p className="text-4xl font-bold leading-none">{display}</p>
+}
+
 export default function ViewServer({
-    services: { profiles = 0, accounts = 0, customers = 0 } = {}
+    services
 }: Readonly<ViewServerProps>) {
     return (
         <Card className="h-full flex flex-col">
@@ -35,7 +67,7 @@ export default function ViewServer({
                         <Monitor className="w-6 h-6 text-accent" />
                     </Link>
                     <div className="text-center">
-                        <p className="text-4xl font-bold leading-none">{profiles}</p>
+                        <Stat value={services ? services.profiles ?? 0 : undefined} />
                         <Link
                             href="/administrar/perfiles"
                             className="flex items-center justify-center gap-1 mt-2 group"
@@ -55,7 +87,7 @@ export default function ViewServer({
                         <Network className="w-6 h-6 text-accent" />
                     </Link>
                     <div className="text-center">
-                        <p className="text-4xl font-bold leading-none">{accounts}</p>
+                        <Stat value={services ? services.accounts ?? 0 : undefined} />
                         <Link
                             href="/administrar/cuentas"
                             className="flex items-center justify-center gap-1 mt-2 group"
@@ -73,7 +105,7 @@ export default function ViewServer({
                         <Users className="w-6 h-6 text-accent" />
                     </Link>
                     <div className="text-center">
-                        <p className="text-4xl font-bold leading-none">{customers}</p>
+                        <Stat value={services ? services.customers ?? 0 : undefined} />
                         <Link
                             href="/administrar/clientes"
                             className="flex items-center justify-center gap-1 mt-2 group"

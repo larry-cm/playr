@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import { Bell, CircleAlert, PackageCheck, PackagePlus, Search, Trash2, TriangleAlert, X } from "lucide-react"
+import { Bell, CircleAlert, PackageCheck, PackagePlus, RefreshCw, Search, Trash2, TriangleAlert, X } from "lucide-react"
 import Alert from "@ui/alert"
 import Input from "@ui/input"
 import { getNotificacionesAction } from "@action/manager-and-admin/notificaciones/get-notificaciones-action"
@@ -56,38 +56,92 @@ function hace(iso: string) {
     return rtf.format(Math.round(h / 24), "day")
 }
 
-/** Estado de la bandeja. `enabled` = solo admin/manager (los demás roles no ven nada por RLS). */
-export function useNotificaciones(enabled: boolean) {
+// El cron trae avisos con la página ya abierta (cada 30 min): se relee cada minuto, sin realtime.
+const POLL_MS = 60_000
+
+// El número de la campana cuenta solo las notificaciones sin ver: las de id mayor al último visto. Abrir la bandeja las marca como vistas.
+// Se guarda por navegador (localStorage), no por cuenta; sin storage (modo privado) el contador arranca en cero y sigue funcionando.
+const CLAVE_VISTO = "notificaciones-vistas-hasta"
+const leerVisto = () => {
+    try {
+        return Number(localStorage.getItem(CLAVE_VISTO)) || 0
+    } catch {
+        return 0
+    }
+}
+
+/** Estado de la bandeja. `enabled` = solo admin/manager (los demás roles no ven nada por RLS). `leer` solo se cambia para probar. */
+export function useNotificaciones(enabled: boolean, pollMs = POLL_MS, leer = getNotificacionesAction) {
     const [items, setItems] = useState<NotificacionRow[]>([])
     const [isOpen, setIsOpen] = useState(false)
+    // una lectura en vuelo puede traer una fila que se acaba de eliminar: no debe reaparecer
+    const eliminadas = useRef(new Set<number>())
+    const [visto, setVisto] = useState(leerVisto)
+    const vistoRef = useRef(visto)
+    const abierta = useRef(false)
+
+    // con la bandeja abierta todo lo que hay (o llegue) ya se está viendo
+    const marcarVistas = useCallback((rows: NotificacionRow[]) => {
+        const max = rows.reduce((m, n) => Math.max(m, n.id), 0)
+        if (max <= vistoRef.current) return
+        vistoRef.current = max
+        setVisto(max)
+        try {
+            localStorage.setItem(CLAVE_VISTO, String(max))
+        } catch {
+            // sin storage: el contador solo dura lo que dure la página
+        }
+    }, [])
+
+    /** Devuelve false si la lectura falló (la bandeja queda como estaba). */
+    const cargar = useCallback(async () => {
+        const rows = await leer()
+        if (rows) {
+            const visibles = rows.filter((n) => !eliminadas.current.has(n.id))
+            setItems(visibles)
+            if (abierta.current) marcarVistas(visibles)
+        }
+        return rows !== null
+    }, [leer, marcarVistas])
 
     useEffect(() => {
         if (!enabled) return
-        let active = true
-        getNotificacionesAction().then((rows) => {
-            if (active && rows) setItems(rows)
-        })
-        return () => {
-            active = false
+        cargar()
+        // en segundo plano no se consulta; al volver a la pestaña se lee de inmediato
+        const tick = () => {
+            if (!document.hidden) cargar()
         }
-    }, [enabled])
+        const id = setInterval(tick, pollMs)
+        document.addEventListener("visibilitychange", tick)
+        return () => {
+            clearInterval(id)
+            document.removeEventListener("visibilitychange", tick)
+        }
+    }, [enabled, pollMs, cargar])
 
-    // el cron trae avisos con la página ya abierta: se vuelve a leer al abrir
     const open = () => {
+        abierta.current = true
         setIsOpen(true)
-        getNotificacionesAction().then((rows) => {
-            if (rows) setItems(rows)
-        })
+        marcarVistas(items)
+        cargar()
     }
-    const close = useCallback(() => setIsOpen(false), [])
+    const close = useCallback(() => {
+        abierta.current = false
+        setIsOpen(false)
+    }, [])
 
     const remove = async (id: number) => {
         const error = await deleteNotificacionAction({ id })
-        if (!error) setItems((prev) => prev.filter((n) => n.id !== id))
+        if (!error) {
+            eliminadas.current.add(id)
+            setItems((prev) => prev.filter((n) => n.id !== id))
+        }
         return error
     }
 
-    return { items, isOpen, open, close, remove }
+    const sinVer = items.filter((n) => n.id > visto).length
+
+    return { items, sinVer, isOpen, open, close, remove, refresh: cargar }
 }
 
 export function NotificacionesBell({ count, onClick }: { count: number; onClick: () => void }) {
@@ -96,7 +150,7 @@ export function NotificacionesBell({ count, onClick }: { count: number; onClick:
             type="button"
             onClick={onClick}
             className="relative p-2 rounded-xl hover:bg-white/5 transition-colors"
-            aria-label={count > 0 ? `Notificaciones (${count})` : "Notificaciones"}
+            aria-label={count > 0 ? `Notificaciones (${count} sin ver)` : "Notificaciones"}
         >
             <Bell className="w-5 h-5 text-secondary" />
             {count > 0 && (
@@ -149,13 +203,16 @@ interface DrawerProps {
     onClose: () => void
     /** Devuelve el mensaje de error, o null si se eliminó. */
     onDelete: (id: number) => Promise<string | null>
+    /** Relee la bandeja. Devuelve false si falló. */
+    onRefresh: () => Promise<boolean>
 }
 
-export default function NotificacionesDrawer({ open, items, onClose, onDelete }: DrawerProps) {
+export default function NotificacionesDrawer({ open, items, onClose, onDelete, onRefresh }: DrawerProps) {
     const [search, setSearch] = useState("")
     const [tipo, setTipo] = useState<Tipo | "">("")
     const [origen, setOrigen] = useState<Origen | "">("")
     const [deletingId, setDeletingId] = useState<number | null>(null)
+    const [refreshing, setRefreshing] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const searchRef = useRef<HTMLInputElement>(null)
 
@@ -187,6 +244,14 @@ export default function NotificacionesDrawer({ open, items, onClose, onDelete }:
         [items, tipo, origen, term],
     )
 
+    const actualizar = async () => {
+        setRefreshing(true)
+        setError(null)
+        const ok = await onRefresh()
+        setRefreshing(false)
+        if (!ok) setError("No se pudieron actualizar las notificaciones. Inténtalo de nuevo.")
+    }
+
     const eliminar = async (id: number) => {
         setDeletingId(id)
         setError(null)
@@ -214,14 +279,26 @@ export default function NotificacionesDrawer({ open, items, onClose, onDelete }:
                         Notificaciones
                         {items.length > 0 && <span className="ml-2 text-xs font-normal text-secondary">{items.length}</span>}
                     </h2>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="-mr-2 p-2 rounded-xl hover:bg-white/5 transition-colors"
-                        aria-label="Cerrar notificaciones"
-                    >
-                        <X className="w-5 h-5 text-secondary" />
-                    </button>
+                    <div className="-mr-2 flex items-center gap-1">
+                        <button
+                            type="button"
+                            onClick={actualizar}
+                            disabled={refreshing}
+                            className="p-2 rounded-xl hover:bg-white/5 transition-colors disabled:opacity-50"
+                            aria-label="Actualizar notificaciones"
+                            title="Actualizar"
+                        >
+                            <RefreshCw className={`w-5 h-5 text-secondary ${refreshing ? "animate-spin motion-reduce:animate-none" : ""}`} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="p-2 rounded-xl hover:bg-white/5 transition-colors"
+                            aria-label="Cerrar notificaciones"
+                        >
+                            <X className="w-5 h-5 text-secondary" />
+                        </button>
+                    </div>
                 </header>
 
                 <div className="flex shrink-0 flex-col gap-3 border-b border-white/6 p-4">

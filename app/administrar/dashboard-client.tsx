@@ -15,7 +15,7 @@ export default function DashboardClient({
     const [sidebarOpen, setSidebarOpen] = useState(false)
     const canNotify = role === "admin" || role === "manager"
     const notifs = useNotificaciones(canNotify)
-    const bell = canNotify && <NotificacionesBell count={notifs.items.length} onClick={notifs.open} />
+    const bell = canNotify && <NotificacionesBell count={notifs.sinVer} onClick={notifs.open} />
 
     return (
         <>
@@ -53,7 +53,7 @@ export default function DashboardClient({
             </div>
 
             {canNotify && (
-                <NotificacionesDrawer open={notifs.isOpen} items={notifs.items} onClose={notifs.close} onDelete={notifs.remove} />
+                <NotificacionesDrawer open={notifs.isOpen} items={notifs.items} onClose={notifs.close} onDelete={notifs.remove} onRefresh={notifs.refresh} />
             )}
         </>
     )

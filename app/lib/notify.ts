@@ -2,7 +2,7 @@ import { createSupabase } from "@lib/supabase/server"
 
 export interface Aviso {
     origen: "scraping" | "plataforma"
-    tipo: "error" | "advertencia"
+    tipo: "error" | "advertencia" | "info" | "exito"
     titulo: string
     /** Texto, o lo capturado en un catch (se toma su .message). */
     mensaje: unknown

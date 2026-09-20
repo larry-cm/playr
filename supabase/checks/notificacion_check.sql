@@ -107,6 +107,14 @@ begin
   reset role;
   select count(*) into n from business.notificacion where titulo = '__check__d';
   assert n = 0, 'anon no debe poder crear notificaciones';
+
+  -- 9) tipos info y exito (migracion 20260920160001): se crean y deduplican como los demas
+  perform business.notificar('scraping', 'info', '__check__e', 'x');
+  perform business.notificar('scraping', 'info', '__check__e', 'x');
+  perform business.notificar('scraping', 'exito', '__check__e', 'x');
+  perform business.notificar('scraping', 'exito', '__check__e', 'x');
+  select count(*) into n from business.notificacion where titulo = '__check__e';
+  assert n = 2, format('info y exito deben crear 1 fila cada uno (dedupe) y hay %s', n);
 end
 $$;
 

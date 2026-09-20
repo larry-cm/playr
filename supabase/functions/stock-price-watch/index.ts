@@ -4,7 +4,7 @@
 // ?dry=1 = todo menos escribir (para probar).
 // Si la corrida falla (login, parseo, guardas, DB) deja un aviso 'error' en la bandeja de notificaciones (business.notificar,
 // migracion 20260920150001); la bandeja deduplica, asi una falla persistente no se acumula cada 6 h.
-// Tambien avisa (advertencia) de los cambios del catalogo del proveedor (stock por producto, productos nuevos): ver avisarCambios.
+// Tambien avisa de los cambios del catalogo del proveedor (stock por producto, productos nuevos): ver avisarCambios.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { cambiosDeStock, clasificar, clave, comparar, scrapeCatalog, type Estado, type Producto } from "./lib.ts";
 
@@ -25,7 +25,7 @@ const rows = async <T>(q: Res<T>): Promise<T> => {
 
 type Db = ReturnType<typeof mkDb>;
 type Listing = { id: number; nombre_raw: string; platform_id: number | null; access_type: string };
-const avisar = async (db: Db, tipo: "error" | "advertencia", titulo: string, mensaje: string) => {
+const avisar = async (db: Db, tipo: "error" | "advertencia" | "info" | "exito", titulo: string, mensaje: string) => {
   const { error } = await db.rpc("notificar", { p_origen: "scraping", p_tipo: tipo, p_titulo: titulo, p_mensaje: mensaje });
   if (error) console.error("notificar:", error.message);
 };
@@ -37,8 +37,8 @@ async function avisarCambios(db: Db, listings: Listing[], plats: { id: number; n
     const etiqueta = (l: Listing) => { const pl = plats.find((p) => p.id === l.platform_id); return pl ? `${pl.nombre} ${l.access_type}` : l.nombre_raw; };
     const { agotados, vuelven } = cambiosDeStock(prev, productos, new Map(listings.map((l) => [clave(l.nombre_raw), etiqueta(l)])));
     if (agotados.length) await avisar(db, "advertencia", "Se agotó stock en el proveedor", agotados.join(", "));
-    if (vuelven.length) await avisar(db, "advertencia", "Volvió el stock en el proveedor", vuelven.join(", "));
-    if (nuevos.length) await avisar(db, "advertencia", "Productos nuevos en el proveedor", nuevos.map((p) => p.nombre).join(", "));
+    if (vuelven.length) await avisar(db, "exito", "Volvió el stock en el proveedor", vuelven.join(", "));
+    if (nuevos.length) await avisar(db, "info", "Productos nuevos en el proveedor", nuevos.map((p) => p.nombre).join(", "));
   } catch (e) {
     console.error("avisarCambios:", e instanceof Error ? e.message : String(e));
   }

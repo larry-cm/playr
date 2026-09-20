@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import { Bell, CircleAlert, Search, Trash2, TriangleAlert, X } from "lucide-react"
+import { Bell, CircleAlert, PackageCheck, PackagePlus, Search, Trash2, TriangleAlert, X } from "lucide-react"
 import Alert from "@ui/alert"
 import Input from "@ui/input"
 import { getNotificacionesAction } from "@action/manager-and-admin/notificaciones/get-notificaciones-action"
@@ -11,7 +11,8 @@ import { deleteNotificacionAction } from "@action/manager-and-admin/notificacion
 type Tipo = NotificacionRow["tipo"]
 type Origen = NotificacionRow["origen"]
 
-// Mismos colores que @ui/alert: rojo = error, ámbar = advertencia.
+// Mismos colores que @ui/alert: rojo = error, ámbar = advertencia, azul = novedad, verde = disponible.
+// Novedad y disponible los usa el escaneo del proveedor (productos nuevos / volvió el stock), de ahí los iconos de paquete.
 const tipoStyle: Record<Tipo, { label: string; box: string; text: string; icon: ReactNode }> = {
     error: {
         label: "Error",
@@ -24,6 +25,18 @@ const tipoStyle: Record<Tipo, { label: string; box: string; text: string; icon: 
         box: "bg-amber-500/10 border-amber-500/20",
         text: "text-amber-400",
         icon: <TriangleAlert className="w-5 h-5 shrink-0" />,
+    },
+    info: {
+        label: "Novedad",
+        box: "bg-blue-500/10 border-blue-500/20",
+        text: "text-blue-400",
+        icon: <PackagePlus className="w-5 h-5 shrink-0" />,
+    },
+    exito: {
+        label: "Disponible",
+        box: "bg-emerald-500/10 border-emerald-500/20",
+        text: "text-emerald-400",
+        icon: <PackageCheck className="w-5 h-5 shrink-0" />,
     },
 }
 
@@ -227,6 +240,8 @@ export default function NotificacionesDrawer({ open, items, onClose, onDelete }:
                         options={[
                             { value: "error", label: "Errores" },
                             { value: "advertencia", label: "Advertencias" },
+                            { value: "info", label: "Novedades" },
+                            { value: "exito", label: "Disponibles" },
                         ]}
                     />
                     <FilterRow

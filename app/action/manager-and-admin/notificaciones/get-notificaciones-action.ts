@@ -5,7 +5,7 @@ import { createSupabase } from "@lib/supabase/server"
 export interface NotificacionRow {
     id: number
     origen: "scraping" | "plataforma"
-    tipo: "error" | "advertencia"
+    tipo: "error" | "advertencia" | "info" | "exito"
     titulo: string
     mensaje: string
     created_at: string

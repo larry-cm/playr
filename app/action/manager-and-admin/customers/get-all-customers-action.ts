@@ -14,7 +14,7 @@ export async function getAllCustomersAction() {
     const supabase = await createSupabase()
     try {
         const { data, error } = await supabase
-            .schema("main")
+            .schema("security")
             .from("client")
             .select("id,username,email,phone,created_at")
             .eq("exist", true)

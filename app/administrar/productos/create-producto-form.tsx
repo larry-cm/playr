@@ -2,7 +2,7 @@
 
 import { use, useState } from "react"
 import Input from "@ui/input"
-import Select from "@ui/select"
+import SelectDropdown from "@ui/select-dropdown"
 import Button from "@ui/button"
 import type { LicenciaDisponible } from "@action/manager-and-admin/productos/get-licencias-disponibles-action"
 import type { ProductoRow } from "@action/manager-and-admin/productos/get-all-productos-action"
@@ -66,10 +66,10 @@ export default function CreateProductoForm({ ofertaPromise, isPending, onPending
             <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
                     <label className="text-xs text-secondary font-medium">Licencia comprada</label>
-                    <Select
+                    <SelectDropdown
                         placeholder="Selecciona una licencia"
                         value={selectedKey}
-                        onChange={(e) => setSelectedKey(e.target.value)}
+                        onChange={setSelectedKey}
                         options={(oferta ?? []).map((o) => ({
                             value: ofertaKey(o.platform_id, o.access_type),
                             label: `${o.platform_nombre} · ${accessTypeLabel[o.access_type]}`,

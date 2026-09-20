@@ -21,7 +21,7 @@ export async function editCustomerAction(formData: any) {
     const supabase = await createSupabase()
     try {
         const { error } = await supabase
-            .schema("main")
+            .schema("security")
             .from("client")
             .update({
                 username: data.data.username,

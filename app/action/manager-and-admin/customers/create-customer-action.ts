@@ -48,7 +48,7 @@ export const createCustomerAction = async (formData: any) => {
 
     const password = data.data.password || "123456"
 
-    const { error } = await supabase.auth.signUp({
+    const { data: signUpData, error } = await supabase.auth.signUp({
         email: data.data.email,
         password: password,
         options: { data: metadata },
@@ -58,17 +58,45 @@ export const createCustomerAction = async (formData: any) => {
         return error.message
     }
 
+    const userId = signUpData.user?.id
+    if (!userId) {
+        return "No se pudo crear el usuario."
+    }
+
+    // Insert explícito: security.client/user_role ya no dependen de un trigger sobre auth.users.
+    const { data: created, error: clientError } = await supabase
+        .schema("security")
+        .from("client")
+        .insert({
+            id: userId,
+            username: data.data.username,
+            email: data.data.email,
+            phone: phone || null,
+        })
+        .select("id,username,email,phone,created_at")
+        .single()
+
+    if (clientError) {
+        return "Error al guardar el cliente."
+    }
+
+    const { data: roleRow } = await supabase
+        .schema("security")
+        .from("role")
+        .select("id")
+        .eq("nombre", data.data.rol || "user")
+        .single()
+
+    if (roleRow) {
+        await supabase
+            .schema("security")
+            .from("user_role")
+            .insert({ auth_user_id: userId, role_id: roleRow.id })
+    }
+
     // Devolvemos la fila ya creada para que la tabla la pinte sin recargar el resto.
     const { formatPhoneNumber } = await import("@lib/phone")
     const { formatColombianDate } = await import("@lib/date")
-
-    const { data: created } = await supabase
-        .schema("main")
-        .from("client")
-        .select("id,username,email,phone,created_at")
-        .eq("email", data.data.email)
-        .eq("exist", true)
-        .maybeSingle()
 
     const fecha = created?.created_at ? formatColombianDate(created.created_at) : "error"
 

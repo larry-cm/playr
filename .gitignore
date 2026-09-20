@@ -49,3 +49,6 @@ next-env.d.ts
 # Agents
 .github/
 .claude/
+
+# supabase
+supabase/

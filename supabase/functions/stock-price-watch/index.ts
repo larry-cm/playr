@@ -2,6 +2,8 @@
 // y sincroniza business.*: una corrida + snapshot por producto + market_alert por cada cambio (agotado / volvio stock / precio).
 // La dispara pg_cron cada 6 h (migracion 20260920120005). Desplegar SIEMPRE con --no-verify-jwt: la auth es el header x-cron-secret.
 // ?dry=1 = todo menos escribir (para probar).
+// Si la corrida falla (login, parseo, guardas, DB) deja un aviso 'error' en la bandeja de notificaciones (business.notificar,
+// migracion 20260920150001); la bandeja deduplica, asi una falla persistente no se acumula cada 6 h.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { clasificar, clave, comparar, scrapeCatalog, type Estado } from "./lib.ts";
 
@@ -11,6 +13,7 @@ const need = (k: string) => {
   if (!v) throw new Error(`falta el secret ${k}`);
   return v;
 };
+const mkDb = () => createClient(need("SUPABASE_URL"), need("SUPABASE_SERVICE_ROLE_KEY"), { auth: { persistSession: false }, db: { schema: "business" } });
 const json = (o: unknown, status = 200) => new Response(JSON.stringify(o), { status, headers: { "content-type": "application/json" } });
 type Res<T> = PromiseLike<{ data: T | null; error: { message: string } | null }>;
 const rows = async <T>(q: Res<T>): Promise<T> => {
@@ -23,11 +26,12 @@ Deno.serve(async (req) => {
   const secret = env("CRON_SECRET");
   if (!secret || req.headers.get("x-cron-secret") !== secret) return json({ error: "unauthorized" }, 401);
   const dry = new URL(req.url).searchParams.has("dry");
+  let db: ReturnType<typeof mkDb> | undefined; // fuera del try: el catch lo necesita para avisar de la falla
   try {
+    db = mkDb(); // antes del scrape: si el scrape falla, igual hay con que avisar
     const cfg = { base: need("PLATFORM_URL"), storePath: need("PLATFORM_STORE_PATH"), email: need("PLATFORM_EMAIL"), password: need("PLATFORM_PASSWORD") };
     const { total, productos } = await scrapeCatalog(cfg);
     const host = new URL(cfg.base).hostname; // == business.provider.nombre ('tuproveedor2.com')
-    const db = createClient(need("SUPABASE_URL"), need("SUPABASE_SERVICE_ROLE_KEY"), { auth: { persistSession: false }, db: { schema: "business" } });
 
     const prov = await rows<{ id: number }>(db.from("provider").select("id").eq("nombre", host).single());
     const cuenta = await rows<{ id: number }>(db.from("provider_account").select("id").eq("provider_id", prov.id).order("id").limit(1).single());
@@ -92,7 +96,13 @@ Deno.serve(async (req) => {
     console.log("corrida", run.id, JSON.stringify(resumenRun));
     return json({ run_id: run.id, ...resumenRun });
   } catch (e) {
-    console.error("stock-price-watch:", (e as Error).message);
-    return json({ error: (e as Error).message }, 500);
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("stock-price-watch:", msg);
+    // dry no escribe nada. Si avisar falla solo se loguea: no debe tapar el error original.
+    if (db && !dry) {
+      const { error } = await db.rpc("notificar", { p_origen: "scraping", p_tipo: "error", p_titulo: "Falló el escaneo del proveedor", p_mensaje: msg });
+      if (error) console.error("notificar:", error.message);
+    }
+    return json({ error: msg }, 500);
   }
 });

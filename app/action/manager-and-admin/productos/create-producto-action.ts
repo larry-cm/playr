@@ -1,7 +1,9 @@
 "use server"
 
+import { revalidatePath } from "next/cache"
 import { createProductoSchema, firstErrorOfProducto } from "@lib/producto-schema"
 import { scrapeLicenciasActivas } from "@lib/scrape-licencias"
+import { notificar } from "@lib/notify"
 import type { ProductoRow } from "@action/manager-and-admin/productos/get-all-productos-action"
 
 export async function createProductoAction(formData: {
@@ -36,7 +38,8 @@ export async function createProductoAction(formData: {
     let licencias
     try {
         licencias = await scrapeLicenciasActivas({ base, email, password }, [platform.nombre])
-    } catch {
+    } catch (e) {
+        await notificar({ origen: "scraping", tipo: "error", titulo: "Falló el escaneo de licencias del proveedor", mensaje: e })
         return "No pudimos verificar tus licencias en el proveedor. Intenta de nuevo."
     }
     const propias = licencias.filter((l) => l.platformNombre === platform.nombre && l.access === data.data.access_type)
@@ -95,7 +98,23 @@ export async function createProductoAction(formData: {
     // la Tienda (catalogo_disponible) — pero esa vista también exige account+profile reales. Se
     // registran acá, uno por cada licencia activa detectada, para que el stock ya comprado quede
     // visible al cliente de inmediato en vez de quedar "huérfano".
+    //
+    // Idempotencia: esto puede correr más de una vez para las MISMAS licencias (ej. borrar y volver a
+    // crear el producto revive la fila y vuelve a escanear el proveedor). Sin este chequeo, cada corrida
+    // insertaba una cuenta nueva para una licencia ya registrada -> el mismo perfil aparecía duplicado
+    // en catalogo_disponible. El email es el identificador real de la licencia en el proveedor.
+    const { data: cuentasExistentes } = await supabase
+        .schema("business")
+        .from("account")
+        .select("email")
+        .eq("platform_id", data.data.platform_id)
+        .eq("access_type", data.data.access_type)
+        .eq("exist", true)
+    const emailsRegistrados = new Set((cuentasExistentes ?? []).map((a) => a.email))
+
     for (const l of propias) {
+        if (emailsRegistrados.has(l.email)) continue
+
         const { data: encPassword, error: encError } = await supabase
             .schema("business")
             .rpc("encrypt_account_password", { password: l.password, enc_key: encKey })
@@ -117,6 +136,8 @@ export async function createProductoAction(formData: {
             .single()
         if (accountError || !account) continue
 
+        // precio_venta vive en business.producto (no en profile, ver 20260920120006_producto_catalog.sql):
+        // catalogo_disponible lo lee del join con producto, no de esta fila.
         await supabase
             .schema("business")
             .from("profile")
@@ -124,10 +145,14 @@ export async function createProductoAction(formData: {
                 account_id: account.id,
                 nombre_perfil: l.perfil,
                 pin: l.pin,
-                precio_venta: data.data.precio_venta,
                 estado: "disponible",
             })
     }
+
+    // El producto recién creado (con su account/profile) cambia lo que ve el manager en /productos
+    // y lo que ve el cliente en /tienda — refrescar ambas rutas para que no dependan de un F5 manual.
+    revalidatePath("/administrar/productos")
+    revalidatePath("/administrar/tienda")
 
     const platformInfo = created.platform as unknown as { nombre: string; categoria: { nombre: string } | null } | null
 

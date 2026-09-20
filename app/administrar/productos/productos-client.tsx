@@ -1,18 +1,17 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Suspense, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import Card from "@ui/card"
 import Button from "@ui/button"
 import Input from "@ui/input"
-import Select from "@ui/select"
+import CopyInput from "@ui/copy-input"
 import Modal from "@ui/modal"
 import Alert from "@ui/alert"
-import { AlertCircle, Plus, Pencil, Trash2, Check, X } from "lucide-react"
-import { getAllProductosAction } from "@action/manager-and-admin/productos/get-all-productos-action"
+import { AlertCircle, Plus, Pencil, Trash2, Search } from "lucide-react"
 import type { ProductoRow } from "@action/manager-and-admin/productos/get-all-productos-action"
-import { getLicenciasDisponiblesAction } from "@action/manager-and-admin/productos/get-licencias-disponibles-action"
 import type { LicenciaDisponible } from "@action/manager-and-admin/productos/get-licencias-disponibles-action"
-import { createProductoAction } from "@action/manager-and-admin/productos/create-producto-action"
+import CreateProductoForm, { CreateProductoFormSkeleton } from "@/app/administrar/productos/create-producto-form"
 import { editProductoPreciosAction } from "@action/manager-and-admin/productos/edit-producto-precios-action"
 import { deleteProductoAction } from "@action/manager-and-admin/productos/delete-producto-action"
 import { formatCOP } from "@lib/currency"
@@ -23,79 +22,47 @@ const accessTypeLabel: Record<ProductoRow["access_type"], string> = {
     otro: "Otro",
 }
 
-const ofertaKey = (platformId: number, accessType: string) => `${platformId}:${accessType}`
+interface ProductosClientProps {
+    initialProductos: ProductoRow[] | null
+    ofertaPromise: Promise<LicenciaDisponible[] | null>
+}
 
-export default function ProductosClient() {
-    // undefined = cargando · null = error · array = datos listos
-    const [productos, setProductos] = useState<ProductoRow[] | null | undefined>(undefined)
-    const [oferta, setOferta] = useState<LicenciaDisponible[] | null | undefined>(undefined)
+export default function ProductosClient({ initialProductos, ofertaPromise }: ProductosClientProps) {
+    const router = useRouter()
+    const [productos, setProductos] = useState<ProductoRow[] | null>(initialProductos)
     const [alert, setAlert] = useState<{ variant: "success" | "error"; message: string } | null>(null)
     const [isPending, setIsPending] = useState(false)
 
     const [createOpen, setCreateOpen] = useState(false)
-    const [selectedKey, setSelectedKey] = useState("")
-    const [newPrecioVenta, setNewPrecioVenta] = useState("")
 
     const [editingId, setEditingId] = useState<number | null>(null)
     const [editPrecioVenta, setEditPrecioVenta] = useState("")
 
     const [deletingId, setDeletingId] = useState<number | null>(null)
+    const [search, setSearch] = useState("")
 
-    const loadOferta = () => getLicenciasDisponiblesAction().then((rows) => setOferta(rows))
+    const filteredProductos = useMemo(() => {
+        const query = search.trim().toLowerCase()
+        if (!query) return productos ?? []
+        return (productos ?? []).filter((row) =>
+            [row.platform_nombre, row.categoria, accessTypeLabel[row.access_type]]
+                .some((value) => value.toLowerCase().includes(query))
+        )
+    }, [productos, search])
 
-    useEffect(() => {
-        let active = true
-        getAllProductosAction().then((rows) => {
-            if (active) setProductos(rows)
-        })
-        getLicenciasDisponiblesAction().then((rows) => {
-            if (active) setOferta(rows)
-        })
-        return () => {
-            active = false
-        }
-    }, [])
-
-    const selectedOferta = oferta?.find((o) => ofertaKey(o.platform_id, o.access_type) === selectedKey)
-
-    const openCreate = () => {
-        setSelectedKey("")
-        setNewPrecioVenta("")
-        setCreateOpen(true)
-        loadOferta()
-    }
-
+    const openCreate = () => setCreateOpen(true)
     const closeCreate = () => setCreateOpen(false)
 
-    const submitCreate = async () => {
-        if (isPending || !selectedOferta) {
-            setAlert({ variant: "error", message: "Selecciona un producto del proveedor." })
-            return
-        }
-        if (newPrecioVenta === "") {
-            setAlert({ variant: "error", message: "El precio de venta es obligatorio." })
-            return
-        }
-
-        setIsPending(true)
-        setAlert(null)
-        const result = await createProductoAction({
-            platform_id: selectedOferta.platform_id,
-            access_type: selectedOferta.access_type,
-            precio_venta: newPrecioVenta,
-        })
-        setIsPending(false)
-
-        if (typeof result === "string") {
-            setAlert({ variant: "error", message: result })
-            return
-        }
-
-        setProductos((prev) => [...(prev ?? []), result.producto])
-        setOferta((prev) => (prev ?? []).filter((o) => ofertaKey(o.platform_id, o.access_type) !== selectedKey))
+    const handleCreated = (producto: ProductoRow) => {
+        setProductos((prev) => [...(prev ?? []), producto])
         setAlert({ variant: "success", message: "Producto creado correctamente." })
         closeCreate()
+        // Refresca server components: nueva data de productos y, sobre todo, un ofertaPromise nuevo
+        // para la próxima apertura del modal (la licencia recién usada ya no debe volver a ofrecerse).
+        router.refresh()
     }
+
+    const editingRow = productos?.find((row) => row.id === editingId) ?? null
 
     const openEdit = (row: ProductoRow) => {
         setEditingId(row.id)
@@ -104,8 +71,9 @@ export default function ProductosClient() {
 
     const cancelEdit = () => setEditingId(null)
 
-    const saveEdit = async (id: number) => {
-        if (isPending) return
+    const saveEdit = async () => {
+        if (editingId === null || isPending) return
+        const id = editingId
         if (editPrecioVenta === "") {
             setAlert({ variant: "error", message: "El precio de venta es obligatorio." })
             return
@@ -128,6 +96,7 @@ export default function ProductosClient() {
         )
         setAlert({ variant: "success", message: "Producto actualizado correctamente." })
         setEditingId(null)
+        router.refresh()
     }
 
     const confirmDelete = async () => {
@@ -145,6 +114,7 @@ export default function ProductosClient() {
         setProductos((prev) => (prev ?? []).filter((row) => row.id !== deletingId))
         setAlert({ variant: "success", message: "Producto eliminado correctamente." })
         setDeletingId(null)
+        router.refresh()
     }
 
     if (productos === null) {
@@ -167,177 +137,230 @@ export default function ProductosClient() {
                 <Alert variant={alert.variant} message={alert.message} onDismiss={() => setAlert(null)} />
             )}
 
-            <div className="flex justify-end">
-                <Button variant="primary" leftIcon={<Plus className="w-4 h-4" />} onClick={openCreate}>
-                    Agregar producto
-                </Button>
+            {/* Desktop / wide: mismo marco que Table (app/ui/table.tsx) para homogeneidad visual */}
+            <div className="hidden md:block relative">
+                <div
+                    className="overflow-hidden rounded-2xl"
+                    style={{
+                        background: 'linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.012))',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        boxShadow: '0 8px 24px rgba(2,6,23,0.28), inset 0 1px 0 rgba(255,255,255,0.04)',
+                        backdropFilter: 'blur(10px)'
+                    }}
+                >
+                    <div className="p-4">
+                        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="relative w-full sm:max-w-sm">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--color-secondary)' }} />
+                                <input
+                                    type="search"
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    placeholder="Buscar"
+                                    className="w-full rounded-xl border border-white/10 bg-white/3 py-2.5 pl-9 pr-3 text-sm text-white outline-none transition focus:border-accent/40 focus:ring-1 focus:ring-accent/20"
+                                />
+                            </div>
+
+                            <Button variant="primary" leftIcon={<Plus className="h-4 w-4" />} onClick={openCreate}>
+                                Agregar producto
+                            </Button>
+                        </div>
+
+                        <div className="h-[480px] overflow-y-auto">
+                            <table className="w-full border-collapse text-left text-sm" style={{ color: 'var(--color-foreground)' }}>
+                                <thead>
+                                    <tr>
+                                        {["Plataforma", "Categoría", "Tipo de acceso", "Costo (proveedor)", "Precio de venta", "Visible"].map((column) => (
+                                            <th key={column} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--color-secondary)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                                                {column}
+                                            </th>
+                                        ))}
+                                        <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--color-secondary)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                                            Acciones
+                                        </th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+                                    {filteredProductos.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={7} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--color-secondary)' }}>
+                                                No hay productos configurados todavía.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        filteredProductos.map((row) => (
+                                            <tr key={row.id} className="group transition-colors hover:bg-white/3">
+                                                <td className="px-4 py-4 align-middle font-semibold" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.platform_nombre}</td>
+                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: 'var(--color-secondary)' }}>{row.categoria}</td>
+                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: 'var(--color-secondary)' }}>{accessTypeLabel[row.access_type]}</td>
+                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: 'var(--color-secondary)' }}>
+                                                    {row.costo === null ? "--" : formatCOP(row.costo)}
+                                                </td>
+                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                    {row.precio_venta === null ? "--" : formatCOP(row.precio_venta)}
+                                                </td>
+                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                    {row.precio_venta !== null ? (
+                                                        <span className="text-emerald-400">Sí</span>
+                                                    ) : (
+                                                        <span className="text-secondary">No</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-4 align-middle text-right" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                    <div className="inline-flex items-center gap-2 *:cursor-pointer">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openEdit(row)}
+                                                            aria-label="Editar"
+                                                            title="Editar"
+                                                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent) focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/25"
+                                                        >
+                                                            <Pencil className="h-4 w-4" />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setDeletingId(row.id)}
+                                                            aria-label="Eliminar"
+                                                            title="Eliminar"
+                                                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-red-400/20 bg-red-500/10 text-red-400 transition-all duration-200 hover:border-red-400/30 hover:bg-red-500/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/25"
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <Card className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                    <thead>
-                        <tr className="text-xs text-secondary uppercase tracking-wide">
-                            <th className="pb-3 pr-4">Plataforma</th>
-                            <th className="pb-3 pr-4">Categoría</th>
-                            <th className="pb-3 pr-4">Tipo de acceso</th>
-                            <th className="pb-3 pr-4">Costo (proveedor)</th>
-                            <th className="pb-3 pr-4">Precio de venta</th>
-                            <th className="pb-3 pr-4">Visible</th>
-                            <th className="pb-3 pr-4 text-right">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {productos === undefined ? (
-                            Array.from({ length: 4 }).map((_, i) => (
-                                <tr key={i} className="border-t border-white/6">
-                                    <td className="py-3 pr-4" colSpan={7}>
-                                        <div className="h-5 w-full rounded bg-white/5 animate-pulse" />
-                                    </td>
-                                </tr>
-                            ))
-                        ) : productos.length === 0 ? (
-                            <tr>
-                                <td className="py-8 text-center text-secondary" colSpan={7}>
-                                    No hay productos configurados todavía.
-                                </td>
-                            </tr>
-                        ) : (
-                            productos.map((row) => {
-                                const isEditing = editingId === row.id
-                                return (
-                                    <tr key={row.id} className="border-t border-white/6">
-                                        <td className="py-3 pr-4 font-medium">{row.platform_nombre}</td>
-                                        <td className="py-3 pr-4 text-secondary">{row.categoria}</td>
-                                        <td className="py-3 pr-4 text-secondary">{accessTypeLabel[row.access_type]}</td>
-                                        <td className="py-3 pr-4 text-secondary">
-                                            {row.costo === null ? "--" : formatCOP(row.costo)}
-                                        </td>
-                                        <td className="py-3 pr-4">
-                                            {isEditing ? (
-                                                <Input
-                                                    className="bg-white/3 w-28"
-                                                    type="number"
-                                                    min="0"
-                                                    value={editPrecioVenta}
-                                                    onChange={(e) => setEditPrecioVenta(e.target.value)}
-                                                />
-                                            ) : (
-                                                row.precio_venta === null ? "--" : formatCOP(row.precio_venta)
-                                            )}
-                                        </td>
-                                        <td className="py-3 pr-4">
+            {/* Mobile: mismo marco que Table (app/ui/table.tsx) */}
+            <div className="md:hidden flex flex-col gap-3">
+                <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/3 p-3">
+                    <div className="relative">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--color-secondary)' }} />
+                        <input
+                            type="search"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Buscar"
+                            className="w-full rounded-xl border border-white/10 bg-white/3 py-2.5 pl-9 pr-3 text-sm text-white outline-none transition focus:border-accent/40 focus:ring-1 focus:ring-accent/20"
+                        />
+                    </div>
+                    <Button size="sm" variant="primary" onClick={openCreate} leftIcon={<Plus className="h-4 w-4" />}>
+                        Agregar producto
+                    </Button>
+                </div>
+
+                <div className="h-[480px] overflow-y-auto flex flex-col gap-3">
+                    {filteredProductos.length === 0 ? (
+                        <div className="px-4 py-6 text-center text-sm" style={{ color: 'var(--color-secondary)' }}>No hay productos configurados todavía.</div>
+                    ) : (
+                        filteredProductos.map((row) => (
+                            <div key={row.id} className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 6px 16px rgba(2,6,23,0.25)' }}>
+                                <div className="p-4">
+                                    {[
+                                        ["Plataforma", row.platform_nombre],
+                                        ["Categoría", row.categoria],
+                                        ["Tipo de acceso", accessTypeLabel[row.access_type]],
+                                        ["Costo (proveedor)", row.costo === null ? "--" : formatCOP(row.costo)],
+                                        ["Precio de venta", row.precio_venta === null ? "--" : formatCOP(row.precio_venta)],
+                                    ].map(([label, value]) => (
+                                        <div key={label} className="flex items-start justify-between gap-3 py-2">
+                                            <div className="text-xs font-medium" style={{ color: 'var(--color-secondary)' }}>{label}</div>
+                                            <div className="text-sm" style={{ color: 'var(--color-foreground)' }}>{value}</div>
+                                        </div>
+                                    ))}
+                                    <div className="flex items-start justify-between gap-3 py-2">
+                                        <div className="text-xs font-medium" style={{ color: 'var(--color-secondary)' }}>Visible</div>
+                                        <div className="text-sm">
                                             {row.precio_venta !== null ? (
                                                 <span className="text-emerald-400">Sí</span>
                                             ) : (
                                                 <span className="text-secondary">No</span>
                                             )}
-                                        </td>
-                                        <td className="py-3 pr-4">
-                                            <div className="flex items-center justify-end gap-2">
-                                                {isEditing ? (
-                                                    <>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => saveEdit(row.id)}
-                                                            disabled={isPending}
-                                                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-400/20 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/15"
-                                                            aria-label="Guardar"
-                                                        >
-                                                            <Check className="w-4 h-4" />
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={cancelEdit}
-                                                            disabled={isPending}
-                                                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/3 text-secondary hover:bg-white/5"
-                                                            aria-label="Cancelar"
-                                                        >
-                                                            <X className="w-4 h-4" />
-                                                        </button>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => openEdit(row)}
-                                                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/3 hover:bg-accent/10 hover:border-accent/30 hover:text-accent"
-                                                            aria-label="Editar"
-                                                        >
-                                                            <Pencil className="w-4 h-4" />
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setDeletingId(row.id)}
-                                                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-400/20 bg-red-500/10 text-red-400 hover:bg-red-500/15"
-                                                            aria-label="Eliminar"
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </button>
-                                                    </>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )
-                            })
-                        )}
-                    </tbody>
-                </table>
-            </Card>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3 *:cursor-pointer">
+                                        <button
+                                            type="button"
+                                            onClick={() => openEdit(row)}
+                                            className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 px-3 text-sm text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent)"
+                                        >
+                                            <Pencil className="mr-2 h-4 w-4" />Editar
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setDeletingId(row.id)}
+                                            className="inline-flex h-9 items-center justify-center rounded-xl border border-red-400/20 bg-red-500/10 px-3 text-sm text-red-400 transition-all duration-200 hover:border-red-400/30 hover:bg-red-500/15"
+                                        >
+                                            <Trash2 className="mr-2 h-4 w-4" />Eliminar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
 
             <Modal isOpen={createOpen} title="Agregar producto" onClose={closeCreate}>
-                <div className="flex flex-col gap-3">
-                    <div className="flex flex-col gap-1">
-                        <label className="text-xs text-secondary font-medium">Licencia comprada</label>
-                        <Select
-                            placeholder={oferta === undefined ? "Cargando..." : "Selecciona una licencia"}
-                            value={selectedKey}
-                            onChange={(e) => setSelectedKey(e.target.value)}
-                            options={(oferta ?? []).map((o) => ({
-                                value: ofertaKey(o.platform_id, o.access_type),
-                                label: `${o.platform_nombre} · ${accessTypeLabel[o.access_type]}`,
-                            }))}
-                        />
-                        {oferta === null && (
-                            <p className="text-xs text-red-400">
-                                No pudimos leer tus licencias en el proveedor. Intenta de nuevo en un momento.
-                            </p>
-                        )}
-                        {oferta && oferta.length === 0 && (
-                            <p className="text-xs text-secondary">
-                                No tenés licencias activas sin producto todavía. Comprá o renová stock en el proveedor primero.
-                            </p>
-                        )}
+                <Suspense fallback={<CreateProductoFormSkeleton onCancel={closeCreate} />}>
+                    <CreateProductoForm
+                        ofertaPromise={ofertaPromise}
+                        isPending={isPending}
+                        onPendingChange={setIsPending}
+                        onSuccess={handleCreated}
+                        onError={(message) => setAlert({ variant: "error", message })}
+                        onCancel={closeCreate}
+                    />
+                </Suspense>
+            </Modal>
+
+            <Modal isOpen={editingId !== null} title="Editar producto" onClose={cancelEdit}>
+                {editingRow && (
+                    <div className="flex flex-col gap-3">
+                        <div className="flex flex-col gap-1">
+                            <label className="text-xs text-secondary font-medium">Plataforma</label>
+                            <CopyInput value={editingRow.platform_nombre} readOnly copyLabel="Copiar" successLabel="Copiado" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-xs text-secondary font-medium">Categoría</label>
+                            <CopyInput value={editingRow.categoria} readOnly copyLabel="Copiar" successLabel="Copiado" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-xs text-secondary font-medium">Tipo de acceso</label>
+                            <CopyInput value={accessTypeLabel[editingRow.access_type]} readOnly copyLabel="Copiar" successLabel="Copiado" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-xs text-secondary font-medium">Costo (proveedor)</label>
+                            <CopyInput value={editingRow.costo === null ? "--" : formatCOP(editingRow.costo)} readOnly copyLabel="Copiar" successLabel="Copiado" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-xs text-secondary font-medium">Precio de venta</label>
+                            <Input
+                                className="bg-white/3"
+                                type="number"
+                                min="0"
+                                value={editPrecioVenta}
+                                onChange={(e) => setEditPrecioVenta(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 mt-2">
+                            <Button variant="ghost" onClick={cancelEdit} disabled={isPending}>Cancelar</Button>
+                            <Button variant="primary" onClick={saveEdit} disabled={isPending}>
+                                {isPending ? "Guardando..." : "Guardar"}
+                            </Button>
+                        </div>
                     </div>
-                    <div className="flex flex-col gap-1">
-                        <label className="text-xs text-secondary font-medium">Costo (proveedor)</label>
-                        <Input
-                            className="bg-white/3"
-                            value={selectedOferta && selectedOferta.costo !== null ? formatCOP(selectedOferta.costo) : "--"}
-                            readOnly
-                        />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                        <label className="text-xs text-secondary font-medium">
-                            Precio de venta<span className="text-accent ml-0.5">*</span>
-                        </label>
-                        <Input
-                            className="bg-white/3"
-                            type="number"
-                            min="0"
-                            value={newPrecioVenta}
-                            onChange={(e) => setNewPrecioVenta(e.target.value)}
-                            required
-                        />
-                        <p className="text-xs text-secondary">Obligatorio: sin este precio el producto no aparece en la Tienda.</p>
-                    </div>
-                </div>
-                <div className="flex items-center justify-end gap-2 mt-4">
-                    <Button variant="ghost" onClick={closeCreate} disabled={isPending}>Cancelar</Button>
-                    <Button variant="primary" onClick={submitCreate} disabled={isPending || !selectedOferta}>
-                        {isPending ? "Creando..." : "Crear"}
-                    </Button>
-                </div>
+                )}
             </Modal>
 
             <Modal isOpen={deletingId !== null} title="Confirmar eliminación" onClose={() => setDeletingId(null)}>

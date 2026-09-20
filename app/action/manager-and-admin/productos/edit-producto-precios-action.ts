@@ -1,5 +1,6 @@
 "use server"
 
+import { revalidatePath } from "next/cache"
 import { editPrecioVentaSchema, firstErrorOfProducto } from "@lib/producto-schema"
 
 export async function editProductoPreciosAction(formData: {
@@ -21,5 +22,8 @@ export async function editProductoPreciosAction(formData: {
         .eq("id", formData.id)
 
     if (error) return "Error al actualizar el producto."
+
+    revalidatePath("/administrar/productos")
+    revalidatePath("/administrar/tienda")
     return null
 }

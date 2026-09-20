@@ -1,6 +1,7 @@
 "use server"
 
 import { scrapeLicenciasActivas } from "@lib/scrape-licencias"
+import { notificar } from "@lib/notify"
 
 export interface LicenciaDisponible {
     platform_id: number
@@ -22,7 +23,15 @@ export async function getLicenciasDisponiblesAction(): Promise<LicenciaDisponibl
     const base = process.env.PLATFORM_URL
     const email = process.env.PLATFORM_EMAIL
     const password = process.env.PLATFORM_PASSWORD
-    if (!base || !email || !password) return null
+    if (!base || !email || !password) {
+        await notificar({
+            origen: "plataforma",
+            tipo: "advertencia",
+            titulo: "Falta configuración del proveedor en el servidor",
+            mensaje: "Faltan PLATFORM_URL, PLATFORM_EMAIL o PLATFORM_PASSWORD: no se pueden leer las licencias.",
+        })
+        return null
+    }
 
     const { createSupabase } = await import("@lib/supabase/server")
     const supabase = await createSupabase()
@@ -49,7 +58,8 @@ export async function getLicenciasDisponiblesAction(): Promise<LicenciaDisponibl
             combos.set(key, { platform_id, platform_nombre: l.platformNombre, access_type: l.access, costo: costoByKey.get(key) ?? null })
         }
         return [...combos.values()].sort((a, b) => a.platform_nombre.localeCompare(b.platform_nombre))
-    } catch {
+    } catch (e) {
+        await notificar({ origen: "scraping", tipo: "error", titulo: "Falló el escaneo de licencias del proveedor", mensaje: e })
         return null
     }
 }

@@ -11,16 +11,19 @@ import Alert from "@ui/alert"
 import { AlertCircle, Plus, Pencil, Trash2, Search } from "lucide-react"
 import type { ProductoRow } from "@action/manager-and-admin/productos/get-all-productos-action"
 import type { LicenciaDisponible } from "@action/manager-and-admin/productos/get-licencias-disponibles-action"
+import type { OfertaProveedorItem } from "@action/manager-and-admin/productos/get-oferta-proveedor-action"
 import CreateProductoForm, { CreateProductoFormSkeleton } from "@/app/administrar/productos/create-producto-form"
+import CreateComboForm from "@/app/administrar/productos/create-combo-form"
 import { editProductoPreciosAction } from "@action/manager-and-admin/productos/edit-producto-precios-action"
 import { deleteProductoAction } from "@action/manager-and-admin/productos/delete-producto-action"
+import { accessTypeLabel } from "@lib/access-type"
 import { formatCOP } from "@lib/currency"
 
-const accessTypeLabel: Record<ProductoRow["access_type"], string> = {
-    completa: "Completa",
-    pantalla: "Pantalla",
-    otro: "Otro",
-}
+/** Qué lleva adentro un combo, en una línea: "2 × NETFLIX Pantalla + DISNEY Pantalla". */
+const contenidoDeCombo = (row: ProductoRow) =>
+    row.combo_items
+        .map((item) => `${item.cantidad > 1 ? `${item.cantidad} × ` : ""}${item.platform_nombre} ${accessTypeLabel[item.access_type]}`)
+        .join(" + ")
 
 const gananciaOf = (row: ProductoRow) =>
     row.precio_venta === null || row.costo === null ? null : row.precio_venta - row.costo
@@ -34,16 +37,20 @@ const gananciaColor = (ganancia: number | null) =>
 
 interface ProductosClientProps {
     initialProductos: ProductoRow[] | null
-    ofertaPromise: Promise<LicenciaDisponible[] | null>
+    /** Licencias ya compradas sin producto: la base del producto simple (escaneo lento del proveedor). */
+    licenciasPromise: Promise<LicenciaDisponible[] | null>
+    /** Lo que el proveedor vende hoy según el último escaneo del cron: la base de los combos. */
+    oferta: OfertaProveedorItem[]
 }
 
-export default function ProductosClient({ initialProductos, ofertaPromise }: ProductosClientProps) {
+export default function ProductosClient({ initialProductos, licenciasPromise, oferta }: ProductosClientProps) {
     const router = useRouter()
     const [productos, setProductos] = useState<ProductoRow[] | null>(initialProductos)
     const [alert, setAlert] = useState<{ variant: "success" | "error"; message: string } | null>(null)
     const [isPending, setIsPending] = useState(false)
 
     const [createOpen, setCreateOpen] = useState(false)
+    const [createTipo, setCreateTipo] = useState<"simple" | "combo">("simple")
 
     const [editingId, setEditingId] = useState<number | null>(null)
     const [editPrecioVenta, setEditPrecioVenta] = useState("")
@@ -55,12 +62,16 @@ export default function ProductosClient({ initialProductos, ofertaPromise }: Pro
         const query = search.trim().toLowerCase()
         if (!query) return productos ?? []
         return (productos ?? []).filter((row) =>
-            [row.platform_nombre, row.categoria, accessTypeLabel[row.access_type]]
+            // Un combo también se encuentra buscando cualquiera de las plataformas que incluye.
+            [row.titulo, row.categoria, accessTypeLabel[row.access_type], contenidoDeCombo(row)]
                 .some((value) => value.toLowerCase().includes(query))
         )
     }, [productos, search])
 
-    const openCreate = () => setCreateOpen(true)
+    const openCreate = () => {
+        setCreateTipo("simple")
+        setCreateOpen(true)
+    }
     const closeCreate = () => setCreateOpen(false)
 
     const handleCreated = (producto: ProductoRow) => {
@@ -180,7 +191,7 @@ export default function ProductosClient({ initialProductos, ofertaPromise }: Pro
                             <table className="w-full border-collapse text-left text-sm" style={{ color: 'var(--color-foreground)' }}>
                                 <thead>
                                     <tr>
-                                        {["Plataforma", "Categoría", "Tipo de acceso", "Costo (proveedor)", "Precio de venta", "Ganancia"].map((column) => (
+                                        {["Producto", "Categoría", "Tipo de acceso", "Costo (proveedor)", "Precio de venta", "Ganancia"].map((column) => (
                                             <th key={column} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--color-secondary)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                                                 {column}
                                             </th>
@@ -201,7 +212,14 @@ export default function ProductosClient({ initialProductos, ofertaPromise }: Pro
                                     ) : (
                                         filteredProductos.map((row) => (
                                             <tr key={row.id} className="group transition-colors hover:bg-white/3">
-                                                <td className="px-4 py-4 align-middle font-semibold" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.platform_nombre}</td>
+                                                <td className="px-4 py-4 align-middle font-semibold" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                    {row.titulo}
+                                                    {row.combo_items.length > 0 && (
+                                                        <span className="block text-xs font-normal" style={{ color: 'var(--color-secondary)' }}>
+                                                            {contenidoDeCombo(row)}
+                                                        </span>
+                                                    )}
+                                                </td>
                                                 <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.categoria}</td>
                                                 <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{accessTypeLabel[row.access_type]}</td>
                                                 <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
@@ -271,7 +289,8 @@ export default function ProductosClient({ initialProductos, ofertaPromise }: Pro
                             <div key={row.id} className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 6px 16px rgba(2,6,23,0.25)' }}>
                                 <div className="p-4">
                                     {[
-                                        ["Plataforma", row.platform_nombre],
+                                        ["Producto", row.titulo],
+                                        ...(row.combo_items.length > 0 ? [["Incluye", contenidoDeCombo(row)]] : []),
                                         ["Categoría", row.categoria],
                                         ["Tipo de acceso", accessTypeLabel[row.access_type]],
                                         ["Costo (proveedor)", row.costo === null ? "--" : formatCOP(row.costo)],
@@ -312,25 +331,64 @@ export default function ProductosClient({ initialProductos, ofertaPromise }: Pro
             </div>
 
             <Modal isOpen={createOpen} title="Agregar producto" onClose={closeCreate}>
-                <Suspense fallback={<CreateProductoFormSkeleton onCancel={closeCreate} />}>
-                    <CreateProductoForm
-                        ofertaPromise={ofertaPromise}
+                {/* Los dos caminos son distintos de raíz: el simple parte de una licencia ya comprada
+                    (una plataforma), el combo se arma eligiendo varias del catálogo del proveedor. */}
+                <div className="mb-4 inline-flex rounded-xl border border-white/10 bg-white/3 p-1">
+                    {([["simple", "Producto simple"], ["combo", "Combo"]] as const).map(([value, label]) => (
+                        <button
+                            key={value}
+                            type="button"
+                            onClick={() => setCreateTipo(value)}
+                            className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-200 ${createTipo === value
+                                ? "bg-accent/10 text-accent"
+                                : "text-secondary hover:text-white"
+                                }`}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
+
+                {createTipo === "simple" ? (
+                    <Suspense fallback={<CreateProductoFormSkeleton onCancel={closeCreate} />}>
+                        <CreateProductoForm
+                            ofertaPromise={licenciasPromise}
+                            isPending={isPending}
+                            onPendingChange={setIsPending}
+                            onSuccess={handleCreated}
+                            onError={(message) => setAlert({ variant: "error", message })}
+                            onCancel={closeCreate}
+                        />
+                    </Suspense>
+                ) : (
+                    <CreateComboForm
+                        oferta={oferta}
                         isPending={isPending}
                         onPendingChange={setIsPending}
                         onSuccess={handleCreated}
                         onError={(message) => setAlert({ variant: "error", message })}
                         onCancel={closeCreate}
                     />
-                </Suspense>
+                )}
             </Modal>
 
             <Modal isOpen={editingId !== null} title="Editar producto" onClose={cancelEdit}>
                 {editingRow && (
                     <div className="flex flex-col gap-3">
                         <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">Plataforma</label>
-                            <CopyInput value={editingRow.platform_nombre} readOnly copyLabel="Copiar" successLabel="Copiado" />
+                            <label className="text-xs text-secondary font-medium">
+                                {editingRow.access_type === "combo" ? "Nombre del combo" : "Plataforma"}
+                            </label>
+                            <CopyInput value={editingRow.titulo} readOnly copyLabel="Copiar" successLabel="Copiado" />
                         </div>
+                        {editingRow.combo_items.length > 0 && (
+                            <div className="flex flex-col gap-1">
+                                <label className="text-xs text-secondary font-medium">Incluye</label>
+                                <CopyInput value={contenidoDeCombo(editingRow)} readOnly copyLabel="Copiar" successLabel="Copiado" />
+                                {/* La receta de un combo es su identidad: cambiarla es armar otro combo. */}
+                                <p className="text-xs text-secondary">Para cambiar el contenido, crea un combo nuevo y elimina este.</p>
+                            </div>
+                        )}
                         <div className="flex flex-col gap-1">
                             <label className="text-xs text-secondary font-medium">Categoría</label>
                             <CopyInput value={editingRow.categoria} readOnly copyLabel="Copiar" successLabel="Copiado" />

@@ -52,20 +52,41 @@ export async function createProductoAction(formData: {
         .eq("access_type", data.data.access_type)
         .maybeSingle()
 
-    const { data: created, error } = await supabase
+    // El unique(platform_id, access_type) solo protege filas activas (exist=true): si ya se
+    // "eliminó" (soft-delete) un producto de esta combinación, se revive en vez de intentar un
+    // insert que chocaría con esa fila vieja para siempre.
+    const { data: previo, error: previoError } = await supabase
         .schema("business")
         .from("producto")
-        .insert({
-            platform_id: data.data.platform_id,
-            access_type: data.data.access_type,
-            costo: oferta?.costo ?? null,
-            precio_venta: data.data.precio_venta,
-        })
+        .select("id")
+        .eq("platform_id", data.data.platform_id)
+        .eq("access_type", data.data.access_type)
+        .eq("exist", false)
+        .maybeSingle()
+    if (previoError) return "Error al verificar productos existentes."
+
+    const upsert = previo
+        ? supabase
+              .schema("business")
+              .from("producto")
+              .update({ costo: oferta?.costo ?? null, precio_venta: data.data.precio_venta, exist: true })
+              .eq("id", previo.id)
+        : supabase
+              .schema("business")
+              .from("producto")
+              .insert({
+                  platform_id: data.data.platform_id,
+                  access_type: data.data.access_type,
+                  costo: oferta?.costo ?? null,
+                  precio_venta: data.data.precio_venta,
+              })
+
+    const { data: created, error } = await upsert
         .select("id,platform_id,access_type,costo,precio_venta,exist,platform:platform_id(nombre,categoria:category_id(nombre))")
         .single()
 
     if (error) {
-        // unique(platform_id, access_type)
+        // unique(platform_id, access_type) where exist
         if (error.code === "23505") return "Ya existe un producto con esa plataforma y tipo de acceso."
         return "Error al crear el producto."
     }

@@ -141,20 +141,21 @@ export function comparar(prev: Map<string, Estado>, actual: Producto[]): Alerta[
   return out;
 }
 
-export const llave = (platformId: number | null, access: string) => `${platformId}|${access}`;
-
-// Stock por producto vendido (llave platform_id|access_type): hay stock si ALGUN listing del proveedor esta disponible, asi un hermano
-// agotado no da falsa alarma. Devuelve las llaves (ordenadas) cuyo stock cambio entre la corrida anterior y esta.
-export function cambiosDeStock(prev: Map<string, Estado>, actual: Producto[], llavePorClave: Map<string, string>, vendidos: Set<string>) {
-  const st = new Map<string, { antes: boolean; ahora: boolean }>();
+// Stock por producto del proveedor: el listing se agrupa por etiqueta (plataforma + tipo de acceso; los combos y no reconocidos, sin
+// plataforma, son cada uno su propio producto). Hay stock si ALGUN listing de la etiqueta esta disponible, asi un hermano agotado no da falsa
+// alarma. Devuelve las etiquetas (ordenadas) cuyo stock cambio entre la corrida anterior y esta; una etiqueta sin ningun listing en la
+// corrida anterior es un producto nuevo (se avisa aparte), no un cambio de stock.
+export function cambiosDeStock(prev: Map<string, Estado>, actual: Producto[], etiquetaPorClave: Map<string, string>) {
+  const st = new Map<string, { visto: boolean; antes: boolean; ahora: boolean }>();
   for (const p of actual) {
-    const c = clave(p.nombre), k = llavePorClave.get(c);
-    if (!k || !vendidos.has(k)) continue;
-    const s = st.get(k) ?? { antes: false, ahora: false };
+    const c = clave(p.nombre), k = etiquetaPorClave.get(c);
+    if (!k) continue;
+    const s = st.get(k) ?? { visto: false, antes: false, ahora: false };
+    s.visto ||= prev.has(c);
     s.antes ||= prev.get(c)?.disponible ?? false;
     s.ahora ||= p.disponible;
     st.set(k, s);
   }
-  const con = (f: (s: { antes: boolean; ahora: boolean }) => boolean) => [...st].filter(([, s]) => f(s)).map(([k]) => k).sort();
+  const con = (f: (s: { antes: boolean; ahora: boolean }) => boolean) => [...st].filter(([, s]) => s.visto && f(s)).map(([k]) => k).sort();
   return { agotados: con((s) => s.antes && !s.ahora), vuelven: con((s) => !s.antes && s.ahora) };
 }

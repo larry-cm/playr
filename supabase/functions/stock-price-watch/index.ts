@@ -4,9 +4,9 @@
 // ?dry=1 = todo menos escribir (para probar).
 // Si la corrida falla (login, parseo, guardas, DB) deja un aviso 'error' en la bandeja de notificaciones (business.notificar,
 // migracion 20260920150001); la bandeja deduplica, asi una falla persistente no se acumula cada 6 h.
-// Tambien avisa (advertencia) cuando cambia el stock de un producto que vendemos: ver avisarStock.
+// Tambien avisa (advertencia) de los cambios del catalogo del proveedor (stock por producto, productos nuevos): ver avisarCambios.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { cambiosDeStock, clasificar, clave, comparar, llave, scrapeCatalog, type Estado, type Producto } from "./lib.ts";
+import { cambiosDeStock, clasificar, clave, comparar, scrapeCatalog, type Estado, type Producto } from "./lib.ts";
 
 const env = (k: string) => Deno.env.get(k) ?? "";
 const need = (k: string) => {
@@ -30,18 +30,17 @@ const avisar = async (db: Db, tipo: "error" | "advertencia", titulo: string, men
   if (error) console.error("notificar:", error.message);
 };
 
-// Avisos de stock a la bandeja: solo productos que vendemos (business.producto activo con precio_venta) y solo cuando cambia el stock
-// del producto (ver cambiosDeStock); un aviso por tipo y corrida. Nunca lanza: la corrida ya quedo guardada.
-async function avisarStock(db: Db, listings: Listing[], plats: { id: number; nombre: string }[], prev: Map<string, Estado>, productos: Producto[]) {
+// Avisos a la bandeja de lo que cambio en el catalogo del proveedor (todo, no solo lo que vendemos): stock por producto (ver cambiosDeStock)
+// y productos nuevos; un aviso por tipo y corrida. Nunca lanza: la corrida ya quedo guardada.
+async function avisarCambios(db: Db, listings: Listing[], plats: { id: number; nombre: string }[], prev: Map<string, Estado>, productos: Producto[], nuevos: Producto[]) {
   try {
-    const prods = await rows<{ platform_id: number; access_type: string }[]>(db.from("producto").select("platform_id,access_type").eq("exist", true).not("precio_venta", "is", null));
-    const llavePorClave = new Map(listings.map((l) => [clave(l.nombre_raw), llave(l.platform_id, l.access_type)]));
-    const { agotados, vuelven } = cambiosDeStock(prev, productos, llavePorClave, new Set(prods.map((p) => llave(p.platform_id, p.access_type))));
-    const nombre = (k: string) => `${plats.find((p) => String(p.id) === k.split("|")[0])?.nombre} ${k.split("|")[1]}`;
-    if (agotados.length) await avisar(db, "advertencia", "Se agotó stock de productos que vendes", agotados.map(nombre).join(", "));
-    if (vuelven.length) await avisar(db, "advertencia", "Volvió el stock de productos que vendes", vuelven.map(nombre).join(", "));
+    const etiqueta = (l: Listing) => { const pl = plats.find((p) => p.id === l.platform_id); return pl ? `${pl.nombre} ${l.access_type}` : l.nombre_raw; };
+    const { agotados, vuelven } = cambiosDeStock(prev, productos, new Map(listings.map((l) => [clave(l.nombre_raw), etiqueta(l)])));
+    if (agotados.length) await avisar(db, "advertencia", "Se agotó stock en el proveedor", agotados.join(", "));
+    if (vuelven.length) await avisar(db, "advertencia", "Volvió el stock en el proveedor", vuelven.join(", "));
+    if (nuevos.length) await avisar(db, "advertencia", "Productos nuevos en el proveedor", nuevos.map((p) => p.nombre).join(", "));
   } catch (e) {
-    console.error("avisarStock:", e instanceof Error ? e.message : String(e));
+    console.error("avisarCambios:", e instanceof Error ? e.message : String(e));
   }
 }
 
@@ -117,7 +116,7 @@ Deno.serve(async (req) => {
       await db.from("extraction_run").delete().eq("id", run.id);
       throw e;
     }
-    if (prevRun) await avisarStock(db, listings, plats, prev, productos); // sin corrida previa todo "cambiaria": no avisar
+    if (prevRun) await avisarCambios(db, listings, plats, prev, productos, nuevos); // sin corrida previa todo "cambiaria": no avisar
     console.log("corrida", run.id, JSON.stringify(resumenRun));
     return json({ run_id: run.id, ...resumenRun });
   } catch (e) {

@@ -50,5 +50,6 @@ next-env.d.ts
 .github/
 .claude/
 
-# supabase
-supabase/
+# supabase (se versionan migrations/ y functions/; solo se ignora el estado local del CLI)
+supabase/.temp/
+supabase/.branches/

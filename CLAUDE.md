@@ -277,11 +277,11 @@ Si se trabaja con este repo, conviene asumir que:
 
 ## 15) Agente de administración de Supabase
 
-`.claude/agents/supabase-admin.md` — agente de propósito general (no exclusivo de playr, vive igual en `analisis-plataformas`) para administrar Supabase vía CLI: migraciones, Edge Functions, Storage, secrets. Credenciales en `.env.supabase-cli` (ya existente, `SUPABASE_ACCESS_TOKEN` + `SUPABASE_PROJECT_REF` + `SUPABASE_DB_PASSWORD` — proyecto linkeado: `tnwcnpzjlpophcqnqrxb`). MCP oficial de Supabase registrado en `.mcp.json` como respaldo de consultas puntuales; las acciones reales van por CLI. El agente pide confirmación antes de cualquier comando que mute datos (`db push`, `functions deploy`, `storage rm`, etc.) — nunca las corre solo.
+`.claude/agents/supabase-admin.md` — agente de propósito general para administrar Supabase vía CLI: migraciones, Edge Functions, Storage, secrets. Credenciales en `.env.supabase-cli` (ya existente, `SUPABASE_ACCESS_TOKEN` + `SUPABASE_PROJECT_REF` + `SUPABASE_DB_PASSWORD` — proyecto linkeado: `tnwcnpzjlpophcqnqrxb`). MCP oficial de Supabase registrado en `.mcp.json` como respaldo de consultas puntuales; las acciones reales van por CLI. El agente pide confirmación antes de cualquier comando que mute datos (`db push`, `functions deploy`, `storage rm`, etc.) — nunca las corre solo.
 
 ## 16) Skill de compra al proveedor
 
-`.claude/skills/comprar-proveedor/SKILL.md` — compra en tuproveedor2.com el producto que el usuario elija (`agent-browser` por Bash) y, con la entrega en mano, inserta `business.account` + `business.profile` en estado `disponible` para que vuelvan a `catalogo_disponible`. Gasta dinero real: pide confirmación explícita antes de pagar y verifica DB, clave y login **antes** de comprar. Requiere `ACCOUNT_ENC_KEY` en `.env` (la contraseña se guarda con `pgp_sym_encrypt` en base64; sin la clave no se puede descifrar) y un `SUPABASE_ACCESS_TOKEN` válido. Las credenciales del proveedor (`PLATFORM_*`) viven en `.env.platform` (separado de `.env`, mismo criterio que `.env.supabase-cli`; Next.js lo carga vía `next.config.ts`) o, si faltan, de `../analisis-plataformas/.env`. El paso de carrito/checkout aún no está validado contra el sitio: la primera corrida debe ser en modo "simulá".
+`.claude/skills/comprar-proveedor/SKILL.md` — compra en tuproveedor2.com el producto que el usuario elija (`agent-browser` por Bash) y, con la entrega en mano, inserta `business.account` + `business.profile` en estado `disponible` para que vuelvan a `catalogo_disponible`. Gasta dinero real: pide confirmación explícita antes de pagar y verifica DB, clave y login **antes** de comprar. Requiere `ACCOUNT_ENC_KEY` en `.env` (la contraseña se guarda con `pgp_sym_encrypt` en base64; sin la clave no se puede descifrar) y un `SUPABASE_ACCESS_TOKEN` válido. Las credenciales del proveedor (`PLATFORM_*`) viven en `.env.platform` (separado de `.env`, mismo criterio que `.env.supabase-cli`; Next.js lo carga vía `next.config.ts`) — mismo `.env.platform` que usa `inventario-proveedores` (sección 19). El paso de carrito/checkout aún no está validado contra el sitio: la primera corrida debe ser en modo "simulá".
 
 ## 17) Sincronización automática del catálogo del proveedor (Edge Function + cron)
 
@@ -294,4 +294,20 @@ Si se trabaja con este repo, conviene asumir que:
 - La función aborta sin escribir si el login falla, si los productos parseados no igualan el total publicado, o si el catálogo cae a menos de la mitad de la corrida anterior.
 - `market_alert.enviado_at` significa "momento de detección" (no hay envío). `extraction_run` solo guarda la fecha, no la hora.
 - Operación (ver estado, correr ya, pausar, cambiar horario): `Bobeda de Larry/Informe de productos/manual-tarea-diaria.md`.
+- Si una corrida falla (login, parseo, guardas, DB) deja un aviso `error` en la bandeja de notificaciones (sección 18). `?dry=1` nunca avisa.
+
+## 18) Notificaciones (campana + bandeja `business.notificacion`)
+
+Bandeja de avisos **importantes** para admin/manager: fallas y advertencias del scraping y de la plataforma. No es un log ni el historial de stock/precio (eso es `market_alert`). Migración `20260920150001_notificacion.sql`.
+
+- Tabla `business.notificacion`: `origen` (`scraping` | `plataforma`), `tipo` (`error` | `advertencia`, define el color), `titulo`, `mensaje`, `exist`, `created_at`. "Eliminar" = `exist=false` (soft-delete global, no por usuario): la fila queda en la DB y la UI no la muestra. Nadie hace DELETE ni INSERT directo (sin privilegio).
+- RLS: solo admin/manager leen y descartan (el rol `user` no ve nada). Único UPDATE permitido: `exist=false`.
+- Crear avisos siempre con `business.notificar(p_origen, p_tipo, p_titulo, p_mensaje)` (security definer): desde Next con `notificar()` de `app/lib/notify.ts` (nunca lanza), desde la Edge Function con `db.rpc("notificar", …)`. Descarta el aviso si ya hay uno idéntico (mismos 4 campos) sin eliminar, así una falla persistente no se acumula; si se elimina y la falla sigue, vuelve a avisar.
+- Hoy emiten: `stock-price-watch` (corrida fallida), el scraper de licencias de la app (`getLicenciasDisponiblesAction`, `createProductoAction`) y la Tienda (`getCatalogoDisponibleAction`).
+- UI: campana en `aside.tsx` (escritorio) y en el header móvil de `dashboard-client.tsx`; drawer lateral en `app/administrar/notificaciones.tsx` con buscador (sin tildes), filtros por tipo y origen, color por tipo y eliminar. Lee las 100 más recientes al cargar y al abrir (sin realtime).
+- Check ejecutable (RLS + dedupe; corre en una transacción con ROLLBACK y no deja filas): `supabase db query --linked -f supabase/checks/notificacion_check.sql`.
+
+## 19) Inventario a demanda del proveedor
+
+`.claude/agents/inventario-proveedores.md` — agente que, a pedido explícito del usuario ("dame el inventario", "qué están vendiendo", "revisa la tienda"), hace login en tuproveedor2.com (`agent-browser` CLI por Bash, nunca las tools MCP aunque estén cargadas), pagina `/tienda`, parsea productos y agotados del texto de `read`, clasifica por tipo de servicio y por Completa/Pantalla, y escribe/actualiza un único `.md` por plataforma en `C:\Users\user\Documents\Bobeda de Larry\Informe de productos\inventario-<plataforma>.md` (nunca dentro del repo). Es de solo lectura: nunca compra ni agrega al carrito (eso es `comprar-proveedor`, sección 16). Credenciales en `.env.platform` (mismo archivo que usa `comprar-proveedor`). Antes provenía de un repo separado (`analisis-plataformas`, eliminado el 2026-09-20) — ahora vive acá junto con el resto del flujo del proveedor (`comprar-proveedor` y `stock-price-watch`). Si la estructura del sitio cambia (login, paginación, marcador "Agotado"), el agente para y avisa en vez de asumir.
 

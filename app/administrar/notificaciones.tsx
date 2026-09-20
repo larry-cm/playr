@@ -339,7 +339,9 @@ export default function NotificacionesDrawer({ open, items, onClose, onDelete, o
                     </div>
                 )}
 
-                <div className="flex-1 overflow-y-auto overscroll-contain p-4">
+                {/* Barra delgada y oscura (la nativa de Windows es clara y de 15px y parece un borde). El gutter siempre reservado
+                    (10px) + pr-1.5 deja las tarjetas a 16px del borde derecho, alineadas con el buscador, haya scroll o no. */}
+                <div className="flex-1 overflow-y-auto overscroll-contain py-4 pl-4 pr-1.5 [scrollbar-width:thin] [scrollbar-gutter:stable] [scrollbar-color:rgb(255_255_255/0.2)_transparent]">
                     {visibles.length === 0 ? (
                         <div className="flex flex-col items-center gap-2 py-12 text-center text-secondary">
                             <Bell className="w-8 h-8 text-muted" />

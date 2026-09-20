@@ -298,9 +298,14 @@ export default function ProductosClient() {
                                 label: `${o.platform_nombre} · ${accessTypeLabel[o.access_type]}`,
                             }))}
                         />
+                        {oferta === null && (
+                            <p className="text-xs text-red-400">
+                                No pudimos leer tus licencias en el proveedor. Intenta de nuevo en un momento.
+                            </p>
+                        )}
                         {oferta && oferta.length === 0 && (
                             <p className="text-xs text-secondary">
-                                No tenés licencias compradas sin producto todavía. Comprá stock al proveedor primero.
+                                No tenés licencias activas sin producto todavía. Comprá o renová stock en el proveedor primero.
                             </p>
                         )}
                     </div>
@@ -308,7 +313,7 @@ export default function ProductosClient() {
                         <label className="text-xs text-secondary font-medium">Costo (proveedor)</label>
                         <Input
                             className="bg-white/3"
-                            value={selectedOferta ? formatCOP(selectedOferta.costo) : "--"}
+                            value={selectedOferta && selectedOferta.costo !== null ? formatCOP(selectedOferta.costo) : "--"}
                             readOnly
                         />
                     </div>

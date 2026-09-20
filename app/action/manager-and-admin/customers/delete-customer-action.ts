@@ -9,7 +9,7 @@ export async function deleteCustomerAction(formData: { id: string }) {
     const supabase = await createSupabase()
     try {
         const { error } = await supabase
-            .schema("main")
+            .schema("security")
             .from("client")
             .update({ exist: false })
             .eq("id", id)

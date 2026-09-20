@@ -140,3 +140,21 @@ export function comparar(prev: Map<string, Estado>, actual: Producto[]): Alerta[
   }
   return out;
 }
+
+export const llave = (platformId: number | null, access: string) => `${platformId}|${access}`;
+
+// Stock por producto vendido (llave platform_id|access_type): hay stock si ALGUN listing del proveedor esta disponible, asi un hermano
+// agotado no da falsa alarma. Devuelve las llaves (ordenadas) cuyo stock cambio entre la corrida anterior y esta.
+export function cambiosDeStock(prev: Map<string, Estado>, actual: Producto[], llavePorClave: Map<string, string>, vendidos: Set<string>) {
+  const st = new Map<string, { antes: boolean; ahora: boolean }>();
+  for (const p of actual) {
+    const c = clave(p.nombre), k = llavePorClave.get(c);
+    if (!k || !vendidos.has(k)) continue;
+    const s = st.get(k) ?? { antes: false, ahora: false };
+    s.antes ||= prev.get(c)?.disponible ?? false;
+    s.ahora ||= p.disponible;
+    st.set(k, s);
+  }
+  const con = (f: (s: { antes: boolean; ahora: boolean }) => boolean) => [...st].filter(([, s]) => f(s)).map(([k]) => k).sort();
+  return { agotados: con((s) => s.antes && !s.ahora), vuelven: con((s) => !s.antes && s.ahora) };
+}

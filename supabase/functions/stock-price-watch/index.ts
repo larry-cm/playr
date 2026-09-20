@@ -4,8 +4,9 @@
 // ?dry=1 = todo menos escribir (para probar).
 // Si la corrida falla (login, parseo, guardas, DB) deja un aviso 'error' en la bandeja de notificaciones (business.notificar,
 // migracion 20260920150001); la bandeja deduplica, asi una falla persistente no se acumula cada 6 h.
+// Tambien avisa (advertencia) cuando cambia el stock de un producto que vendemos: ver avisarStock.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { clasificar, clave, comparar, scrapeCatalog, type Estado } from "./lib.ts";
+import { cambiosDeStock, clasificar, clave, comparar, llave, scrapeCatalog, type Estado, type Producto } from "./lib.ts";
 
 const env = (k: string) => Deno.env.get(k) ?? "";
 const need = (k: string) => {
@@ -21,6 +22,28 @@ const rows = async <T>(q: Res<T>): Promise<T> => {
   if (error) throw new Error(error.message);
   return data as T;
 };
+
+type Db = ReturnType<typeof mkDb>;
+type Listing = { id: number; nombre_raw: string; platform_id: number | null; access_type: string };
+const avisar = async (db: Db, tipo: "error" | "advertencia", titulo: string, mensaje: string) => {
+  const { error } = await db.rpc("notificar", { p_origen: "scraping", p_tipo: tipo, p_titulo: titulo, p_mensaje: mensaje });
+  if (error) console.error("notificar:", error.message);
+};
+
+// Avisos de stock a la bandeja: solo productos que vendemos (business.producto activo con precio_venta) y solo cuando cambia el stock
+// del producto (ver cambiosDeStock); un aviso por tipo y corrida. Nunca lanza: la corrida ya quedo guardada.
+async function avisarStock(db: Db, listings: Listing[], plats: { id: number; nombre: string }[], prev: Map<string, Estado>, productos: Producto[]) {
+  try {
+    const prods = await rows<{ platform_id: number; access_type: string }[]>(db.from("producto").select("platform_id,access_type").eq("exist", true).not("precio_venta", "is", null));
+    const llavePorClave = new Map(listings.map((l) => [clave(l.nombre_raw), llave(l.platform_id, l.access_type)]));
+    const { agotados, vuelven } = cambiosDeStock(prev, productos, llavePorClave, new Set(prods.map((p) => llave(p.platform_id, p.access_type))));
+    const nombre = (k: string) => `${plats.find((p) => String(p.id) === k.split("|")[0])?.nombre} ${k.split("|")[1]}`;
+    if (agotados.length) await avisar(db, "advertencia", "Se agotó stock de productos que vendes", agotados.map(nombre).join(", "));
+    if (vuelven.length) await avisar(db, "advertencia", "Volvió el stock de productos que vendes", vuelven.map(nombre).join(", "));
+  } catch (e) {
+    console.error("avisarStock:", e instanceof Error ? e.message : String(e));
+  }
+}
 
 Deno.serve(async (req) => {
   const secret = env("CRON_SECRET");
@@ -41,7 +64,7 @@ Deno.serve(async (req) => {
     // guarda anti-basura: un catalogo que se achica a menos de la mitad es un sitio roto/en mantenimiento, no "todo se agoto"
     if (prevRun && productos.length < prevRun.total_productos / 2) throw new Error(`catalogo sospechoso: ${productos.length} productos vs ${prevRun.total_productos} en la corrida anterior`);
 
-    const listings = await rows<{ id: number; nombre_raw: string }[]>(db.from("market_listing").select("id,nombre_raw").eq("provider_id", prov.id));
+    const listings = await rows<Listing[]>(db.from("market_listing").select("id,nombre_raw,platform_id,access_type").eq("provider_id", prov.id));
     const idPorClave = new Map(listings.map((l) => [clave(l.nombre_raw), l.id]));
     const clavePorId = new Map(listings.map((l) => [l.id, clave(l.nombre_raw)]));
     const prev = new Map<string, Estado>();
@@ -62,13 +85,14 @@ Deno.serve(async (req) => {
 
     const plats = await rows<{ id: number; nombre: string }[]>(db.from("platform").select("id,nombre"));
     if (nuevos.length) {
-      const ins = await rows<{ id: number; nombre_raw: string }[]>(
+      const ins = await rows<Listing[]>(
         db.from("market_listing").insert(nuevos.map((p) => {
           const c = clasificar(p.nombre, plats.map((x) => x.nombre));
           return { provider_id: prov.id, platform_id: plats.find((x) => x.nombre === c.platform)?.id ?? null, access_type: c.access, nombre_raw: p.nombre };
-        })).select("id,nombre_raw"),
+        })).select("id,nombre_raw,platform_id,access_type"),
       );
       for (const l of ins) idPorClave.set(clave(l.nombre_raw), l.id);
+      listings.push(...ins);
     }
     const run = await rows<{ id: number }>(
       db.from("extraction_run").insert({
@@ -93,6 +117,7 @@ Deno.serve(async (req) => {
       await db.from("extraction_run").delete().eq("id", run.id);
       throw e;
     }
+    if (prevRun) await avisarStock(db, listings, plats, prev, productos); // sin corrida previa todo "cambiaria": no avisar
     console.log("corrida", run.id, JSON.stringify(resumenRun));
     return json({ run_id: run.id, ...resumenRun });
   } catch (e) {
@@ -100,8 +125,7 @@ Deno.serve(async (req) => {
     console.error("stock-price-watch:", msg);
     // dry no escribe nada. Si avisar falla solo se loguea: no debe tapar el error original.
     if (db && !dry) {
-      const { error } = await db.rpc("notificar", { p_origen: "scraping", p_tipo: "error", p_titulo: "Falló el escaneo del proveedor", p_mensaje: msg });
-      if (error) console.error("notificar:", error.message);
+      await avisar(db, "error", "Falló el escaneo del proveedor", msg);
     }
     return json({ error: msg }, 500);
   }

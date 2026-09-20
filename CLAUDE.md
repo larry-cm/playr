@@ -275,3 +275,23 @@ Si se trabaja con este repo, conviene asumir que:
 - los clientes y usuarios están fuertemente ligados a Supabase Auth + metadata
 - el linter no está limpio todavía, así que no todos los cambios serán “green” de entrada
 
+## 15) Agente de administración de Supabase
+
+`.claude/agents/supabase-admin.md` — agente de propósito general (no exclusivo de playr, vive igual en `analisis-plataformas`) para administrar Supabase vía CLI: migraciones, Edge Functions, Storage, secrets. Credenciales en `.env.supabase-cli` (ya existente, `SUPABASE_ACCESS_TOKEN` + `SUPABASE_PROJECT_REF` + `SUPABASE_DB_PASSWORD` — proyecto linkeado: `tnwcnpzjlpophcqnqrxb`). MCP oficial de Supabase registrado en `.mcp.json` como respaldo de consultas puntuales; las acciones reales van por CLI. El agente pide confirmación antes de cualquier comando que mute datos (`db push`, `functions deploy`, `storage rm`, etc.) — nunca las corre solo.
+
+## 16) Skill de compra al proveedor
+
+`.claude/skills/comprar-proveedor/SKILL.md` — compra en tuproveedor2.com el producto que el usuario elija (`agent-browser` por Bash) y, con la entrega en mano, inserta `business.account` + `business.profile` en estado `disponible` para que vuelvan a `catalogo_disponible`. Gasta dinero real: pide confirmación explícita antes de pagar y verifica DB, clave y login **antes** de comprar. Requiere `ACCOUNT_ENC_KEY` en `.env` (la contraseña se guarda con `pgp_sym_encrypt` en base64; sin la clave no se puede descifrar) y un `SUPABASE_ACCESS_TOKEN` válido. Las credenciales del proveedor (`PLATFORM_*`) salen de `.env` o, si faltan, de `../analisis-plataformas/.env`. El paso de carrito/checkout aún no está validado contra el sitio: la primera corrida debe ser en modo "simulá".
+
+## 17) Sincronización automática del catálogo del proveedor (Edge Function + cron)
+
+`supabase/functions/stock-price-watch/` escanea tuproveedor2.com **sin navegador ni LLM** (login WordPress/Ultimate Member en `/login/` + paginación de `/tienda/` por HTTP plano) y sincroniza `business.*`: una fila en `extraction_run`, un `market_listing_snapshot` por producto y un `market_alert` por cada cambio (agotado / volvió stock / precio). No envía WhatsApp. Productos nuevos se insertan solos en `market_listing` (plataforma deducida por nombre; combos y no reconocidos quedan con `platform_id` null).
+
+- Cron: pg_cron job `stock-price-watch`, `0 */6 * * *` UTC (00, 06, 12, 18 UTC = 19, 01, 07, 13 hora Colombia), creado por la migración `20260920120005_stock_watch_cron.sql`. Llama a la función con pg_net y el header `x-cron-secret`.
+- Secrets de la función: `PLATFORM_URL`, `PLATFORM_STORE_PATH`, `PLATFORM_EMAIL`, `PLATFORM_PASSWORD`, `CRON_SECRET`. `CRON_SECRET` debe ser idéntico al secret `cron_secret` de Vault (si se rota uno, rotar el otro).
+- Desplegar siempre con `supabase functions deploy stock-price-watch --no-verify-jwt --project-ref tnwcnpzjlpophcqnqrxb`; sin `--no-verify-jwt` el cron recibe 401.
+- Identidad de producto = `clave()` en `lib.ts` (ignora mayúsculas, prefijo `z ` de combos, espacios y signos): el sitio y el seed difieren en eso. `lib.ts` es solo `fetch` + regex para poder probarlo fuera de Deno: `node supabase/functions/stock-price-watch/lib_test.ts`.
+- La función aborta sin escribir si el login falla, si los productos parseados no igualan el total publicado, o si el catálogo cae a menos de la mitad de la corrida anterior.
+- `market_alert.enviado_at` significa "momento de detección" (no hay envío). `extraction_run` solo guarda la fecha, no la hora.
+- Operación (ver estado, correr ya, pausar, cambiar horario): `Bobeda de Larry/Informe de productos/manual-tarea-diaria.md`.
+

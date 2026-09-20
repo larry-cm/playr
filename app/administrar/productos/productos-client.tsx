@@ -25,6 +25,13 @@ const accessTypeLabel: Record<ProductoRow["access_type"], string> = {
 const gananciaOf = (row: ProductoRow) =>
     row.precio_venta === null || row.costo === null ? null : row.precio_venta - row.costo
 
+const gananciaColor = (ganancia: number | null) =>
+    ganancia === null || ganancia === 0
+        ? 'var(--color-foreground)'
+        : ganancia > 0
+            ? '#34d399'
+            : '#f87171'
+
 interface ProductosClientProps {
     initialProductos: ProductoRow[] | null
     ofertaPromise: Promise<LicenciaDisponible[] | null>
@@ -195,15 +202,15 @@ export default function ProductosClient({ initialProductos, ofertaPromise }: Pro
                                         filteredProductos.map((row) => (
                                             <tr key={row.id} className="group transition-colors hover:bg-white/3">
                                                 <td className="px-4 py-4 align-middle font-semibold" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.platform_nombre}</td>
-                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: 'var(--color-secondary)' }}>{row.categoria}</td>
-                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: 'var(--color-secondary)' }}>{accessTypeLabel[row.access_type]}</td>
-                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: 'var(--color-secondary)' }}>
+                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.categoria}</td>
+                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{accessTypeLabel[row.access_type]}</td>
+                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                                     {row.costo === null ? "--" : formatCOP(row.costo)}
                                                 </td>
                                                 <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                                     {row.precio_venta === null ? "--" : formatCOP(row.precio_venta)}
                                                 </td>
-                                                <td className="px-4 py-4 align-middle font-medium" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: gananciaOf(row) === null ? 'var(--color-secondary)' : gananciaOf(row)! > 0 ? '#34d399' : gananciaOf(row)! < 0 ? '#f87171' : 'var(--color-secondary)' }}>
+                                                <td className="px-4 py-4 align-middle font-medium" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: gananciaColor(gananciaOf(row)) }}>
                                                     {gananciaOf(row) === null ? "--" : formatCOP(gananciaOf(row)!)}
                                                 </td>
                                                 <td className="px-4 py-4 align-middle text-right" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
@@ -277,7 +284,7 @@ export default function ProductosClient({ initialProductos, ofertaPromise }: Pro
                                     ))}
                                     <div className="flex items-start justify-between gap-3 py-2">
                                         <div className="text-xs font-medium" style={{ color: 'var(--color-secondary)' }}>Ganancia</div>
-                                        <div className="text-sm font-medium" style={{ color: gananciaOf(row) === null ? 'var(--color-secondary)' : gananciaOf(row)! > 0 ? '#34d399' : gananciaOf(row)! < 0 ? '#f87171' : 'var(--color-secondary)' }}>
+                                        <div className="text-sm font-medium" style={{ color: gananciaColor(gananciaOf(row)) }}>
                                             {gananciaOf(row) === null ? "--" : formatCOP(gananciaOf(row)!)}
                                         </div>
                                     </div>

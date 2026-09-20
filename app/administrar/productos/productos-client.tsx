@@ -22,6 +22,9 @@ const accessTypeLabel: Record<ProductoRow["access_type"], string> = {
     otro: "Otro",
 }
 
+const gananciaOf = (row: ProductoRow) =>
+    row.precio_venta === null || row.costo === null ? null : row.precio_venta - row.costo
+
 interface ProductosClientProps {
     initialProductos: ProductoRow[] | null
     ofertaPromise: Promise<LicenciaDisponible[] | null>
@@ -170,7 +173,7 @@ export default function ProductosClient({ initialProductos, ofertaPromise }: Pro
                             <table className="w-full border-collapse text-left text-sm" style={{ color: 'var(--color-foreground)' }}>
                                 <thead>
                                     <tr>
-                                        {["Plataforma", "Categoría", "Tipo de acceso", "Costo (proveedor)", "Precio de venta"].map((column) => (
+                                        {["Plataforma", "Categoría", "Tipo de acceso", "Costo (proveedor)", "Precio de venta", "Ganancia"].map((column) => (
                                             <th key={column} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--color-secondary)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                                                 {column}
                                             </th>
@@ -184,7 +187,7 @@ export default function ProductosClient({ initialProductos, ofertaPromise }: Pro
                                 <tbody>
                                     {filteredProductos.length === 0 ? (
                                         <tr>
-                                            <td colSpan={6} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--color-secondary)' }}>
+                                            <td colSpan={7} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--color-secondary)' }}>
                                                 No hay productos configurados todavía.
                                             </td>
                                         </tr>
@@ -199,6 +202,9 @@ export default function ProductosClient({ initialProductos, ofertaPromise }: Pro
                                                 </td>
                                                 <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                                     {row.precio_venta === null ? "--" : formatCOP(row.precio_venta)}
+                                                </td>
+                                                <td className="px-4 py-4 align-middle font-medium" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: gananciaOf(row) === null ? 'var(--color-secondary)' : gananciaOf(row)! > 0 ? '#34d399' : gananciaOf(row)! < 0 ? '#f87171' : 'var(--color-secondary)' }}>
+                                                    {gananciaOf(row) === null ? "--" : formatCOP(gananciaOf(row)!)}
                                                 </td>
                                                 <td className="px-4 py-4 align-middle text-right" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                                     <div className="inline-flex items-center gap-2 *:cursor-pointer">
@@ -269,6 +275,12 @@ export default function ProductosClient({ initialProductos, ofertaPromise }: Pro
                                             <div className="text-sm" style={{ color: 'var(--color-foreground)' }}>{value}</div>
                                         </div>
                                     ))}
+                                    <div className="flex items-start justify-between gap-3 py-2">
+                                        <div className="text-xs font-medium" style={{ color: 'var(--color-secondary)' }}>Ganancia</div>
+                                        <div className="text-sm font-medium" style={{ color: gananciaOf(row) === null ? 'var(--color-secondary)' : gananciaOf(row)! > 0 ? '#34d399' : gananciaOf(row)! < 0 ? '#f87171' : 'var(--color-secondary)' }}>
+                                            {gananciaOf(row) === null ? "--" : formatCOP(gananciaOf(row)!)}
+                                        </div>
+                                    </div>
                                     <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3 *:cursor-pointer">
                                         <button
                                             type="button"

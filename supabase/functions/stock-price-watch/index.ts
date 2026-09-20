@@ -1,9 +1,9 @@
 // Edge Function stock-price-watch: scrapea el catalogo del proveedor (login + paginas por HTTP plano, sin navegador ni LLM),
 // y sincroniza business.*: una corrida + snapshot por producto + market_alert por cada cambio (agotado / volvio stock / precio).
-// La dispara pg_cron cada 6 h (migracion 20260920120005). Desplegar SIEMPRE con --no-verify-jwt: la auth es el header x-cron-secret.
+// La dispara pg_cron cada 30 min (migraciones 20260920120005 y 20260920170001). Desplegar SIEMPRE con --no-verify-jwt: la auth es el header x-cron-secret.
 // ?dry=1 = todo menos escribir (para probar).
 // Si la corrida falla (login, parseo, guardas, DB) deja un aviso 'error' en la bandeja de notificaciones (business.notificar,
-// migracion 20260920150001); la bandeja deduplica, asi una falla persistente no se acumula cada 6 h.
+// migracion 20260920150001); la bandeja deduplica, asi una falla persistente no se acumula en cada corrida.
 // Tambien avisa de los cambios del catalogo del proveedor (stock por producto, productos nuevos): ver avisarCambios.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { cambiosDeStock, clasificar, clave, comparar, scrapeCatalog, type Estado, type Producto } from "./lib.ts";

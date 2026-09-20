@@ -13,6 +13,12 @@
       "skillPath": "skills/suggest-lucide-icons/SKILL.md",
       "computedHash": "52af409272e71e5e3c1a5a91f4307d7c50d30225a2f67e70ca8ac3d30d80e2a0"
     },
+    "supabase": {
+      "source": "supabase/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/supabase/SKILL.md",
+      "computedHash": "a6260582f48df8ba53380bb9b9e870ed2ae5fe147799e90ed783b8aa25167d50"
+    },
     "ui-ux-pro-max": {
       "source": "nextlevelbuilder/ui-ux-pro-max-skill",
       "sourceType": "github",

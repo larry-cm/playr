@@ -5,12 +5,16 @@ export async function getRoleUser(): Promise<"user" | "admin" | "manager" | "err
     const { data: auth, error } = await supabase.auth.getUser()
     if (error || !auth.user) return "error"
 
-    const { data } = await supabase
+    const { data, error: roleError } = await supabase
         .schema("security")
         .from("user_role")
         .select("role:role_id(nombre)")
         .eq("auth_user_id", auth.user.id)
         .maybeSingle<{ role: { nombre: string } | null }>()
+
+    if (roleError) {
+        console.error("getRoleUser: fallo consultando security.user_role:", roleError)
+    }
 
     const nombre = data?.role?.nombre
     // Antes caía a "admin" si faltaba el dato; default seguro ahora es "user" (mínimo privilegio).

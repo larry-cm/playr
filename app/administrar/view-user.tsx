@@ -20,7 +20,7 @@ export default function ViewClientPage() {
                             </h2>
                         </div>
                         <Link
-                            href="#"
+                            href="/administrar/tienda"
                             className="p-2 rounded-lg hover:bg-white/5 transition-colors"
                             title="Ver más"
                         >

@@ -1,6 +1,6 @@
 "use client"
 
-import { LayoutDashboard, LogOut, X, Store, Tag, Network, Monitor } from "lucide-react"
+import { LayoutDashboard, LogOut, X, Store, Tag, Network, Monitor, Warehouse } from "lucide-react"
 import type { ReactNode } from "react"
 
 import { usePathname, useRouter } from "next/navigation"
@@ -25,6 +25,7 @@ const navItems = [
     // Mismos iconos que el resumen de servicios del panel (view-manager-and-admin.tsx).
     { name: "Cuentas", href: "/administrar/cuentas", icon: Network, roles: ["admin", "manager"] },
     { name: "Perfiles", href: "/administrar/perfiles", icon: Monitor, roles: ["admin", "manager"] },
+    { name: "Bodega", href: "/administrar/bodega", icon: Warehouse, roles: ["admin", "manager"] },
     { name: "Tienda", href: "/administrar/tienda", icon: Store, roles: ["user"] },
 ]
 export default function Aside({ sidebarOpen, setSidebarOpen, role, bell }: AsideProps) {

@@ -6,17 +6,17 @@
 // duplicado a proposito en vez de importar del Edge Function: ese archivo vive bajo supabase/functions,
 // fuera del build de Next, e importarlo cruzado le mete tipos de Deno al tsc de la app.
 
-const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+export const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 
 const ENT: Record<string, string> = {
     amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", ndash: "–", mdash: "—", lsquo: "‘", rsquo: "’", ldquo: "“", rdquo: "”",
     hellip: "…", iexcl: "¡", iquest: "¿", aacute: "á", eacute: "é", iacute: "í", oacute: "ó", uacute: "ú", ntilde: "ñ", uuml: "ü",
     Aacute: "Á", Eacute: "É", Iacute: "Í", Oacute: "Ó", Uacute: "Ú", Ntilde: "Ñ", Uuml: "Ü",
 }
-const decode = (s: string) =>
+export const decode = (s: string) =>
     s.replace(/&(?:#(\d+)|#x([0-9a-f]+)|([a-z]+));/gi, (m, d, h, n) =>
         d ? String.fromCodePoint(+d) : h ? String.fromCodePoint(parseInt(h, 16)) : (ENT[n] ?? m))
-const limpiar = (s: string) => decode(s.replace(/<[^>]+>/g, "")).replace(/\s+/g, " ").trim()
+export const limpiar = (s: string) => decode(s.replace(/<[^>]+>/g, "")).replace(/\s+/g, " ").trim()
 
 // Mismo criterio de clasificacion que stock-price-watch/lib.ts: plataforma = la de nombre mas largo
 // contenida como palabra en el titulo; COMBO => null (no se puede repartir en un unico platform_id).
@@ -34,7 +34,7 @@ const MESES_ES: Record<string, number> = {
 }
 
 // "octubre 20, 2026 1:28 am GMT-0500" -> Date (fin del dia, margen conservador para el chequeo de vigencia)
-function parseFechaEs(texto: string): Date | null {
+export function parseFechaEs(texto: string): Date | null {
     const m = limpiar(texto).match(/^([a-záéíóúñ]+)\s+(\d{1,2}),\s+(\d{4})/i)
     if (!m) return null
     const mes = MESES_ES[m[1].toLowerCase()]
@@ -90,7 +90,7 @@ export type LicenciaActiva = {
     pin: string | null
 }
 
-async function loginUltimateMember(base: string, email: string, password: string, jar: Map<string, string>) {
+export async function loginUltimateMember(base: string, email: string, password: string, jar: Map<string, string>) {
     const get = async (url: string, init: RequestInit = {}) => {
         const res = await fetch(url, {
             ...init,

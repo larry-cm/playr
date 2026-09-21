@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import Button from "@ui/button"
 import Input from "@ui/input"
 import type { ValidationState } from "@ui/input"
@@ -31,7 +31,15 @@ interface TableProps<T extends Record<string, unknown>> {
     onCreateSave?: (row: Record<string, unknown>) => Promise<MutationResult<T>> | MutationResult<T>;
     /** True mientras llegan los datos: muestra filas de carga con la misma geometría que las reales. */
     loading?: boolean;
+    /** Oculta el botón "Agregar" (tablas de solo lectura, p. ej. la Bodega). */
+    hideCreate?: boolean;
+    /** Acciones integradas que se muestran en cada fila. Por defecto: ver, editar y eliminar. */
+    builtinActions?: ReadonlyArray<"view" | "edit" | "delete">;
+    /** Acciones propias al final de cada fila: solo ícono en escritorio, con texto en móvil. */
+    extraActions?: (row: T, layout: "desktop" | "mobile") => ReactNode;
 }
+
+const ALL_BUILTIN_ACTIONS = ["view", "edit", "delete"] as const
 
 /** El modal infiere el tipo de campo por el nombre de la columna. */
 const isPhoneColumn = (column: string) => /\b(tel[eé]fono|celular|phone|m[oó]vil)\b/i.test(column)
@@ -70,7 +78,11 @@ export default function Table<T extends Record<string, unknown>>({
     onDelete,
     onCreateSave,
     loading = false,
+    hideCreate = false,
+    builtinActions = ALL_BUILTIN_ACTIONS,
+    extraActions,
 }: Readonly<TableProps<T>>) {
+    const actionCount = Math.max(1, builtinActions.length + (extraActions ? 1 : 0))
     const [rows, setRows] = useState<T[]>(data)
     const [alert, setAlert] = useState<{ variant: "success" | "error"; message: string } | null>(null)
     const [isPending, setIsPending] = useState(false)
@@ -452,12 +464,14 @@ export default function Table<T extends Record<string, unknown>>({
                                 />
                             </div>
 
-                            <Button
-                                onClick={openCreate}
-                                variant="primary"
-                                leftIcon={<Plus className="h-4 w-4" />}>
-                                Agregar
-                            </Button>
+                            {!hideCreate && (
+                                <Button
+                                    onClick={openCreate}
+                                    variant="primary"
+                                    leftIcon={<Plus className="h-4 w-4" />}>
+                                    Agregar
+                                </Button>
+                            )}
                         </div>
 
                         {/* ponytail: altura fija calibrada a mano; ajústala si el diseño cambia */}
@@ -490,7 +504,7 @@ export default function Table<T extends Record<string, unknown>>({
                                             {showActions && (
                                                 <td className="px-4 py-4 align-middle text-right" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                                     <div className="inline-flex items-center gap-2">
-                                                        {[0, 1, 2].map((button) => (
+                                                        {Array.from({ length: actionCount }, (_, button) => (
                                                             <div key={button} className="h-9 w-9 animate-pulse rounded-xl bg-white/5" />
                                                         ))}
                                                     </div>
@@ -521,6 +535,7 @@ export default function Table<T extends Record<string, unknown>>({
                                             {showActions && (
                                                 <td className="px-4 py-4 align-middle text-right" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                                     <div className="inline-flex items-center gap-2 *:cursor-pointer">
+                                                        {builtinActions.includes("view") && (
                                                         <button
                                                             type="button"
                                                             onClick={() => openView(row)}
@@ -530,6 +545,8 @@ export default function Table<T extends Record<string, unknown>>({
                                                         >
                                                             <Eye className="h-4 w-4" />
                                                         </button>
+                                                        )}
+                                                        {builtinActions.includes("edit") && (
                                                         <button
                                                             type="button"
                                                             onClick={() => openEdit(row, rowIndex)}
@@ -539,6 +556,8 @@ export default function Table<T extends Record<string, unknown>>({
                                                         >
                                                             <Edit className="h-4 w-4" />
                                                         </button>
+                                                        )}
+                                                        {builtinActions.includes("delete") && (
                                                         <button
                                                             type="button"
                                                             onClick={() => confirmDelete(row, rowIndex)}
@@ -548,6 +567,8 @@ export default function Table<T extends Record<string, unknown>>({
                                                         >
                                                             <Trash2 className="h-4 w-4" />
                                                         </button>
+                                                        )}
+                                                        {extraActions?.(row, "desktop")}
                                                     </div>
                                                 </td>
                                             )}
@@ -574,15 +595,17 @@ export default function Table<T extends Record<string, unknown>>({
                             className="w-full rounded-xl border border-white/10 bg-white/3 py-2.5 pl-9 pr-3 text-sm text-white outline-none transition focus:border-accent/40 focus:ring-1 focus:ring-accent/20"
                         />
                     </div>
-                    <Button size="sm" variant="primary" onClick={openCreate} leftIcon={<Plus className="h-4 w-4" />}>
-                        Agregar
-                    </Button>
+                    {!hideCreate && (
+                        <Button size="sm" variant="primary" onClick={openCreate} leftIcon={<Plus className="h-4 w-4" />}>
+                            Agregar
+                        </Button>
+                    )}
                 </div>
 
                 <div className="h-[480px] overflow-y-auto flex flex-col gap-3">
                 {loading ? (
                     Array.from({ length: 3 }, (_, i) => (
-                        <div key={`skeleton-${i}`} className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        <div key={`skeleton-${i}`} className="rounded-2xl overflow-hidden shrink-0" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))', border: '1px solid rgba(255,255,255,0.08)' }}>
                             <div className="p-4">
                                 {header.map((column) => (
                                     <div key={column} className="flex items-start justify-between gap-3 py-2">
@@ -592,7 +615,7 @@ export default function Table<T extends Record<string, unknown>>({
                                 ))}
                                 {showActions && (
                                     <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3">
-                                        {[0, 1, 2].map((button) => (
+                                        {Array.from({ length: actionCount }, (_, button) => (
                                             <div key={button} className="h-9 w-20 animate-pulse rounded-xl bg-white/5" />
                                         ))}
                                     </div>
@@ -604,7 +627,8 @@ export default function Table<T extends Record<string, unknown>>({
                     <div className="px-4 py-6 text-center text-sm" style={{ color: 'var(--color-secondary)' }}>No hay datos disponibles.</div>
                 ) : (
                     filteredRows.map((row, rowIndex) => (
-                        <div key={rowIndex} className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 6px 16px rgba(2,6,23,0.25)' }}>
+                        // shrink-0: sin esto, con más filas que el alto fijo las tarjetas se comprimen y ocultan sus campos y acciones
+                        <div key={rowIndex} className="rounded-2xl overflow-hidden shrink-0" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 6px 16px rgba(2,6,23,0.25)' }}>
                             <div className="p-4">
                                 {header.map((column) => (
                                     <div key={`${rowIndex}-${column}`} className="flex items-start justify-between gap-3 py-2">
@@ -615,27 +639,34 @@ export default function Table<T extends Record<string, unknown>>({
 
                                 {showActions && (
                                     <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3 *:cursor-pointer">
-                                        <button
-                                            type="button"
-                                            onClick={() => openView(row)}
-                                            className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 px-3 text-sm text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent)"
-                                        >
-                                            <Eye className="mr-2 h-4 w-4" />Ver
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => openEdit(row, rowIndex)}
-                                            className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 px-3 text-sm text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent)"
-                                        >
-                                            <Edit className="mr-2 h-4 w-4" />Editar
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => confirmDelete(row, rowIndex)}
-                                            className="inline-flex h-9 items-center justify-center rounded-xl border border-red-400/20 bg-red-500/10 px-3 text-sm text-red-400 transition-all duration-200 hover:border-red-400/30 hover:bg-red-500/15"
-                                        >
-                                            <Trash2 className="mr-2 h-4 w-4" />Eliminar
-                                        </button>
+                                        {builtinActions.includes("view") && (
+                                            <button
+                                                type="button"
+                                                onClick={() => openView(row)}
+                                                className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 px-3 text-sm text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent)"
+                                            >
+                                                <Eye className="mr-2 h-4 w-4" />Ver
+                                            </button>
+                                        )}
+                                        {builtinActions.includes("edit") && (
+                                            <button
+                                                type="button"
+                                                onClick={() => openEdit(row, rowIndex)}
+                                                className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 px-3 text-sm text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent)"
+                                            >
+                                                <Edit className="mr-2 h-4 w-4" />Editar
+                                            </button>
+                                        )}
+                                        {builtinActions.includes("delete") && (
+                                            <button
+                                                type="button"
+                                                onClick={() => confirmDelete(row, rowIndex)}
+                                                className="inline-flex h-9 items-center justify-center rounded-xl border border-red-400/20 bg-red-500/10 px-3 text-sm text-red-400 transition-all duration-200 hover:border-red-400/30 hover:bg-red-500/15"
+                                            >
+                                                <Trash2 className="mr-2 h-4 w-4" />Eliminar
+                                            </button>
+                                        )}
+                                        {extraActions?.(row, "mobile")}
                                     </div>
                                 )}
                             </div>

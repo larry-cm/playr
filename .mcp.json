@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "agent-browser": {
+      "command": "agent-browser",
+      "args": ["mcp", "--tools", "all"]
+    },
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?features=account,database,debugging,development,docs,edge-functions,storage"
+    }
+  }
+}

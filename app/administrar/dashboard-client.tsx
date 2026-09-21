@@ -3,6 +3,7 @@
 import { Menu } from "lucide-react"
 import { useState } from "react"
 import Aside from "@/app/administrar/aside"
+import NotificacionesDrawer, { NotificacionesBell, useNotificaciones } from "@/app/administrar/notificaciones"
 
 export default function DashboardClient({
     children,
@@ -12,6 +13,9 @@ export default function DashboardClient({
     role: string;
 }>) {
     const [sidebarOpen, setSidebarOpen] = useState(false)
+    const canNotify = role === "admin" || role === "manager"
+    const notifs = useNotificaciones(canNotify)
+    const bell = canNotify && <NotificacionesBell count={notifs.sinVer} onClick={notifs.open} />
 
     return (
         <>
@@ -25,7 +29,7 @@ export default function DashboardClient({
                     <Menu className="w-5 h-5 text-secondary" />
                 </button>
                 <span className="text-lg font-bold tracking-tight text-white">Playr</span>
-                <div className="w-9" />
+                {bell ? <div className="-mr-2">{bell}</div> : <div className="w-9" />}
             </header>
 
             <div className="flex min-h-screen py-12 lg:py-0">
@@ -38,7 +42,7 @@ export default function DashboardClient({
                 )}
 
                 {/* Sidebar */}
-                <Aside sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} role={role} />
+                <Aside sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} role={role} bell={bell} />
 
                 {/* Main content */}
                 <main className="flex-1 p-4 sm:p-6 lg:p-8 pt-14 lg:pt-8 overflow-auto">
@@ -47,6 +51,10 @@ export default function DashboardClient({
                     </div>
                 </main>
             </div>
+
+            {canNotify && (
+                <NotificacionesDrawer open={notifs.isOpen} items={notifs.items} onClose={notifs.close} onDelete={notifs.remove} onRefresh={notifs.refresh} />
+            )}
         </>
     )
 }

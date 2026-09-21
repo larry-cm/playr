@@ -1,6 +1,7 @@
 "use client"
 
-import { LayoutDashboard, LogOut, X } from "lucide-react"
+import { LayoutDashboard, LogOut, X, Store, Tag, Warehouse } from "lucide-react"
+import type { ReactNode } from "react"
 
 import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
@@ -13,13 +14,18 @@ interface AsideProps {
     sidebarOpen: boolean;
     setSidebarOpen: (open: boolean) => void;
     role: string;
+    /** Campana de notificaciones (solo admin/manager). En móvil vive en el header, acá solo se muestra en escritorio. */
+    bell?: ReactNode;
 }
 
 const navItems = [
     { name: "Administrar", href: "/administrar", icon: LayoutDashboard, roles: ["admin", "manager", "user"] },
     { name: "Clientes", href: "/administrar/clientes", icon: LayoutDashboard, roles: ["admin", "manager"] },
+    { name: "Productos", href: "/administrar/productos", icon: Tag, roles: ["admin", "manager"] },
+    { name: "Bodega", href: "/administrar/bodega", icon: Warehouse, roles: ["admin", "manager"] },
+    { name: "Tienda", href: "/administrar/tienda", icon: Store, roles: ["user"] },
 ]
-export default function Aside({ sidebarOpen, setSidebarOpen, role }: AsideProps) {
+export default function Aside({ sidebarOpen, setSidebarOpen, role, bell }: AsideProps) {
     const pathname = usePathname()
     const router = useRouter()
 
@@ -47,6 +53,7 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role }: AsideProps)
                 >
                     <X className="w-4 h-4 text-secondary" />
                 </button>
+                {bell && <div className="hidden lg:block">{bell}</div>}
             </div>
 
             {/* Navigation */}

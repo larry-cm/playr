@@ -1,33 +1,21 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useState, useMemo } from "react"
 import Card from "@ui/card"
 import Button from "@ui/button"
 import Input from "@ui/input"
 import Select from "@ui/select"
 import { AlertCircle, Search, MessageCircle } from "lucide-react"
 import ProductGrid from "@/app/administrar/tienda/product-grid"
-import { getCatalogoDisponibleAction } from "@action/tienda/get-catalogo-disponible-action"
 import type { CatalogoDisponibleItem } from "@action/tienda/get-catalogo-disponible-action"
 import { formatCOP } from "@lib/currency"
 import { whatsappAdvisorNumber } from "@lib/const"
 
-export default function TiendaClient() {
-    // undefined = cargando · null = error · array = datos listos
-    const [catalogo, setCatalogo] = useState<CatalogoDisponibleItem[] | null | undefined>(undefined)
+export default function TiendaClient({ initialCatalogo }: { initialCatalogo: CatalogoDisponibleItem[] | null }) {
+    const [catalogo] = useState<CatalogoDisponibleItem[] | null>(initialCatalogo)
     const [search, setSearch] = useState("")
     const [categoria, setCategoria] = useState("")
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
-
-    useEffect(() => {
-        let active = true
-        getCatalogoDisponibleAction().then((rows) => {
-            if (active) setCatalogo(rows)
-        })
-        return () => {
-            active = false
-        }
-    }, [])
 
     const categorias = useMemo(() => {
         if (!catalogo) return []
@@ -115,7 +103,6 @@ export default function TiendaClient() {
                 items={visibleItems}
                 selectedIds={selectedIds}
                 onToggle={toggleSelected}
-                loading={catalogo === undefined}
             />
 
             <Card className="flex flex-col sm:flex-row items-center justify-between gap-3">

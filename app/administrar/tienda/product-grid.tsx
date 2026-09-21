@@ -8,20 +8,9 @@ interface ProductGridProps {
     items: CatalogoDisponibleItem[];
     selectedIds: Set<number>;
     onToggle: (profileId: number) => void;
-    loading: boolean;
 }
 
-export default function ProductGrid({ items, selectedIds, onToggle, loading }: ProductGridProps) {
-    if (loading) {
-        return (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="h-28 rounded-2xl bg-white/3 border border-white/6 animate-pulse" />
-                ))}
-            </div>
-        )
-    }
-
+export default function ProductGrid({ items, selectedIds, onToggle }: ProductGridProps) {
     if (items.length === 0) {
         return (
             <Card className="flex flex-col items-center justify-center py-12 px-4 text-center">

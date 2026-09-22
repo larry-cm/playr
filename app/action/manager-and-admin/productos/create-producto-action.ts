@@ -134,12 +134,14 @@ export async function createProductoAction(formData: {
         producto: {
             id: created.id,
             platform_id: created.platform_id,
-            platform_nombre: platformInfo?.nombre ?? "--",
+            titulo: platformInfo?.nombre ?? "--",
             categoria: platformInfo?.categoria?.nombre ?? "--",
             access_type: created.access_type,
             costo: created.costo,
             precio_venta: created.precio_venta,
             exist: created.exist,
+            // Un producto simple nunca lleva receta: eso es exclusivo de los combos.
+            combo_items: [],
         },
     }
 }

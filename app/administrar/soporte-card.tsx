@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Card from "@ui/card"
+import { SectionHeader } from "@ui/page-header"
 import Button from "@ui/button"
 import { MessageCircle, CircleCheck } from "lucide-react"
 import { supabase } from "@lib/supabase/client"
@@ -27,12 +28,7 @@ export default function SoporteCard() {
     return (
         <Card className="h-full">
             <div className="space-y-4">
-                <div className="flex items-center gap-2.5">
-                    <div className="p-2 rounded-lg bg-accent/10">
-                        <MessageCircle className="w-4 h-4 text-accent" />
-                    </div>
-                    <h2 className="font-semibold text-sm">Contactar</h2>
-                </div>
+                <SectionHeader icon={MessageCircle} title="Contactar" />
 
                 <div className="space-y-2">
                     <p className="text-xs text-secondary font-medium">

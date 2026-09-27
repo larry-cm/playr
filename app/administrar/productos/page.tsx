@@ -4,6 +4,7 @@ import ProductosClient from "@/app/administrar/productos/productos-client"
 import { getAllProductosAction } from "@action/manager-and-admin/productos/get-all-productos-action"
 import { getLicenciasDisponiblesAction } from "@action/manager-and-admin/productos/get-licencias-disponibles-action"
 import { getOfertaProveedorAction } from "@action/manager-and-admin/productos/get-oferta-proveedor-action"
+import PageHeader from "@ui/page-header"
 
 export default async function PageAdministrarProductos() {
     const role = await getRoleUser()
@@ -19,13 +20,7 @@ export default async function PageAdministrarProductos() {
 
     return (
         <section className="flex flex-col gap-4">
-            <header>
-                <h1 className="text-2xl font-bold tracking-tight">Productos</h1>
-                <p className="text-sm text-secondary mt-1">
-                    Lo que se vende: perfiles y cuentas de una plataforma, o combos que agrupan varias. Configura su
-                    precio de venta — sin precio no aparece en la Tienda.
-                </p>
-            </header>
+            <PageHeader title="Productos" description="Lo que se vende: perfiles, cuentas y combos. Sin precio de venta no aparece en la Tienda." />
             <ProductosClient initialProductos={productos} licenciasPromise={licenciasPromise} oferta={oferta} />
         </section>
     )

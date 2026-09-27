@@ -5,8 +5,11 @@ import Link from "next/link"
 import Card from "@ui/card"
 import Alert from "@ui/alert"
 import Table from "@ui/table"
-import { AlertCircle, ShoppingCart } from "lucide-react"
+import { SectionHeader } from "@ui/page-header"
+import { IconAction, MobileAction } from "@ui/data-frame"
+import { AlertCircle, Package, ShoppingCart } from "lucide-react"
 import SaldoCard from "@/app/administrar/bodega/saldo-card"
+import ResumenBodegaCard from "@/app/administrar/bodega/resumen-card"
 import HistorialCard from "@/app/administrar/bodega/historial-card"
 import ComprarModal from "@/app/administrar/bodega/comprar-modal"
 import { getSaldoProveedorAction } from "@action/manager-and-admin/bodega/get-saldo-action"
@@ -144,7 +147,7 @@ export default function BodegaClient({ initialCatalogo, initialCompras, simulaci
 
     if (initialCatalogo === null) {
         return (
-            <Card className="flex flex-col items-center justify-center py-12 px-4 text-center">
+            <Card padding="px-4 py-12" className="flex flex-col items-center justify-center text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/10 text-red-400 mb-4 shadow-lg shadow-red-500/5">
                     <AlertCircle className="h-7 w-7" />
                 </div>
@@ -166,38 +169,35 @@ export default function BodegaClient({ initialCatalogo, initialCompras, simulaci
             )}
             {alert && <Alert variant={alert.variant} message={alert.message} onDismiss={() => setAlert(null)} />}
 
-            <SaldoCard saldo={saldo} onRefresh={refrescarSaldo} />
+            <div className="grid gap-4 md:grid-cols-2">
+                <SaldoCard saldo={saldo} onRefresh={refrescarSaldo} />
+                <ResumenBodegaCard productosEnStock={initialCatalogo.productos.length} />
+            </div>
 
-            <div className="flex flex-col gap-2">
-                <p className="text-sm text-secondary">
-                    Productos que el proveedor tenía en stock en su último escaneo
-                    {initialCatalogo.escaneo && ` (${fechaCorta(initialCatalogo.escaneo)})`}. Al comprar se vuelve a verificar en vivo. Lo
-                    comprado queda en el inventario; fija su precio de venta en <Link href="/administrar/productos" className="text-accent hover:underline">Productos</Link>.
-                </p>
+            <section className="flex flex-col gap-3">
+                <SectionHeader
+                    icon={Package}
+                    title="Catálogo disponible"
+                    description={
+                        <>
+                            Stock del último escaneo al proveedor{initialCatalogo.escaneo && ` · ${fechaCorta(initialCatalogo.escaneo)}`}. Al
+                            comprar se verifica en vivo — fija el precio de venta en{" "}
+                            <Link href="/administrar/productos" className="text-accent hover:underline">Productos</Link>.
+                        </>
+                    }
+                />
                 {/* Tabla genérica (app/ui/table.tsx) en solo lectura, con "Comprar" como acción de la fila. */}
                 <Table
                     header={["Producto", "Plataforma", "Acceso", "Precio"]}
                     data={filas}
                     hideCreate
                     builtinActions={[]}
-                    extraActions={(row, layout) => (
-                        <button
-                            type="button"
-                            onClick={() => abrirCompra(row.producto)}
-                            aria-label={`Comprar ${row.Producto}`}
-                            title="Comprar"
-                            className={
-                                layout === "desktop"
-                                    ? "flex h-9 w-9 items-center justify-center rounded-xl border border-accent/30 bg-accent/10 text-(--color-accent) transition-all duration-200 hover:bg-accent/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/25"
-                                    : "inline-flex h-9 items-center justify-center rounded-xl border border-accent/30 bg-accent/10 px-3 text-sm text-(--color-accent) transition-all duration-200 hover:bg-accent/20"
-                            }
-                        >
-                            <ShoppingCart className={layout === "desktop" ? "h-4 w-4" : "mr-2 h-4 w-4"} />
-                            {layout === "mobile" && "Comprar"}
-                        </button>
-                    )}
+                    extraActions={(row, layout) => {
+                        const Action = layout === "desktop" ? IconAction : MobileAction
+                        return <Action icon={ShoppingCart} label="Comprar" title={`Comprar ${row.Producto}`} tone="accent" onClick={() => abrirCompra(row.producto)} />
+                    }}
                 />
-            </div>
+            </section>
 
             <HistorialCard compras={compras} registrandoId={registrandoId} onRegistrar={registrar} />
 

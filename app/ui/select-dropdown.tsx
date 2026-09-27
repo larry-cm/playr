@@ -107,10 +107,11 @@ export default function SelectDropdown({
           id={id}
           onClick={() => setOpen(!open)}
           onKeyDown={handleButtonKeyDown}
-          className={`w-full flex items-center gap-2 bg-white/5 border rounded-xl py-2.5 pl-3.5 pr-10 text-sm text-white outline-none transition-all duration-200 focus:border-accent focus:ring-1 focus:ring-accent/40 ${borderByValidation[validation ?? "idle"]} ${className}`}
+          title={selected?.label}
+          className={`w-full min-w-0 overflow-hidden flex items-center gap-2 bg-white/5 border rounded-xl py-2.5 pl-3.5 pr-10 text-sm text-white outline-none transition-all duration-200 focus:border-accent focus:ring-1 focus:ring-accent/40 ${borderByValidation[validation ?? "idle"]} ${className}`}
         >
           {selected?.icon && <span className="shrink-0">{selected.icon}</span>}
-          <span className={`truncate ${selected ? "text-white" : "text-muted"}`}>
+          <span className={`min-w-0 truncate ${selected ? "text-white" : "text-muted"}`}>
             {selected ? selected.label : placeholder}
           </span>
           <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted shrink-0 pointer-events-none">
@@ -148,7 +149,7 @@ export default function SelectDropdown({
                       }`}
                   >
                     {opt.icon && <span className="shrink-0">{opt.icon}</span>}
-                    <span className={`truncate ${opt.count === 0 && opt.value !== value ? "text-muted" : ""}`}>{opt.dropdownLabel ?? opt.label}</span>
+                    <span title={opt.dropdownLabel ?? opt.label} className={`min-w-0 truncate ${opt.count === 0 && opt.value !== value ? "text-muted" : ""}`}>{opt.dropdownLabel ?? opt.label}</span>
                     {opt.count !== undefined && (
                       <span className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-xs tabular-nums ${opt.value === value ? "bg-accent/15 text-accent" : "bg-white/5 text-secondary"}`}>
                         {opt.count}

@@ -37,11 +37,6 @@ export interface PedidoProveedor {
     productos: { nombre: string; cantidad: number }[]
 }
 
-/** Pedido del registro global + la compra de Bodega cuya entrega quedó sin registrar en el inventario, si la hay. */
-export interface PedidoRegistro extends PedidoProveedor {
-    pendiente: { compraId: number; detalle: string | null } | null
-}
-
 export interface SaldoProveedor {
     saldo: number
     /** ISO del momento en que se leyo del proveedor. */

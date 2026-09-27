@@ -6,12 +6,12 @@ import CountUp from "@ui/count-up"
 import { SectionHeader } from "@ui/page-header"
 import { LayoutGrid, Package, Receipt, ShoppingBag } from "lucide-react"
 import { formatCOP } from "@lib/currency"
-import type { PedidoRegistro } from "@lib/bodega/tipos"
+import type { PedidoProveedor } from "@lib/bodega/tipos"
 
 interface ResumenBodegaCardProps {
     productosEnStock: number
     /** Registro global de pedidos: undefined = cargando · null = no se pudo leer */
-    pedidos: PedidoRegistro[] | null | undefined
+    pedidos: PedidoProveedor[] | null | undefined
 }
 
 /** "2026-09" del instante dado, en hora de Colombia (un pedido del 30 a las 9 p. m. no debe caer en el mes siguiente por UTC). */

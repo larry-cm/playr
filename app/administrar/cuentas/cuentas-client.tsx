@@ -5,21 +5,41 @@ import { useRouter } from "next/navigation"
 import Card from "@ui/card"
 import Button from "@ui/button"
 import Input from "@ui/input"
-import CopyInput from "@ui/copy-input"
 import Modal from "@ui/modal"
 import Alert from "@ui/alert"
-import { AlertCircle, Pencil, Trash2 } from "lucide-react"
+import Link from "next/link"
+import { AlertCircle, ArrowUpRight, Eye, Pencil, Trash2 } from "lucide-react"
 import { ActionsCell, ActionsTh, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, TableFrame, Td, Th } from "@ui/data-frame"
 import type { CuentaRow } from "@action/manager-and-admin/cuentas/get-all-cuentas-action"
 import { editCuentaAction } from "@action/manager-and-admin/cuentas/edit-cuenta-action"
 import { deleteCuentaAction } from "@action/manager-and-admin/cuentas/delete-cuenta-action"
 import { accessTypeLabel } from "@lib/access-type"
-import { formatCOP } from "@lib/currency"
 import { formatDateOnly } from "@lib/date"
+import { capitalizar } from "@lib/text"
+import { formatCOP } from "@lib/currency"
+import FiltrosSelect, { pasaFiltro, sinFiltro, type Filtro } from "@ui/filtros-select"
+import { CAMPOS_CUENTAS } from "@/app/administrar/cuentas/filtros-cuentas"
+import VerCuentaModal from "@/app/administrar/cuentas/ver-cuenta-modal"
 
 /** Una cuenta llena cuando ya no le quedan perfiles libres: es la señal de "hay que reponer". */
 const ocupacionColor = (row: CuentaRow) =>
     row.perfiles_disponibles === 0 ? '#f87171' : '#34d399'
+
+/** "2 de 5" enlazado a Perfiles filtrado por esta cuenta: solo una flecha tenue lo delata, y se aviva al pasar el mouse. */
+function PerfilesLink({ row }: Readonly<{ row: CuentaRow }>) {
+    return (
+        <Link
+            href={`/administrar/perfiles?cuenta=${row.id}`}
+            title="Ver los perfiles de esta cuenta"
+            aria-label={`Ver los perfiles de ${row.email}`}
+            className="group inline-flex items-center gap-1 font-medium underline decoration-transparent decoration-dotted underline-offset-4 transition hover:decoration-current"
+            style={{ color: ocupacionColor(row) }}
+        >
+            {row.perfiles_disponibles} de {row.perfiles_total}
+            <ArrowUpRight className="h-3.5 w-3.5 opacity-40 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100" />
+        </Link>
+    )
+}
 
 interface CuentasClientProps {
     initialCuentas: CuentaRow[] | null
@@ -32,30 +52,37 @@ export default function CuentasClient({ initialCuentas }: CuentasClientProps) {
     const [isPending, setIsPending] = useState(false)
 
     const [editingId, setEditingId] = useState<number | null>(null)
-    const [editFechaVencimiento, setEditFechaVencimiento] = useState("")
-    const [editCosto, setEditCosto] = useState("")
-    const [editPerfilMax, setEditPerfilMax] = useState("")
+    const [editEmail, setEditEmail] = useState("")
 
+    const [viewingId, setViewingId] = useState<number | null>(null)
     const [deletingId, setDeletingId] = useState<number | null>(null)
     const [search, setSearch] = useState("")
+    const [filtro, setFiltro] = useState<Filtro>(() => sinFiltro(CAMPOS_CUENTAS))
 
     const filteredCuentas = useMemo(() => {
         const query = search.trim().toLowerCase()
-        if (!query) return cuentas ?? []
-        return (cuentas ?? []).filter((row) =>
+        const filtradas = (cuentas ?? []).filter((row) => pasaFiltro(row, CAMPOS_CUENTAS, filtro))
+        if (!query) return filtradas
+        return filtradas.filter((row) =>
             [row.platform_nombre, row.email, accessTypeLabel[row.access_type]]
                 .some((value) => value.toLowerCase().includes(query))
         )
-    }, [cuentas, search])
+    }, [cuentas, search, filtro])
+
+    const toolbar = (mobile: boolean) => (
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <SearchInput value={search} onChange={setSearch} className={mobile ? "w-full" : "w-full lg:w-72"} />
+            <FiltrosSelect campos={CAMPOS_CUENTAS} items={cuentas ?? []} value={filtro} onChange={setFiltro} mobile={mobile} />
+        </div>
+    )
 
     const editingRow = cuentas?.find((row) => row.id === editingId) ?? null
+    const viewingRow = cuentas?.find((row) => row.id === viewingId) ?? null
     const deletingRow = cuentas?.find((row) => row.id === deletingId) ?? null
 
     const openEdit = (row: CuentaRow) => {
         setEditingId(row.id)
-        setEditFechaVencimiento(row.fecha_vencimiento ?? "")
-        setEditCosto(row.costo === null ? "" : String(row.costo))
-        setEditPerfilMax(String(row.perfil_max))
+        setEditEmail(row.email)
     }
 
     const cancelEdit = () => setEditingId(null)
@@ -66,12 +93,7 @@ export default function CuentasClient({ initialCuentas }: CuentasClientProps) {
 
         setIsPending(true)
         setAlert(null)
-        const error = await editCuentaAction({
-            id,
-            fecha_vencimiento: editFechaVencimiento,
-            costo: editCosto,
-            perfil_max: editPerfilMax,
-        })
+        const error = await editCuentaAction({ id, email: editEmail })
         setIsPending(false)
 
         if (error) {
@@ -82,12 +104,7 @@ export default function CuentasClient({ initialCuentas }: CuentasClientProps) {
         setCuentas((prev) =>
             (prev ?? []).map((row) =>
                 row.id === id
-                    ? {
-                        ...row,
-                        fecha_vencimiento: editFechaVencimiento === "" ? null : editFechaVencimiento,
-                        costo: editCosto === "" ? null : Number(editCosto),
-                        perfil_max: Number(editPerfilMax),
-                    }
+                    ? { ...row, email: editEmail.trim().toLowerCase() }
                     : row
             )
         )
@@ -136,10 +153,10 @@ export default function CuentasClient({ initialCuentas }: CuentasClientProps) {
             )}
 
             {/* Marco, densidad y alto compartidos con el resto de tablas del panel (app/ui/data-frame.tsx). */}
-            <TableFrame toolbar={<SearchInput value={search} onChange={setSearch} />}>
+            <TableFrame toolbar={toolbar(false)}>
                 <thead>
                     <tr>
-                        {["Plataforma", "Tipo de acceso", "Correo", "Perfiles libres", "Vencimiento", "Costo"].map((column) => (
+                        {["Plataforma", "Correo", "Perfiles libres", "Vencimiento"].map((column) => (
                             <Th key={column}>{column}</Th>
                         ))}
                         <ActionsTh />
@@ -148,19 +165,18 @@ export default function CuentasClient({ initialCuentas }: CuentasClientProps) {
 
                 <tbody>
                     {filteredCuentas.length === 0 ? (
-                        <EmptyRow colSpan={7}>No hay cuentas compradas todavía.</EmptyRow>
+                        <EmptyRow colSpan={5}>{cuentas?.length ? "Ninguna cuenta coincide con la búsqueda o los filtros." : "No hay cuentas compradas todavía."}</EmptyRow>
                     ) : (
                         filteredCuentas.map((row) => (
                             <tr key={row.id} className={ROW_CLASS}>
-                                <Td className="font-semibold">{row.platform_nombre}</Td>
-                                <Td>{accessTypeLabel[row.access_type]}</Td>
+                                <Td className="font-semibold">{capitalizar(row.platform_nombre)}</Td>
                                 <Td className="break-all">{row.email}</Td>
-                                <Td className="font-medium whitespace-nowrap" style={{ color: ocupacionColor(row) }}>
-                                    {row.perfiles_disponibles} de {row.perfiles_total}
+                                <Td className="whitespace-nowrap">
+                                    <PerfilesLink row={row} />
                                 </Td>
                                 <Td className="whitespace-nowrap">{formatDateOnly(row.fecha_vencimiento)}</Td>
-                                <Td className="whitespace-nowrap">{row.costo === null ? "--" : formatCOP(row.costo)}</Td>
                                 <ActionsCell>
+                                    <IconAction icon={Eye} label="Ver" onClick={() => setViewingId(row.id)} />
                                     <IconAction icon={Pencil} label="Editar" onClick={() => openEdit(row)} />
                                     <IconAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => setDeletingId(row.id)} />
                                 </ActionsCell>
@@ -170,23 +186,22 @@ export default function CuentasClient({ initialCuentas }: CuentasClientProps) {
                 </tbody>
             </TableFrame>
 
-            <MobileFrame toolbar={<SearchInput value={search} onChange={setSearch} className="w-full" />}>
+            <MobileFrame toolbar={toolbar(true)}>
                 {filteredCuentas.length === 0 ? (
-                    <MobileEmpty>No hay cuentas compradas todavía.</MobileEmpty>
+                    <MobileEmpty>{cuentas?.length ? "Ninguna cuenta coincide con la búsqueda o los filtros." : "No hay cuentas compradas todavía."}</MobileEmpty>
                 ) : (
                     filteredCuentas.map((row) => (
                         <MobileCard
                             key={row.id}
                             fields={[
-                                { label: "Plataforma", value: row.platform_nombre },
-                                { label: "Tipo de acceso", value: accessTypeLabel[row.access_type] },
+                                { label: "Plataforma", value: capitalizar(row.platform_nombre) },
                                 { label: "Correo", value: row.email, className: "break-all" },
-                                { label: "Perfiles libres", value: `${row.perfiles_disponibles} de ${row.perfiles_total}`, className: "font-medium", style: { color: ocupacionColor(row) } },
+                                { label: "Perfiles libres", value: <PerfilesLink row={row} /> },
                                 { label: "Vencimiento", value: formatDateOnly(row.fecha_vencimiento) },
-                                { label: "Costo", value: row.costo === null ? "--" : formatCOP(row.costo) },
                             ]}
                             actions={
                                 <>
+                                    <MobileAction icon={Eye} label="Ver" onClick={() => setViewingId(row.id)} />
                                     <MobileAction icon={Pencil} label="Editar" onClick={() => openEdit(row)} />
                                     <MobileAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => setDeletingId(row.id)} />
                                 </>
@@ -196,62 +211,36 @@ export default function CuentasClient({ initialCuentas }: CuentasClientProps) {
                 )}
             </MobileFrame>
 
+            {viewingRow && <VerCuentaModal key={viewingRow.id} cuenta={viewingRow} onClose={() => setViewingId(null)} />}
+
             <Modal isOpen={editingId !== null} title="Editar cuenta" onClose={cancelEdit}>
                 {editingRow && (
                     <div className="flex flex-col gap-3">
+                        {/* Solo el correo se edita: el resto viene de la compra y se muestra deshabilitado. */}
                         <div className="flex flex-col gap-1">
                             <label className="text-xs text-secondary font-medium">Plataforma</label>
-                            <CopyInput value={editingRow.platform_nombre} readOnly copyLabel="Copiar" successLabel="Copiado" />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">Tipo de acceso</label>
-                            <CopyInput value={accessTypeLabel[editingRow.access_type]} readOnly copyLabel="Copiar" successLabel="Copiado" />
+                            <Input className="bg-white/3 cursor-not-allowed opacity-60" value={`${capitalizar(editingRow.platform_nombre)} · ${accessTypeLabel[editingRow.access_type]}`} disabled />
                         </div>
                         <div className="flex flex-col gap-1">
                             <label className="text-xs text-secondary font-medium">Correo</label>
-                            <CopyInput value={editingRow.email} readOnly copyLabel="Copiar" successLabel="Copiado" />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">Perfiles cargados</label>
                             <Input
                                 className="bg-white/3"
-                                value={`${editingRow.perfiles_total} (${editingRow.perfiles_disponibles} disponibles)`}
-                                readOnly
+                                type="email"
+                                value={editEmail}
+                                onChange={(e) => setEditEmail(e.target.value)}
+                                autoFocus
                             />
-                            <p className="text-xs text-secondary">Se gestionan uno por uno en Perfiles.</p>
+                            <p className="text-xs text-secondary">Debe coincidir con el del proveedor: con él se consulta la contraseña.</p>
                         </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">Perfiles que admite</label>
-                            <Input
-                                className="bg-white/3"
-                                type="number"
-                                min="1"
-                                max="10"
-                                value={editPerfilMax}
-                                onChange={(e) => setEditPerfilMax(e.target.value)}
-                            />
-                            <p className="text-xs text-secondary">Cuántas pantallas soporta este login en la plataforma.</p>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">Vencimiento</label>
-                            <Input
-                                className="bg-white/3"
-                                type="date"
-                                value={editFechaVencimiento}
-                                onChange={(e) => setEditFechaVencimiento(e.target.value)}
-                            />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">Costo (proveedor)</label>
-                            <Input
-                                className="bg-white/3"
-                                type="number"
-                                min="0"
-                                value={editCosto}
-                                onChange={(e) => setEditCosto(e.target.value)}
-                            />
-                        </div>
-
+                        {[
+                            ["Vencimiento", formatDateOnly(editingRow.fecha_vencimiento)],
+                            ["Costo (proveedor)", editingRow.costo === null ? "--" : formatCOP(editingRow.costo)],
+                        ].map(([label, value]) => (
+                            <div key={label} className="flex flex-col gap-1">
+                                <label className="text-xs text-secondary font-medium">{label}</label>
+                                <Input className="bg-white/3 cursor-not-allowed opacity-60" value={value} disabled />
+                            </div>
+                        ))}
                         <div className="flex items-center justify-end gap-2 mt-2">
                             <Button variant="ghost" onClick={cancelEdit} disabled={isPending}>Cancelar</Button>
                             <Button variant="primary" onClick={saveEdit} disabled={isPending}>

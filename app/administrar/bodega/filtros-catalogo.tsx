@@ -20,18 +20,41 @@ export interface FiltroCatalogo {
     plataforma: string
     /** "" = todos; si no, el value de un rango */
     precio: string
+    /** "" = todas; si no, el valor de la columna Duración ("1 mes", "3 meses", "30 créditos"…) */
+    duracion: string
 }
 
-export const SIN_FILTRO: FiltroCatalogo = { plataforma: "", precio: "" }
+export const SIN_FILTRO: FiltroCatalogo = { plataforma: "", precio: "", duracion: "" }
 
-type Item = { plataforma: string; precio: number }
+type Item = { plataforma: string; precio: number; duracion: string }
+
+const DIAS: Record<string, number> = { día: 1, días: 1, mes: 30, meses: 30, año: 365, años: 365 }
+
+/** Días aproximados de una duración de `duracionDe()`, para ordenar las opciones de menor a mayor; los créditos van al final. */
+const diasDe = (d: string) => {
+    const [n, unidad] = d.split(" ")
+    return unidad in DIAS ? Number(n) * DIAS[unidad] : Infinity
+}
 
 const enRango = (precio: number, value: string) => {
     const r = RANGOS.find((x) => x.value === value)
     return !r || (precio > r.min && precio <= r.max)
 }
 
-export const pasaFiltro = (x: Item, f: FiltroCatalogo) => (!f.plataforma || x.plataforma === f.plataforma) && enRango(x.precio, f.precio)
+const pasaPlataforma = (x: Item, f: FiltroCatalogo) => !f.plataforma || x.plataforma === f.plataforma
+const pasaDuracion = (x: Item, f: FiltroCatalogo) => !f.duracion || x.duracion === f.duracion
+
+export const pasaFiltro = (x: Item, f: FiltroCatalogo) => pasaPlataforma(x, f) && enRango(x.precio, f.precio) && pasaDuracion(x, f)
+
+/** Cuántos productos hay por cada valor de `clave`. */
+const contar = (items: Item[], clave: (x: Item) => string) => {
+    const m = new Map<string, number>()
+    for (const x of items) m.set(clave(x), (m.get(clave(x)) ?? 0) + 1)
+    return m
+}
+
+/** Valores con conteo, más el elegido aunque haya quedado en 0 con los otros filtros (para poder verlo y cambiarlo). */
+const valores = (conteo: Map<string, number>, elegido: string) => [...new Set([...conteo.keys(), ...(elegido ? [elegido] : [])])]
 
 interface FiltrosCatalogoProps {
     items: Item[]
@@ -41,28 +64,36 @@ interface FiltrosCatalogoProps {
 }
 
 /**
- * Plataforma y rango de precio junto al buscador de la tabla. Cada opción lleva en una pastilla cuántos productos quedarían con el
- * otro filtro ya aplicado (las que quedan en 0 se ven apagadas), así nunca se elige a ciegas un rango vacío.
+ * Plataforma, rango de precio y duración junto al buscador de la tabla. Cada opción lleva en una pastilla cuántos productos quedarían
+ * con los otros filtros ya aplicados (las que quedan en 0 se ven apagadas), así nunca se elige a ciegas una opción vacía.
  */
 export default function FiltrosCatalogo({ items, value, onChange, mobile }: Readonly<FiltrosCatalogoProps>) {
-    const porPrecio = items.filter((x) => enRango(x.precio, value.precio))
-    const porPlataforma = items.filter((x) => !value.plataforma || x.plataforma === value.plataforma)
+    // cada selector cuenta sobre lo que dejan pasar los otros dos
+    const sinPlataforma = items.filter((x) => enRango(x.precio, value.precio) && pasaDuracion(x, value))
+    const sinPrecio = items.filter((x) => pasaPlataforma(x, value) && pasaDuracion(x, value))
+    const sinDuracion = items.filter((x) => pasaPlataforma(x, value) && enRango(x.precio, value.precio))
 
-    const conteo = new Map<string, number>()
-    for (const x of porPrecio) conteo.set(x.plataforma, (conteo.get(x.plataforma) ?? 0) + 1)
-    // si la plataforma elegida queda en 0 con el rango actual, igual se lista para poder verla y cambiarla
-    const nombres = [...new Set([...conteo.keys(), ...(value.plataforma ? [value.plataforma] : [])])].sort((a, b) => a.localeCompare(b, "es"))
+    const porPlataforma = contar(sinPlataforma, (x) => x.plataforma)
+    const porDuracion = contar(sinDuracion, (x) => x.duracion)
 
     const plataformas = [
-        { value: "", label: "Todas las plataformas", count: porPrecio.length },
-        ...nombres.map((n) => ({ value: n, label: n, count: conteo.get(n) ?? 0 })),
+        { value: "", label: "Todas las plataformas", count: sinPlataforma.length },
+        ...valores(porPlataforma, value.plataforma)
+            .sort((a, b) => a.localeCompare(b, "es"))
+            .map((n) => ({ value: n, label: n, count: porPlataforma.get(n) ?? 0 })),
     ]
     const precios = [
-        { value: "", label: "Cualquier precio", count: porPlataforma.length },
-        ...RANGOS.map((r) => ({ value: r.value, label: r.label, count: porPlataforma.filter((x) => enRango(x.precio, r.value)).length })),
+        { value: "", label: "Cualquier precio", count: sinPrecio.length },
+        ...RANGOS.map((r) => ({ value: r.value, label: r.label, count: sinPrecio.filter((x) => enRango(x.precio, r.value)).length })),
+    ]
+    const duraciones = [
+        { value: "", label: "Cualquier duración", count: sinDuracion.length },
+        ...valores(porDuracion, value.duracion)
+            .sort((a, b) => diasDe(a) - diasDe(b) || a.localeCompare(b, "es", { numeric: true }))
+            .map((d) => ({ value: d, label: d, count: porDuracion.get(d) ?? 0 })),
     ]
 
-    const activo = value.plataforma !== "" || value.precio !== ""
+    const activo = value.plataforma !== "" || value.precio !== "" || value.duracion !== ""
 
     return (
         <div className={mobile ? "grid grid-cols-2 gap-3" : "flex items-center gap-3"}>
@@ -72,12 +103,15 @@ export default function FiltrosCatalogo({ items, value, onChange, mobile }: Read
             <div className={mobile ? "min-w-0" : "w-52"}>
                 <SelectDropdown options={precios} value={value.precio} onChange={(precio) => onChange({ ...value, precio })} />
             </div>
+            <div className={mobile ? "min-w-0" : "w-48"}>
+                <SelectDropdown options={duraciones} value={value.duracion} onChange={(duracion) => onChange({ ...value, duracion })} />
+            </div>
             {activo && (
                 <button
                     type="button"
                     onClick={() => onChange(SIN_FILTRO)}
                     // mismo tono que los botones de fila (IconAction "default"): borde y fondo suaves, acento al pasar el mouse
-                    className={`inline-flex h-[42px] shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/3 px-3.5 text-sm text-foreground transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/25 ${mobile ? "col-span-2" : ""}`}
+                    className="inline-flex h-[42px] shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/3 px-3.5 text-sm text-foreground transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/25"
                 >
                     <X className="h-4 w-4" />
                     Limpiar

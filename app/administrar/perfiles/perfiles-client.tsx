@@ -10,7 +10,7 @@ import SelectDropdown from "@ui/select-dropdown"
 import Modal from "@ui/modal"
 import Alert from "@ui/alert"
 import { AlertCircle, Eye, Pencil, Trash2 } from "lucide-react"
-import { ActionsCell, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, TableFrame, Td, Th } from "@ui/data-frame"
+import { ActionsCell, ActionsTh, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, TableFrame, Td, Th } from "@ui/data-frame"
 import type { PerfilRow } from "@action/manager-and-admin/perfiles/get-all-perfiles-action"
 import { editPerfilAction } from "@action/manager-and-admin/perfiles/edit-perfil-action"
 import { deletePerfilAction } from "@action/manager-and-admin/perfiles/delete-perfil-action"
@@ -169,7 +169,7 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
                         {["Plataforma", "Perfil", "PIN", "Correo", "Estado", "Vencimiento"].map((column) => (
                             <Th key={column}>{column}</Th>
                         ))}
-                        <Th align="right">Acciones</Th>
+                        <ActionsTh />
                     </tr>
                 </thead>
 

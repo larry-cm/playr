@@ -9,7 +9,7 @@ import CopyInput from "@ui/copy-input"
 import PhoneInput from "@ui/phone-input"
 import Alert from "@ui/alert"
 import { Eye, Edit, Trash2, Plus } from "lucide-react"
-import { ActionsCell, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, TableFrame, Td, Th } from "@ui/data-frame"
+import { ActionsCell, ActionsTh, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, TableFrame, Td, Th } from "@ui/data-frame"
 import { validateEmail, validatePassword, validateUsername, validatePhoneValue } from "@lib/validation"
 import { splitPhoneNumber } from "@lib/phone"
 
@@ -457,7 +457,7 @@ export default function Table<T extends Record<string, unknown>>({
                 <thead>
                     <tr>
                         {header.map((column) => <Th key={column}>{column}</Th>)}
-                        {showActions && <Th align="right">Acciones</Th>}
+                        {showActions && <ActionsTh />}
                     </tr>
                 </thead>
 

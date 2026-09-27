@@ -9,7 +9,7 @@ import CopyInput from "@ui/copy-input"
 import Modal from "@ui/modal"
 import Alert from "@ui/alert"
 import { AlertCircle, Plus, Pencil, Trash2, Eye } from "lucide-react"
-import { ActionsCell, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, TableFrame, Td, Th } from "@ui/data-frame"
+import { ActionsCell, ActionsTh, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, TableFrame, Td, Th } from "@ui/data-frame"
 import type { ProductoRow } from "@action/manager-and-admin/productos/get-all-productos-action"
 import type { LicenciaDisponible } from "@action/manager-and-admin/productos/get-licencias-disponibles-action"
 import type { OfertaProveedorItem } from "@action/manager-and-admin/productos/get-oferta-proveedor-action"
@@ -186,7 +186,7 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                         {["Producto", "Tipo de acceso", "Costo (proveedor)", "Precio de venta", "Ganancia"].map((column) => (
                             <Th key={column}>{column}</Th>
                         ))}
-                        <Th align="right">Acciones</Th>
+                        <ActionsTh />
                     </tr>
                 </thead>
 

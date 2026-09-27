@@ -66,6 +66,23 @@ export function parseGrupos(texto: string): GrupoCredencial[] {
     })
 }
 
+/**
+ * Contraseña vigente de una cuenta según "Mis licencias" del proveedor. La clave es de la cuenta (todos sus perfiles la
+ * comparten), así que basta el correo; si el proveedor la cambió, manda la licencia que vence más tarde, y a igual
+ * vencimiento la del mismo perfil. null = ninguna licencia trae ese correo.
+ */
+export function claveDeCuenta(licencias: { texto: string; vence: string | null }[], email: string, perfil: string | null): string | null {
+    const correo = email.trim().toLowerCase()
+    const mismoPerfil = perfil?.trim().toUpperCase().replace(/\s+/g, " ") ?? null
+    const candidatos = licencias.flatMap((l) =>
+        parseGrupos(l.texto)
+            .filter((g) => g.email.toLowerCase() === correo)
+            .map((g) => ({ password: g.password, vence: l.vence ?? "", perfil: g.perfil === mismoPerfil ? 1 : 0 })),
+    )
+    candidatos.sort((a, b) => b.vence.localeCompare(a.vence) || b.perfil - a.perfil)
+    return candidatos[0]?.password ?? null
+}
+
 // ---- combos -------------------------------------------------------------------------------------------------------
 
 export interface Plataforma {

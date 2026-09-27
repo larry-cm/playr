@@ -70,7 +70,7 @@ export default function ResetPasswordPage() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-8">
       <div className="w-full max-w-md animate-[fadeIn_0.6s_ease-out]">
-        <Card>
+        <Card padding="p-8">
           {
             session === "loading" && (
               <div className="flex flex-col items-center py-8">

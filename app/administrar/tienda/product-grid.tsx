@@ -13,7 +13,7 @@ interface ProductGridProps {
 export default function ProductGrid({ items, selectedIds, onToggle }: ProductGridProps) {
     if (items.length === 0) {
         return (
-            <Card className="flex flex-col items-center justify-center py-12 px-4 text-center">
+            <Card padding="px-4 py-12" className="flex flex-col items-center justify-center text-center">
                 <p className="text-sm text-secondary">No se encontraron productos.</p>
             </Card>
         )

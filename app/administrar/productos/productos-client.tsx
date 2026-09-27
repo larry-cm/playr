@@ -8,7 +8,8 @@ import Input from "@ui/input"
 import CopyInput from "@ui/copy-input"
 import Modal from "@ui/modal"
 import Alert from "@ui/alert"
-import { AlertCircle, Plus, Pencil, Trash2, Search } from "lucide-react"
+import { AlertCircle, Plus, Pencil, Trash2 } from "lucide-react"
+import { ActionsCell, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, TableFrame, Td, Th } from "@ui/data-frame"
 import type { ProductoRow } from "@action/manager-and-admin/productos/get-all-productos-action"
 import type { LicenciaDisponible } from "@action/manager-and-admin/productos/get-licencias-disponibles-action"
 import type { OfertaProveedorItem } from "@action/manager-and-admin/productos/get-oferta-proveedor-action"
@@ -140,7 +141,7 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
 
     if (productos === null) {
         return (
-            <Card className="flex flex-col items-center justify-center py-12 px-4 text-center">
+            <Card padding="px-4 py-12" className="flex flex-col items-center justify-center text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/10 text-red-400 mb-4 shadow-lg shadow-red-500/5">
                     <AlertCircle className="h-7 w-7" />
                 </div>
@@ -152,183 +153,92 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
         )
     }
 
+    const toolbar = (mobile: boolean) => (
+        <>
+            <SearchInput value={search} onChange={setSearch} className={mobile ? "w-full" : undefined} />
+            <Button variant="primary" leftIcon={<Plus className="h-4 w-4" />} onClick={openCreate}>
+                Agregar producto
+            </Button>
+        </>
+    )
+
     return (
         <div className="flex flex-col gap-4">
             {alert && (
                 <Alert variant={alert.variant} message={alert.message} onDismiss={() => setAlert(null)} />
             )}
 
-            {/* Desktop / wide: mismo marco que Table (app/ui/table.tsx) para homogeneidad visual */}
-            <div className="hidden md:block relative">
-                <div
-                    className="overflow-hidden rounded-2xl"
-                    style={{
-                        background: 'linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.012))',
-                        border: '1px solid rgba(255,255,255,0.08)',
-                        boxShadow: '0 8px 24px rgba(2,6,23,0.28), inset 0 1px 0 rgba(255,255,255,0.04)',
-                        backdropFilter: 'blur(10px)'
-                    }}
-                >
-                    <div className="p-4">
-                        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="relative w-full sm:max-w-sm">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--color-secondary)' }} />
-                                <input
-                                    type="search"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    placeholder="Buscar"
-                                    className="w-full rounded-xl border border-white/10 bg-white/3 py-2.5 pl-9 pr-3 text-sm text-white outline-none transition focus:border-accent/40 focus:ring-1 focus:ring-accent/20"
-                                />
-                            </div>
+            {/* Marco, densidad y alto compartidos con el resto de tablas del panel (app/ui/data-frame.tsx). */}
+            <TableFrame toolbar={toolbar(false)}>
+                <thead>
+                    <tr>
+                        {["Producto", "Categoría", "Tipo de acceso", "Costo (proveedor)", "Precio de venta", "Ganancia"].map((column) => (
+                            <Th key={column}>{column}</Th>
+                        ))}
+                        <Th align="right">Acciones</Th>
+                    </tr>
+                </thead>
 
-                            <Button variant="primary" leftIcon={<Plus className="h-4 w-4" />} onClick={openCreate}>
-                                Agregar producto
-                            </Button>
-                        </div>
-
-                        <div className="h-[480px] overflow-y-auto">
-                            <table className="w-full border-collapse text-left text-sm" style={{ color: 'var(--color-foreground)' }}>
-                                <thead>
-                                    <tr>
-                                        {["Producto", "Categoría", "Tipo de acceso", "Costo (proveedor)", "Precio de venta", "Ganancia"].map((column) => (
-                                            <th key={column} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--color-secondary)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                                                {column}
-                                            </th>
-                                        ))}
-                                        <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--color-secondary)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                                            Acciones
-                                        </th>
-                                    </tr>
-                                </thead>
-
-                                <tbody>
-                                    {filteredProductos.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={7} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--color-secondary)' }}>
-                                                No hay productos configurados todavía.
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        filteredProductos.map((row) => (
-                                            <tr key={row.id} className="group transition-colors hover:bg-white/3">
-                                                <td className="px-4 py-4 align-middle font-semibold" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                    {row.titulo}
-                                                    {row.combo_items.length > 0 && (
-                                                        <span className="block text-xs font-normal" style={{ color: 'var(--color-secondary)' }}>
-                                                            {contenidoDeCombo(row)}
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.categoria}</td>
-                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{accessTypeLabel[row.access_type]}</td>
-                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                    {row.costo === null ? "--" : formatCOP(row.costo)}
-                                                </td>
-                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                    {row.precio_venta === null ? "--" : formatCOP(row.precio_venta)}
-                                                </td>
-                                                <td className="px-4 py-4 align-middle font-medium" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: gananciaColor(gananciaOf(row)) }}>
-                                                    {gananciaOf(row) === null ? "--" : formatCOP(gananciaOf(row)!)}
-                                                </td>
-                                                <td className="px-4 py-4 align-middle text-right" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                    <div className="inline-flex items-center gap-2 *:cursor-pointer">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => openEdit(row)}
-                                                            aria-label="Editar"
-                                                            title="Editar"
-                                                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent) focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/25"
-                                                        >
-                                                            <Pencil className="h-4 w-4" />
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setDeletingId(row.id)}
-                                                            aria-label="Eliminar"
-                                                            title="Eliminar"
-                                                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-red-400/20 bg-red-500/10 text-red-400 transition-all duration-200 hover:border-red-400/30 hover:bg-red-500/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/25"
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Mobile: mismo marco que Table (app/ui/table.tsx) */}
-            <div className="md:hidden flex flex-col gap-3">
-                <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/3 p-3">
-                    <div className="relative">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--color-secondary)' }} />
-                        <input
-                            type="search"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Buscar"
-                            className="w-full rounded-xl border border-white/10 bg-white/3 py-2.5 pl-9 pr-3 text-sm text-white outline-none transition focus:border-accent/40 focus:ring-1 focus:ring-accent/20"
-                        />
-                    </div>
-                    <Button size="sm" variant="primary" onClick={openCreate} leftIcon={<Plus className="h-4 w-4" />}>
-                        Agregar producto
-                    </Button>
-                </div>
-
-                <div className="h-[480px] overflow-y-auto flex flex-col gap-3">
+                <tbody>
                     {filteredProductos.length === 0 ? (
-                        <div className="px-4 py-6 text-center text-sm" style={{ color: 'var(--color-secondary)' }}>No hay productos configurados todavía.</div>
+                        <EmptyRow colSpan={7}>No hay productos configurados todavía.</EmptyRow>
                     ) : (
                         filteredProductos.map((row) => (
-                            <div key={row.id} className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 6px 16px rgba(2,6,23,0.25)' }}>
-                                <div className="p-4">
-                                    {[
-                                        ["Producto", row.titulo],
-                                        ...(row.combo_items.length > 0 ? [["Incluye", contenidoDeCombo(row)]] : []),
-                                        ["Categoría", row.categoria],
-                                        ["Tipo de acceso", accessTypeLabel[row.access_type]],
-                                        ["Costo (proveedor)", row.costo === null ? "--" : formatCOP(row.costo)],
-                                        ["Precio de venta", row.precio_venta === null ? "--" : formatCOP(row.precio_venta)],
-                                    ].map(([label, value]) => (
-                                        <div key={label} className="flex items-start justify-between gap-3 py-2">
-                                            <div className="text-xs font-medium" style={{ color: 'var(--color-secondary)' }}>{label}</div>
-                                            <div className="text-sm" style={{ color: 'var(--color-foreground)' }}>{value}</div>
-                                        </div>
-                                    ))}
-                                    <div className="flex items-start justify-between gap-3 py-2">
-                                        <div className="text-xs font-medium" style={{ color: 'var(--color-secondary)' }}>Ganancia</div>
-                                        <div className="text-sm font-medium" style={{ color: gananciaColor(gananciaOf(row)) }}>
-                                            {gananciaOf(row) === null ? "--" : formatCOP(gananciaOf(row)!)}
-                                        </div>
-                                    </div>
-                                    <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3 *:cursor-pointer">
-                                        <button
-                                            type="button"
-                                            onClick={() => openEdit(row)}
-                                            className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 px-3 text-sm text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent)"
-                                        >
-                                            <Pencil className="mr-2 h-4 w-4" />Editar
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setDeletingId(row.id)}
-                                            className="inline-flex h-9 items-center justify-center rounded-xl border border-red-400/20 bg-red-500/10 px-3 text-sm text-red-400 transition-all duration-200 hover:border-red-400/30 hover:bg-red-500/15"
-                                        >
-                                            <Trash2 className="mr-2 h-4 w-4" />Eliminar
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
+                            <tr key={row.id} className={ROW_CLASS}>
+                                <Td className="font-semibold">
+                                    {row.titulo}
+                                    {row.combo_items.length > 0 && (
+                                        <span className="block text-xs font-normal text-secondary">{contenidoDeCombo(row)}</span>
+                                    )}
+                                </Td>
+                                <Td>{row.categoria}</Td>
+                                <Td>{accessTypeLabel[row.access_type]}</Td>
+                                <Td className="whitespace-nowrap">{row.costo === null ? "--" : formatCOP(row.costo)}</Td>
+                                <Td className="whitespace-nowrap">{row.precio_venta === null ? "--" : formatCOP(row.precio_venta)}</Td>
+                                <Td className="font-medium whitespace-nowrap" style={{ color: gananciaColor(gananciaOf(row)) }}>
+                                    {gananciaOf(row) === null ? "--" : formatCOP(gananciaOf(row)!)}
+                                </Td>
+                                <ActionsCell>
+                                    <IconAction icon={Pencil} label="Editar" onClick={() => openEdit(row)} />
+                                    <IconAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => setDeletingId(row.id)} />
+                                </ActionsCell>
+                            </tr>
                         ))
                     )}
-                </div>
-            </div>
+                </tbody>
+            </TableFrame>
+
+            <MobileFrame toolbar={toolbar(true)}>
+                {filteredProductos.length === 0 ? (
+                    <MobileEmpty>No hay productos configurados todavía.</MobileEmpty>
+                ) : (
+                    filteredProductos.map((row) => (
+                        <MobileCard
+                            key={row.id}
+                            fields={[
+                                { label: "Producto", value: row.titulo, className: "font-semibold" },
+                                ...(row.combo_items.length > 0 ? [{ label: "Incluye", value: contenidoDeCombo(row) }] : []),
+                                { label: "Categoría", value: row.categoria },
+                                { label: "Tipo de acceso", value: accessTypeLabel[row.access_type] },
+                                { label: "Costo (proveedor)", value: row.costo === null ? "--" : formatCOP(row.costo) },
+                                { label: "Precio de venta", value: row.precio_venta === null ? "--" : formatCOP(row.precio_venta) },
+                                {
+                                    label: "Ganancia",
+                                    value: gananciaOf(row) === null ? "--" : formatCOP(gananciaOf(row)!),
+                                    className: "font-medium",
+                                    style: { color: gananciaColor(gananciaOf(row)) },
+                                },
+                            ]}
+                            actions={
+                                <>
+                                    <MobileAction icon={Pencil} label="Editar" onClick={() => openEdit(row)} />
+                                    <MobileAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => setDeletingId(row.id)} />
+                                </>
+                            }
+                        />
+                    ))
+                )}
+            </MobileFrame>
 
             <Modal isOpen={createOpen} title="Agregar producto" onClose={closeCreate}>
                 {/* Los dos caminos son distintos de raíz: el simple parte de una licencia ya comprada

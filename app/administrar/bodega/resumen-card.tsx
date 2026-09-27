@@ -2,6 +2,7 @@
 
 import Card from "@ui/card"
 import CountUp from "@ui/count-up"
+import { SectionHeader } from "@ui/page-header"
 import { LayoutGrid, Package } from "lucide-react"
 
 interface ResumenBodegaCardProps {
@@ -12,12 +13,7 @@ interface ResumenBodegaCardProps {
 export default function ResumenBodegaCard({ productosEnStock }: Readonly<ResumenBodegaCardProps>) {
     return (
         <Card className="h-full flex flex-col">
-            <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-accent/10">
-                    <LayoutGrid className="w-5 h-5 text-accent" />
-                </div>
-                <h2 className="text-lg font-semibold">Resumen</h2>
-            </div>
+            <SectionHeader icon={LayoutGrid} title="Resumen" />
 
             <div className="mt-6 border-t border-white/6" />
 

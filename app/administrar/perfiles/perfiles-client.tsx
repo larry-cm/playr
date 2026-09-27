@@ -9,7 +9,8 @@ import CopyInput from "@ui/copy-input"
 import SelectDropdown from "@ui/select-dropdown"
 import Modal from "@ui/modal"
 import Alert from "@ui/alert"
-import { AlertCircle, Eye, Pencil, Trash2, Search } from "lucide-react"
+import { AlertCircle, Eye, Pencil, Trash2 } from "lucide-react"
+import { ActionsCell, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, TableFrame, Td, Th } from "@ui/data-frame"
 import type { PerfilRow } from "@action/manager-and-admin/perfiles/get-all-perfiles-action"
 import { editPerfilAction } from "@action/manager-and-admin/perfiles/edit-perfil-action"
 import { deletePerfilAction } from "@action/manager-and-admin/perfiles/delete-perfil-action"
@@ -118,7 +119,7 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
 
     if (perfiles === null) {
         return (
-            <Card className="flex flex-col items-center justify-center py-12 px-4 text-center">
+            <Card padding="px-4 py-12" className="flex flex-col items-center justify-center text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/10 text-red-400 mb-4 shadow-lg shadow-red-500/5">
                     <AlertCircle className="h-7 w-7" />
                 </div>
@@ -136,177 +137,69 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
                 <Alert variant={alert.variant} message={alert.message} onDismiss={() => setAlert(null)} />
             )}
 
-            {/* Desktop / wide: mismo marco que Table (app/ui/table.tsx) para homogeneidad visual */}
-            <div className="hidden md:block relative">
-                <div
-                    className="overflow-hidden rounded-2xl"
-                    style={{
-                        background: 'linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.012))',
-                        border: '1px solid rgba(255,255,255,0.08)',
-                        boxShadow: '0 8px 24px rgba(2,6,23,0.28), inset 0 1px 0 rgba(255,255,255,0.04)',
-                        backdropFilter: 'blur(10px)'
-                    }}
-                >
-                    <div className="p-4">
-                        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="relative w-full sm:max-w-sm">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--color-secondary)' }} />
-                                <input
-                                    type="search"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    placeholder="Buscar"
-                                    className="w-full rounded-xl border border-white/10 bg-white/3 py-2.5 pl-9 pr-3 text-sm text-white outline-none transition focus:border-accent/40 focus:ring-1 focus:ring-accent/20"
-                                />
-                            </div>
-                        </div>
+            {/* Marco, densidad y alto compartidos con el resto de tablas del panel (app/ui/data-frame.tsx). */}
+            <TableFrame toolbar={<SearchInput value={search} onChange={setSearch} />}>
+                <thead>
+                    <tr>
+                        {["Plataforma", "Perfil", "PIN", "Cuenta", "Estado", "Vencimiento"].map((column) => (
+                            <Th key={column}>{column}</Th>
+                        ))}
+                        <Th align="right">Acciones</Th>
+                    </tr>
+                </thead>
 
-                        <div className="h-[480px] overflow-y-auto">
-                            <table className="w-full border-collapse text-left text-sm" style={{ color: 'var(--color-foreground)' }}>
-                                <thead>
-                                    <tr>
-                                        {["Plataforma", "Perfil", "PIN", "Cuenta", "Estado", "Vencimiento"].map((column) => (
-                                            <th key={column} className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--color-secondary)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                                                {column}
-                                            </th>
-                                        ))}
-                                        <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--color-secondary)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                                            Acciones
-                                        </th>
-                                    </tr>
-                                </thead>
-
-                                <tbody>
-                                    {filteredPerfiles.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={7} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--color-secondary)' }}>
-                                                No hay perfiles comprados todavía.
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        filteredPerfiles.map((row) => (
-                                            <tr key={row.id} className="group transition-colors hover:bg-white/3">
-                                                <td className="px-3 py-3 align-middle font-semibold whitespace-nowrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.platform_nombre}</td>
-                                                <td className="px-3 py-3 align-middle whitespace-nowrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.nombre_perfil}</td>
-                                                <td className="px-3 py-3 align-middle whitespace-nowrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.pin ?? "--"}</td>
-                                                {/* El correo es lo más largo: parte línea para que la tabla no scrollee en x. */}
-                                                <td className="px-3 py-3 align-middle break-all" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.cuenta_email}</td>
-                                                <td className="px-3 py-3 align-middle font-medium whitespace-nowrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: estadoColor[row.estado] }}>
-                                                    {estadoLabel[row.estado]}
-                                                </td>
-                                                <td className="px-3 py-3 align-middle whitespace-nowrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                    {formatDateOnly(row.fecha_vencimiento)}
-                                                </td>
-                                                <td className="px-3 py-3 align-middle text-left whitespace-nowrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                    <div className="inline-flex items-center gap-1.5 *:cursor-pointer">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setViewingId(row.id)}
-                                                            aria-label="Ver"
-                                                            title="Ver"
-                                                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent) focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/25"
-                                                        >
-                                                            <Eye className="h-4 w-4" />
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => openEdit(row)}
-                                                            aria-label="Editar"
-                                                            title="Editar"
-                                                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent) focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/25"
-                                                        >
-                                                            <Pencil className="h-4 w-4" />
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setDeletingId(row.id)}
-                                                            aria-label="Eliminar"
-                                                            title="Eliminar"
-                                                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-red-400/20 bg-red-500/10 text-red-400 transition-all duration-200 hover:border-red-400/30 hover:bg-red-500/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/25"
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Mobile: mismo marco que Table (app/ui/table.tsx) */}
-            <div className="md:hidden flex flex-col gap-3">
-                <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/3 p-3">
-                    <div className="relative">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--color-secondary)' }} />
-                        <input
-                            type="search"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Buscar"
-                            className="w-full rounded-xl border border-white/10 bg-white/3 py-2.5 pl-9 pr-3 text-sm text-white outline-none transition focus:border-accent/40 focus:ring-1 focus:ring-accent/20"
-                        />
-                    </div>
-                </div>
-
-                <div className="h-[480px] overflow-y-auto flex flex-col gap-3">
+                <tbody>
                     {filteredPerfiles.length === 0 ? (
-                        <div className="px-4 py-6 text-center text-sm" style={{ color: 'var(--color-secondary)' }}>No hay perfiles comprados todavía.</div>
+                        <EmptyRow colSpan={7}>No hay perfiles comprados todavía.</EmptyRow>
                     ) : (
                         filteredPerfiles.map((row) => (
-                            <div key={row.id} className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 6px 16px rgba(2,6,23,0.25)' }}>
-                                <div className="p-4">
-                                    {[
-                                        ["Plataforma", row.platform_nombre],
-                                        ["Perfil", row.nombre_perfil],
-                                        ["PIN", row.pin ?? "--"],
-                                        ["Cuenta", row.cuenta_email],
-                                        ["Vencimiento", formatDateOnly(row.fecha_vencimiento)],
-                                    ].map(([label, value]) => (
-                                        <div key={label} className="flex items-start justify-between gap-3 py-2">
-                                            <div className="text-xs font-medium" style={{ color: 'var(--color-secondary)' }}>{label}</div>
-                                            <div className="min-w-0 break-all text-right text-sm" style={{ color: 'var(--color-foreground)' }}>{value}</div>
-                                        </div>
-                                    ))}
-                                    <div className="flex items-start justify-between gap-3 py-2">
-                                        <div className="text-xs font-medium" style={{ color: 'var(--color-secondary)' }}>Estado</div>
-                                        <div className="text-sm font-medium" style={{ color: estadoColor[row.estado] }}>
-                                            {estadoLabel[row.estado]}
-                                        </div>
-                                    </div>
-                                    <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3 *:cursor-pointer">
-                                        <button
-                                            type="button"
-                                            onClick={() => setViewingId(row.id)}
-                                            className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 px-3 text-sm text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent)"
-                                        >
-                                            <Eye className="mr-2 h-4 w-4" />Ver
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => openEdit(row)}
-                                            className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 px-3 text-sm text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent)"
-                                        >
-                                            <Pencil className="mr-2 h-4 w-4" />Editar
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setDeletingId(row.id)}
-                                            className="inline-flex h-9 items-center justify-center rounded-xl border border-red-400/20 bg-red-500/10 px-3 text-sm text-red-400 transition-all duration-200 hover:border-red-400/30 hover:bg-red-500/15"
-                                        >
-                                            <Trash2 className="mr-2 h-4 w-4" />Eliminar
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
+                            <tr key={row.id} className={ROW_CLASS}>
+                                <Td className="font-semibold whitespace-nowrap">{row.platform_nombre}</Td>
+                                <Td className="whitespace-nowrap">{row.nombre_perfil}</Td>
+                                <Td className="whitespace-nowrap">{row.pin ?? "--"}</Td>
+                                {/* El correo es lo más largo: parte línea para que la tabla no scrollee en x. */}
+                                <Td className="break-all">{row.cuenta_email}</Td>
+                                <Td className="font-medium whitespace-nowrap" style={{ color: estadoColor[row.estado] }}>
+                                    {estadoLabel[row.estado]}
+                                </Td>
+                                <Td className="whitespace-nowrap">{formatDateOnly(row.fecha_vencimiento)}</Td>
+                                <ActionsCell>
+                                    <IconAction icon={Eye} label="Ver" onClick={() => setViewingId(row.id)} />
+                                    <IconAction icon={Pencil} label="Editar" onClick={() => openEdit(row)} />
+                                    <IconAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => setDeletingId(row.id)} />
+                                </ActionsCell>
+                            </tr>
                         ))
                     )}
-                </div>
-            </div>
+                </tbody>
+            </TableFrame>
+
+            <MobileFrame toolbar={<SearchInput value={search} onChange={setSearch} className="w-full" />}>
+                {filteredPerfiles.length === 0 ? (
+                    <MobileEmpty>No hay perfiles comprados todavía.</MobileEmpty>
+                ) : (
+                    filteredPerfiles.map((row) => (
+                        <MobileCard
+                            key={row.id}
+                            fields={[
+                                { label: "Plataforma", value: row.platform_nombre },
+                                { label: "Perfil", value: row.nombre_perfil },
+                                { label: "PIN", value: row.pin ?? "--" },
+                                { label: "Cuenta", value: row.cuenta_email, className: "break-all" },
+                                { label: "Estado", value: estadoLabel[row.estado], className: "font-medium", style: { color: estadoColor[row.estado] } },
+                                { label: "Vencimiento", value: formatDateOnly(row.fecha_vencimiento) },
+                            ]}
+                            actions={
+                                <>
+                                    <MobileAction icon={Eye} label="Ver" onClick={() => setViewingId(row.id)} />
+                                    <MobileAction icon={Pencil} label="Editar" onClick={() => openEdit(row)} />
+                                    <MobileAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => setDeletingId(row.id)} />
+                                </>
+                            }
+                        />
+                    ))
+                )}
+            </MobileFrame>
 
             <Modal isOpen={viewingId !== null} title="Ver perfil" onClose={() => setViewingId(null)}>
                 {viewingRow && (

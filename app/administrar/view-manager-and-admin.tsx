@@ -1,5 +1,6 @@
 import Card from "@ui/card"
 import CountUp from "@ui/count-up"
+import { SectionHeader } from "@ui/page-header"
 import { List, Monitor, Network, ChevronRight } from "lucide-react"
 import Link from "next/link"
 
@@ -15,17 +16,7 @@ export default function ViewServer({
 }: Readonly<ViewServerProps>) {
     return (
         <Card className="h-full flex flex-col">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-accent/10">
-                        <List className="w-5 h-5 text-accent" />
-                    </div>
-                    <h2 className="text-lg font-semibold">
-                        Resumen de Servicios
-                    </h2>
-                </div>
-
-            </div>
+            <SectionHeader icon={List} title="Resumen de Servicios" />
 
             <div className="mt-6 border-t border-white/6" />
 

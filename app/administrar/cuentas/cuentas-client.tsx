@@ -8,7 +8,8 @@ import Input from "@ui/input"
 import CopyInput from "@ui/copy-input"
 import Modal from "@ui/modal"
 import Alert from "@ui/alert"
-import { AlertCircle, Pencil, Trash2, Search } from "lucide-react"
+import { AlertCircle, Pencil, Trash2 } from "lucide-react"
+import { ActionsCell, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, TableFrame, Td, Th } from "@ui/data-frame"
 import type { CuentaRow } from "@action/manager-and-admin/cuentas/get-all-cuentas-action"
 import { editCuentaAction } from "@action/manager-and-admin/cuentas/edit-cuenta-action"
 import { deleteCuentaAction } from "@action/manager-and-admin/cuentas/delete-cuenta-action"
@@ -116,7 +117,7 @@ export default function CuentasClient({ initialCuentas }: CuentasClientProps) {
 
     if (cuentas === null) {
         return (
-            <Card className="flex flex-col items-center justify-center py-12 px-4 text-center">
+            <Card padding="px-4 py-12" className="flex flex-col items-center justify-center text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/10 text-red-400 mb-4 shadow-lg shadow-red-500/5">
                     <AlertCircle className="h-7 w-7" />
                 </div>
@@ -134,162 +135,66 @@ export default function CuentasClient({ initialCuentas }: CuentasClientProps) {
                 <Alert variant={alert.variant} message={alert.message} onDismiss={() => setAlert(null)} />
             )}
 
-            {/* Desktop / wide: mismo marco que Table (app/ui/table.tsx) para homogeneidad visual */}
-            <div className="hidden md:block relative">
-                <div
-                    className="overflow-hidden rounded-2xl"
-                    style={{
-                        background: 'linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.012))',
-                        border: '1px solid rgba(255,255,255,0.08)',
-                        boxShadow: '0 8px 24px rgba(2,6,23,0.28), inset 0 1px 0 rgba(255,255,255,0.04)',
-                        backdropFilter: 'blur(10px)'
-                    }}
-                >
-                    <div className="p-4">
-                        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="relative w-full sm:max-w-sm">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--color-secondary)' }} />
-                                <input
-                                    type="search"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    placeholder="Buscar"
-                                    className="w-full rounded-xl border border-white/10 bg-white/3 py-2.5 pl-9 pr-3 text-sm text-white outline-none transition focus:border-accent/40 focus:ring-1 focus:ring-accent/20"
-                                />
-                            </div>
-                        </div>
+            {/* Marco, densidad y alto compartidos con el resto de tablas del panel (app/ui/data-frame.tsx). */}
+            <TableFrame toolbar={<SearchInput value={search} onChange={setSearch} />}>
+                <thead>
+                    <tr>
+                        {["Plataforma", "Tipo de acceso", "Correo", "Perfiles libres", "Vencimiento", "Costo"].map((column) => (
+                            <Th key={column}>{column}</Th>
+                        ))}
+                        <Th align="right">Acciones</Th>
+                    </tr>
+                </thead>
 
-                        <div className="h-[480px] overflow-y-auto">
-                            <table className="w-full border-collapse text-left text-sm" style={{ color: 'var(--color-foreground)' }}>
-                                <thead>
-                                    <tr>
-                                        {["Plataforma", "Tipo de acceso", "Correo", "Perfiles libres", "Vencimiento", "Costo"].map((column) => (
-                                            <th key={column} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--color-secondary)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                                                {column}
-                                            </th>
-                                        ))}
-                                        <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--color-secondary)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                                            Acciones
-                                        </th>
-                                    </tr>
-                                </thead>
-
-                                <tbody>
-                                    {filteredCuentas.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={7} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--color-secondary)' }}>
-                                                No hay cuentas compradas todavía.
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        filteredCuentas.map((row) => (
-                                            <tr key={row.id} className="group transition-colors hover:bg-white/3">
-                                                <td className="px-4 py-4 align-middle font-semibold" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.platform_nombre}</td>
-                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{accessTypeLabel[row.access_type]}</td>
-                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.email}</td>
-                                                <td className="px-4 py-4 align-middle font-medium" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: ocupacionColor(row) }}>
-                                                    {row.perfiles_disponibles} de {row.perfiles_total}
-                                                </td>
-                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                    {formatDateOnly(row.fecha_vencimiento)}
-                                                </td>
-                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                    {row.costo === null ? "--" : formatCOP(row.costo)}
-                                                </td>
-                                                <td className="px-4 py-4 align-middle text-right" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                    <div className="inline-flex items-center gap-2 *:cursor-pointer">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => openEdit(row)}
-                                                            aria-label="Editar"
-                                                            title="Editar"
-                                                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent) focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/25"
-                                                        >
-                                                            <Pencil className="h-4 w-4" />
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setDeletingId(row.id)}
-                                                            aria-label="Eliminar"
-                                                            title="Eliminar"
-                                                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-red-400/20 bg-red-500/10 text-red-400 transition-all duration-200 hover:border-red-400/30 hover:bg-red-500/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/25"
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Mobile: mismo marco que Table (app/ui/table.tsx) */}
-            <div className="md:hidden flex flex-col gap-3">
-                <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/3 p-3">
-                    <div className="relative">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--color-secondary)' }} />
-                        <input
-                            type="search"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Buscar"
-                            className="w-full rounded-xl border border-white/10 bg-white/3 py-2.5 pl-9 pr-3 text-sm text-white outline-none transition focus:border-accent/40 focus:ring-1 focus:ring-accent/20"
-                        />
-                    </div>
-                </div>
-
-                <div className="h-[480px] overflow-y-auto flex flex-col gap-3">
+                <tbody>
                     {filteredCuentas.length === 0 ? (
-                        <div className="px-4 py-6 text-center text-sm" style={{ color: 'var(--color-secondary)' }}>No hay cuentas compradas todavía.</div>
+                        <EmptyRow colSpan={7}>No hay cuentas compradas todavía.</EmptyRow>
                     ) : (
                         filteredCuentas.map((row) => (
-                            <div key={row.id} className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 6px 16px rgba(2,6,23,0.25)' }}>
-                                <div className="p-4">
-                                    {[
-                                        ["Plataforma", row.platform_nombre],
-                                        ["Tipo de acceso", accessTypeLabel[row.access_type]],
-                                        ["Correo", row.email],
-                                        ["Vencimiento", formatDateOnly(row.fecha_vencimiento)],
-                                        ["Costo", row.costo === null ? "--" : formatCOP(row.costo)],
-                                    ].map(([label, value]) => (
-                                        <div key={label} className="flex items-start justify-between gap-3 py-2">
-                                            <div className="text-xs font-medium" style={{ color: 'var(--color-secondary)' }}>{label}</div>
-                                            <div className="text-sm" style={{ color: 'var(--color-foreground)' }}>{value}</div>
-                                        </div>
-                                    ))}
-                                    <div className="flex items-start justify-between gap-3 py-2">
-                                        <div className="text-xs font-medium" style={{ color: 'var(--color-secondary)' }}>Perfiles libres</div>
-                                        <div className="text-sm font-medium" style={{ color: ocupacionColor(row) }}>
-                                            {row.perfiles_disponibles} de {row.perfiles_total}
-                                        </div>
-                                    </div>
-                                    <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3 *:cursor-pointer">
-                                        <button
-                                            type="button"
-                                            onClick={() => openEdit(row)}
-                                            className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 px-3 text-sm text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent)"
-                                        >
-                                            <Pencil className="mr-2 h-4 w-4" />Editar
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setDeletingId(row.id)}
-                                            className="inline-flex h-9 items-center justify-center rounded-xl border border-red-400/20 bg-red-500/10 px-3 text-sm text-red-400 transition-all duration-200 hover:border-red-400/30 hover:bg-red-500/15"
-                                        >
-                                            <Trash2 className="mr-2 h-4 w-4" />Eliminar
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
+                            <tr key={row.id} className={ROW_CLASS}>
+                                <Td className="font-semibold">{row.platform_nombre}</Td>
+                                <Td>{accessTypeLabel[row.access_type]}</Td>
+                                <Td className="break-all">{row.email}</Td>
+                                <Td className="font-medium whitespace-nowrap" style={{ color: ocupacionColor(row) }}>
+                                    {row.perfiles_disponibles} de {row.perfiles_total}
+                                </Td>
+                                <Td className="whitespace-nowrap">{formatDateOnly(row.fecha_vencimiento)}</Td>
+                                <Td className="whitespace-nowrap">{row.costo === null ? "--" : formatCOP(row.costo)}</Td>
+                                <ActionsCell>
+                                    <IconAction icon={Pencil} label="Editar" onClick={() => openEdit(row)} />
+                                    <IconAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => setDeletingId(row.id)} />
+                                </ActionsCell>
+                            </tr>
                         ))
                     )}
-                </div>
-            </div>
+                </tbody>
+            </TableFrame>
+
+            <MobileFrame toolbar={<SearchInput value={search} onChange={setSearch} className="w-full" />}>
+                {filteredCuentas.length === 0 ? (
+                    <MobileEmpty>No hay cuentas compradas todavía.</MobileEmpty>
+                ) : (
+                    filteredCuentas.map((row) => (
+                        <MobileCard
+                            key={row.id}
+                            fields={[
+                                { label: "Plataforma", value: row.platform_nombre },
+                                { label: "Tipo de acceso", value: accessTypeLabel[row.access_type] },
+                                { label: "Correo", value: row.email, className: "break-all" },
+                                { label: "Perfiles libres", value: `${row.perfiles_disponibles} de ${row.perfiles_total}`, className: "font-medium", style: { color: ocupacionColor(row) } },
+                                { label: "Vencimiento", value: formatDateOnly(row.fecha_vencimiento) },
+                                { label: "Costo", value: row.costo === null ? "--" : formatCOP(row.costo) },
+                            ]}
+                            actions={
+                                <>
+                                    <MobileAction icon={Pencil} label="Editar" onClick={() => openEdit(row)} />
+                                    <MobileAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => setDeletingId(row.id)} />
+                                </>
+                            }
+                        />
+                    ))
+                )}
+            </MobileFrame>
 
             <Modal isOpen={editingId !== null} title="Editar cuenta" onClose={cancelEdit}>
                 {editingRow && (

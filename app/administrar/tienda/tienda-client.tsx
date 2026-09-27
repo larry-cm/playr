@@ -3,9 +3,9 @@
 import { useState, useMemo } from "react"
 import Card from "@ui/card"
 import Button from "@ui/button"
-import Input from "@ui/input"
+import { SearchInput } from "@ui/data-frame"
 import Select from "@ui/select"
-import { AlertCircle, Search, MessageCircle } from "lucide-react"
+import { AlertCircle, MessageCircle } from "lucide-react"
 import ProductGrid from "@/app/administrar/tienda/product-grid"
 import type { CatalogoDisponibleItem } from "@action/tienda/get-catalogo-disponible-action"
 import { formatCOP } from "@lib/currency"
@@ -64,7 +64,7 @@ export default function TiendaClient({ initialCatalogo }: { initialCatalogo: Cat
 
     if (catalogo === null) {
         return (
-            <Card className="flex flex-col items-center justify-center py-12 px-4 text-center">
+            <Card padding="px-4 py-12" className="flex flex-col items-center justify-center text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/10 text-red-400 mb-4 shadow-lg shadow-red-500/5">
                     <AlertCircle className="h-7 w-7" />
                 </div>
@@ -81,14 +81,8 @@ export default function TiendaClient({ initialCatalogo }: { initialCatalogo: Cat
     return (
         <div className="flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row gap-3">
-                <div className="flex-1">
-                    <Input
-                        placeholder="Buscar por perfil o plataforma..."
-                        leftIcon={<Search className="w-4 h-4" />}
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                    />
-                </div>
+                {/* Mismo buscador que las tablas del panel. El Input de formularios reserva espacio para mensajes y descuadraba la fila. */}
+                <SearchInput value={search} onChange={setSearch} placeholder="Buscar por perfil o plataforma..." className="flex-1" />
                 <div className="sm:w-56">
                     <Select
                         placeholder="Todas las categorías"

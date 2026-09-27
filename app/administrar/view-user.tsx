@@ -1,6 +1,7 @@
 "use client"
 
 import Card from "@ui/card"
+import { SectionHeader } from "@ui/page-header"
 import { AlertTriangle, RefreshCw, ChevronRight, Monitor, List } from "lucide-react"
 import Link from "next/link"
 import SoporteCard from "@/app/administrar/soporte-card"
@@ -10,15 +11,10 @@ export default function ViewClientPage() {
         <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="sm:col-span-2">
                 <Card className="h-full flex flex-col">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2.5 rounded-xl bg-accent/10">
-                                <List className="w-5 h-5 text-accent" />
-                            </div>
-                            <h2 className="text-lg font-semibold">
-                                Resumen de Perfiles
-                            </h2>
-                        </div>
+                    <SectionHeader
+                        icon={List}
+                        title="Resumen de Perfiles"
+                        action={
                         <Link
                             href="/administrar/tienda"
                             className="p-2 rounded-lg hover:bg-white/5 transition-colors"
@@ -26,7 +22,8 @@ export default function ViewClientPage() {
                         >
                             <ChevronRight className="w-5 h-5 text-secondary" />
                         </Link>
-                    </div>
+                        }
+                    />
 
                     <div className="mt-6 border-t border-white/6" />
 
@@ -37,7 +34,7 @@ export default function ViewClientPage() {
                             </div>
                             <div className="text-center">
                                 <p className="text-4xl font-bold leading-none">0</p>
-                                <p className="text-xs text-secondary mt-1.5 tracking-wide uppercase">
+                                <p className="mt-2 text-xs text-secondary tracking-wide uppercase">
                                     Perfiles
                                 </p>
                             </div>
@@ -48,7 +45,7 @@ export default function ViewClientPage() {
                             </div>
                             <div className="text-center">
                                 <p className="text-4xl font-bold leading-none">0</p>
-                                <p className="text-xs text-secondary mt-1.5 tracking-wide uppercase">
+                                <p className="mt-2 text-xs text-secondary tracking-wide uppercase">
                                     Problemas
                                 </p>
                             </div>
@@ -59,7 +56,7 @@ export default function ViewClientPage() {
                             </div>
                             <div className="text-center">
                                 <p className="text-4xl font-bold leading-none">0</p>
-                                <p className="text-xs text-secondary mt-1.5 tracking-wide uppercase">
+                                <p className="mt-2 text-xs text-secondary tracking-wide uppercase">
                                     Cambios
                                 </p>
                             </div>

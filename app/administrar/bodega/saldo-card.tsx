@@ -1,6 +1,8 @@
 "use client"
 
 import Card from "@ui/card"
+import { SectionHeader } from "@ui/page-header"
+import { IconAction } from "@ui/data-frame"
 import { AlertCircle, RefreshCw, Wallet } from "lucide-react"
 import { formatCOP } from "@lib/currency"
 import type { SaldoProveedor } from "@lib/bodega/tipos"
@@ -16,27 +18,12 @@ export default function SaldoCard({ saldo, onRefresh }: Readonly<SaldoCardProps>
 
     return (
         <Card>
-            <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-accent/10">
-                        <Wallet className="w-5 h-5 text-accent" />
-                    </div>
-                    <div>
-                        <h2 className="text-lg font-semibold">Saldo del proveedor</h2>
-                        <p className="text-xs text-secondary">Monedero en el sitio del proveedor, leído en vivo</p>
-                    </div>
-                </div>
-                <button
-                    type="button"
-                    onClick={onRefresh}
-                    disabled={cargando}
-                    aria-label="Actualizar saldo"
-                    title="Actualizar saldo"
-                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent) focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/25 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
-                >
-                    <RefreshCw className={`h-4 w-4 ${cargando ? "animate-spin" : ""}`} />
-                </button>
-            </div>
+            <SectionHeader
+                icon={Wallet}
+                title="Saldo del proveedor"
+                description="Monedero en el sitio del proveedor, leído en vivo"
+                action={<IconAction icon={RefreshCw} label="Actualizar saldo" onClick={onRefresh} disabled={cargando} spinning={cargando} />}
+            />
 
             <div className="mt-6 border-t border-white/6" />
 

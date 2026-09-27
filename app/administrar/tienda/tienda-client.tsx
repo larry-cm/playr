@@ -15,7 +15,7 @@ import { whatsappAdvisorNumber } from "@lib/const"
 // Número del asesor sin signos (wa.me solo acepta dígitos). Vacío = no configurado: no se puede pedir por WhatsApp.
 const telefonoAsesor = (whatsappAdvisorNumber ?? "").replace(/\D/g, "")
 
-export default function TiendaClient({ initialCatalogo }: { initialCatalogo: CatalogoDisponibleItem[] | null }) {
+export default function TiendaClient({ initialCatalogo }: { /** undefined = la página aún carga (loading.tsx) · null = error */ initialCatalogo: CatalogoDisponibleItem[] | null | undefined }) {
     const router = useRouter()
     const [reintentando, startReintento] = useTransition()
     // Sin copia en estado: tras "Reintentar" (router.refresh) llega el catálogo nuevo por props.
@@ -107,7 +107,7 @@ export default function TiendaClient({ initialCatalogo }: { initialCatalogo: Cat
             </div>
 
             <ProductGrid
-                items={visibleItems}
+                items={catalogo === undefined ? undefined : visibleItems}
                 selectedIds={selectedIds}
                 onToggle={toggleSelected}
             />

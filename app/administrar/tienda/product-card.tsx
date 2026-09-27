@@ -35,3 +35,14 @@ export default function ProductCard({ item, selected, onToggle }: ProductCardPro
         </button>
     )
 }
+
+/** Tarjeta de carga: mismo marco y mismas tres líneas (h-4 text-xs · h-6 nombre · h-5 precio) que ProductCard. */
+export function ProductCardSkeleton() {
+    return (
+        <div className="flex w-full flex-col gap-2 rounded-2xl border border-white/6 bg-white/3 p-6 shadow-2xl backdrop-blur-xl" aria-hidden="true">
+            <div className="h-4 w-32 animate-pulse rounded-md bg-white/5" />
+            <div className="h-6 w-40 animate-pulse rounded-md bg-white/5" />
+            <div className="h-5 w-20 animate-pulse rounded-md bg-white/5" />
+        </div>
+    )
+}

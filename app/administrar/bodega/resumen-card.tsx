@@ -9,7 +9,8 @@ import { formatCOP } from "@lib/currency"
 import type { PedidoProveedor } from "@lib/bodega/tipos"
 
 interface ResumenBodegaCardProps {
-    productosEnStock: number
+    /** undefined = el catálogo aún carga (esqueleto de la página) */
+    productosEnStock: number | undefined
     /** Registro global de pedidos: undefined = cargando · null = no se pudo leer */
     pedidos: PedidoProveedor[] | null | undefined
 }
@@ -37,7 +38,8 @@ export default function ResumenBodegaCard({ productosEnStock, pedidos }: Readonl
     const mes = mesBogota(new Date())
     // los fallidos, cancelados o reembolsados no gastaron saldo
     const delMes = pedidos?.filter((p) => mesBogota(new Date(p.fecha)) === mes && !/fall|cancel|reembols/i.test(p.estado))
-    const pendiente = pedidos === undefined ? <span className="h-6 w-16 animate-pulse rounded-md bg-white/5" /> : "--"
+    const pulso = <span className="h-6 w-16 animate-pulse rounded-md bg-white/5" />
+    const pendiente = pedidos === undefined ? pulso : "--"
 
     return (
         <Card className="flex h-full flex-col">
@@ -53,7 +55,7 @@ export default function ResumenBodegaCard({ productosEnStock, pedidos }: Readonl
                     {delMes ? <CountUp value={delMes.length} /> : pendiente}
                 </Stat>
                 <Stat icon={Package} label="Disponibles para comprar">
-                    <CountUp value={productosEnStock} />
+                    {productosEnStock === undefined ? pulso : <CountUp value={productosEnStock} />}
                 </Stat>
             </div>
         </Card>

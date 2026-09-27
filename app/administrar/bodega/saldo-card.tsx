@@ -30,7 +30,8 @@ export default function SaldoCard({ saldo, onRetry }: Readonly<SaldoCardProps>) 
             {/* Alto mínimo fijo: mide lo mismo cargando, con saldo o con error. */}
             <div className="mt-6 flex min-h-10 flex-1 items-center">
                 {cargando ? (
-                    <div className="h-10 w-40 animate-pulse rounded-md bg-white/5" />
+                    // h-9 = una línea de text-4xl leading-none, el alto del saldo real
+                    <div className="h-9 w-40 animate-pulse rounded-md bg-white/5" />
                 ) : saldo === null ? (
                     <div className="flex w-full flex-wrap items-center justify-between gap-3">
                         <p className="flex items-center gap-2 text-sm text-red-400">

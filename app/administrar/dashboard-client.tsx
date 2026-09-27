@@ -1,7 +1,7 @@
 "use client"
 
 import { Menu } from "lucide-react"
-import { useEffect, useRef, useState, useSyncExternalStore } from "react"
+import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore } from "react"
 import Aside from "@/app/administrar/aside"
 import NotificacionesDrawer, { NotificacionesBell, useNotificaciones } from "@/app/administrar/notificaciones"
 
@@ -15,6 +15,10 @@ const subscribeMobile = (onChange: () => void) => {
 const getIsMobile = () => window.matchMedia(mobileQuery).matches
 // En el servidor no se sabe el ancho: se asume escritorio para no dejar el menú inerte antes de hidratar.
 const getIsMobileServer = () => false
+
+// Rol ya resuelto por el layout: lo usa el esqueleto de /administrar (loading.tsx), que no recibe props, para pintar la vista correcta.
+const RolContext = createContext("")
+export const useRol = () => useContext(RolContext)
 
 export default function DashboardClient({
     children,
@@ -91,7 +95,7 @@ export default function DashboardClient({
                 {/* Barra nativa: oscura por color-scheme: dark (globals.css), igual que la del html. */}
                 <main className="flex-1 min-w-0 overflow-y-auto p-4 pt-18 sm:p-6 sm:pt-20 lg:p-8 [scrollbar-gutter:stable]">
                     <div className="animate-[fadeIn_0.6s_ease-out] motion-reduce:animate-none">
-                        {children}
+                        <RolContext value={role}>{children}</RolContext>
                     </div>
                 </main>
             </div>

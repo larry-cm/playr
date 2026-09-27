@@ -234,6 +234,44 @@ export function MobileCard({ fields, actions }: Readonly<{ fields: MobileField[]
     )
 }
 
+/** Barra de carga del alto de una línea de texto (h-5 = línea de text-sm): la fila mide lo mismo cargando que con datos. */
+export function SkeletonBar({ className = "w-full" }: Readonly<{ className?: string }>) {
+    return <div className={`h-5 animate-pulse rounded-md bg-white/5 ${className}`} />
+}
+
+/** Filas de carga de escritorio: misma celda (Td) y mismos botones de 36px que las filas reales. */
+export function SkeletonRows({ columns, actions = 0, rows = 4 }: Readonly<{ columns: number; actions?: number; rows?: number }>) {
+    return Array.from({ length: rows }, (_, i) => (
+        <tr key={`skeleton-${i}`}>
+            {Array.from({ length: columns }, (_, c) => (
+                <Td key={c}>
+                    <SkeletonBar />
+                </Td>
+            ))}
+            {actions > 0 && (
+                <ActionsCell>
+                    {Array.from({ length: actions }, (_, b) => (
+                        <div key={b} className="h-9 w-9 animate-pulse rounded-xl bg-white/5" />
+                    ))}
+                </ActionsCell>
+            )}
+        </tr>
+    ))
+}
+
+/** Tarjetas de carga de móvil: las mismas MobileCard con sus etiquetas reales y botones de 44px. */
+export function SkeletonCards({ labels, actions = 0, count = 3 }: Readonly<{ labels: string[]; actions?: number; count?: number }>) {
+    return Array.from({ length: count }, (_, i) => (
+        <MobileCard
+            key={`skeleton-${i}`}
+            fields={labels.map((label) => ({ label, value: <SkeletonBar className="w-24" /> }))}
+            actions={actions > 0 ? Array.from({ length: actions }, (_, b) => (
+                <div key={b} className="h-11 w-24 animate-pulse rounded-xl bg-white/5" />
+            )) : undefined}
+        />
+    ))
+}
+
 /** Mensaje "sin datos" o "error" de la versión móvil. */
 export function MobileEmpty({ children, className = "text-secondary" }: Readonly<{ children: ReactNode; className?: string }>) {
     return <div className={`px-4 py-6 text-center text-sm ${className}`}>{children}</div>

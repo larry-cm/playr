@@ -9,7 +9,7 @@ import Modal from "@ui/modal"
 import Alert from "@ui/alert"
 import Link from "next/link"
 import { AlertCircle, ArrowUpRight, Eye, Pencil, RefreshCw, Trash2 } from "lucide-react"
-import { ActionsCell, ActionsTh, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, TableFrame, Td, Th } from "@ui/data-frame"
+import { ActionsCell, ActionsTh, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, SkeletonCards, SkeletonRows, TableFrame, Td, Th } from "@ui/data-frame"
 import type { CuentaRow } from "@action/manager-and-admin/cuentas/get-all-cuentas-action"
 import { editCuentaAction } from "@action/manager-and-admin/cuentas/edit-cuenta-action"
 import { deleteCuentaAction } from "@action/manager-and-admin/cuentas/delete-cuenta-action"
@@ -41,13 +41,16 @@ function PerfilesLink({ row }: Readonly<{ row: CuentaRow }>) {
     )
 }
 
+const COLUMNAS = ["Plataforma", "Correo", "Perfiles libres", "Vencimiento"]
+
 interface CuentasClientProps {
-    initialCuentas: CuentaRow[] | null
+    /** undefined = la página aún carga (loading.tsx) · null = error */
+    initialCuentas: CuentaRow[] | null | undefined
 }
 
 export default function CuentasClient({ initialCuentas }: CuentasClientProps) {
     const router = useRouter()
-    const [cuentas, setCuentas] = useState<CuentaRow[] | null>(initialCuentas)
+    const [cuentas, setCuentas] = useState<CuentaRow[] | null | undefined>(initialCuentas)
     // Cuando el servidor manda datos nuevos (Reintentar, o el revalidatePath de una acción) mandan esos.
     const [prevInitial, setPrevInitial] = useState(initialCuentas)
     if (initialCuentas !== prevInitial) {
@@ -185,7 +188,7 @@ export default function CuentasClient({ initialCuentas }: CuentasClientProps) {
             <TableFrame toolbar={toolbar(false)}>
                 <thead>
                     <tr>
-                        {["Plataforma", "Correo", "Perfiles libres", "Vencimiento"].map((column) => (
+                        {COLUMNAS.map((column) => (
                             <Th key={column}>{column}</Th>
                         ))}
                         <ActionsTh />
@@ -193,7 +196,9 @@ export default function CuentasClient({ initialCuentas }: CuentasClientProps) {
                 </thead>
 
                 <tbody>
-                    {filteredCuentas.length === 0 ? (
+                    {cuentas === undefined ? (
+                        <SkeletonRows columns={COLUMNAS.length} actions={3} />
+                    ) : filteredCuentas.length === 0 ? (
                         <EmptyRow colSpan={5}>{cuentas?.length ? "Ninguna cuenta coincide con la búsqueda o los filtros." : "No hay cuentas compradas todavía."}</EmptyRow>
                     ) : (
                         filteredCuentas.map((row) => (
@@ -216,7 +221,9 @@ export default function CuentasClient({ initialCuentas }: CuentasClientProps) {
             </TableFrame>
 
             <MobileFrame toolbar={toolbar(true)}>
-                {filteredCuentas.length === 0 ? (
+                {cuentas === undefined ? (
+                    <SkeletonCards labels={COLUMNAS} actions={3} />
+                ) : filteredCuentas.length === 0 ? (
                     <MobileEmpty>{cuentas?.length ? "Ninguna cuenta coincide con la búsqueda o los filtros." : "No hay cuentas compradas todavía."}</MobileEmpty>
                 ) : (
                     filteredCuentas.map((row) => (

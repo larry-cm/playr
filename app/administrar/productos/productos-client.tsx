@@ -9,7 +9,7 @@ import CopyInput from "@ui/copy-input"
 import Modal from "@ui/modal"
 import Alert from "@ui/alert"
 import { AlertCircle, Plus, Pencil, Trash2, Eye, RefreshCw } from "lucide-react"
-import { ActionsCell, ActionsTh, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, TableFrame, Td, Th } from "@ui/data-frame"
+import { ActionsCell, ActionsTh, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, SkeletonCards, SkeletonRows, TableFrame, Td, Th } from "@ui/data-frame"
 import type { ProductoRow } from "@action/manager-and-admin/productos/get-all-productos-action"
 import type { LicenciaDisponible } from "@action/manager-and-admin/productos/get-licencias-disponibles-action"
 import type { OfertaProveedorItem } from "@action/manager-and-admin/productos/get-oferta-proveedor-action"
@@ -45,17 +45,24 @@ const camposDeProducto = (row: ProductoRow): [string, string][] => [
     ["Costo (proveedor)", row.costo === null ? "--" : formatCOP(row.costo)],
 ]
 
+/** Mientras la página carga no hay escaneo de licencias: el formulario (que no se puede abrir) quedaría en su esqueleto. */
+const SIN_LICENCIAS = new Promise<LicenciaDisponible[] | null>(() => {})
+const SIN_OFERTA: OfertaProveedorItem[] = []
+
+const COLUMNAS = ["Producto", "Tipo de acceso", "Costo (proveedor)", "Precio de venta", "Ganancia"]
+
 interface ProductosClientProps {
-    initialProductos: ProductoRow[] | null
+    /** undefined = la página aún carga (loading.tsx) · null = error */
+    initialProductos: ProductoRow[] | null | undefined
     /** Licencias ya compradas sin producto: la base del producto simple (escaneo lento del proveedor). */
-    licenciasPromise: Promise<LicenciaDisponible[] | null>
+    licenciasPromise?: Promise<LicenciaDisponible[] | null>
     /** Lo que el proveedor vende hoy según el último escaneo del cron: la base de los combos. */
-    oferta: OfertaProveedorItem[]
+    oferta?: OfertaProveedorItem[]
 }
 
-export default function ProductosClient({ initialProductos, licenciasPromise, oferta }: ProductosClientProps) {
+export default function ProductosClient({ initialProductos, licenciasPromise = SIN_LICENCIAS, oferta = SIN_OFERTA }: ProductosClientProps) {
     const router = useRouter()
-    const [productos, setProductos] = useState<ProductoRow[] | null>(initialProductos)
+    const [productos, setProductos] = useState<ProductoRow[] | null | undefined>(initialProductos)
     // Cuando el servidor manda datos nuevos (Reintentar, o el revalidatePath de una acción) mandan esos.
     const [prevInitial, setPrevInitial] = useState(initialProductos)
     if (initialProductos !== prevInitial) {
@@ -201,7 +208,7 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
     const toolbar = (mobile: boolean) => (
         <>
             <SearchInput value={search} onChange={setSearch} className={mobile ? "w-full" : undefined} />
-            <Button variant="primary" leftIcon={<Plus className="h-4 w-4" />} onClick={openCreate}>
+            <Button variant="primary" leftIcon={<Plus className="h-4 w-4" />} onClick={openCreate} disabled={productos === undefined}>
                 Agregar producto
             </Button>
         </>
@@ -217,7 +224,7 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
             <TableFrame toolbar={toolbar(false)}>
                 <thead>
                     <tr>
-                        {["Producto", "Tipo de acceso", "Costo (proveedor)", "Precio de venta", "Ganancia"].map((column) => (
+                        {COLUMNAS.map((column) => (
                             <Th key={column}>{column}</Th>
                         ))}
                         <ActionsTh />
@@ -225,7 +232,9 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                 </thead>
 
                 <tbody>
-                    {filteredProductos.length === 0 ? (
+                    {productos === undefined ? (
+                        <SkeletonRows columns={COLUMNAS.length} actions={3} />
+                    ) : filteredProductos.length === 0 ? (
                         <EmptyRow colSpan={6}>No hay productos configurados todavía.</EmptyRow>
                     ) : (
                         filteredProductos.map((row) => (
@@ -254,7 +263,9 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
             </TableFrame>
 
             <MobileFrame toolbar={toolbar(true)}>
-                {filteredProductos.length === 0 ? (
+                {productos === undefined ? (
+                    <SkeletonCards labels={COLUMNAS} actions={3} />
+                ) : filteredProductos.length === 0 ? (
                     <MobileEmpty>No hay productos configurados todavía.</MobileEmpty>
                 ) : (
                     filteredProductos.map((row) => (

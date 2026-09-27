@@ -3,7 +3,7 @@
 import { History, RefreshCw } from "lucide-react"
 import Button from "@ui/button"
 import { SectionHeader } from "@ui/page-header"
-import { EmptyRow, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, TABLE_BODY_HEIGHT, TableFrame, Td, Th } from "@ui/data-frame"
+import { EmptyRow, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SkeletonCards, SkeletonRows, TABLE_BODY_HEIGHT, TableFrame, Td, Th } from "@ui/data-frame"
 import { formatCOP } from "@lib/currency"
 import { capitalizar } from "@lib/text"
 import type { PedidoProveedor } from "@lib/bodega/tipos"
@@ -50,8 +50,6 @@ export const HISTORIAL_ID = "registro-de-compras"
 
 const heading = <SectionHeader icon={History} title="Registro de compras" description="Todos los pedidos de la cuenta del proveedor, leídos en vivo" />
 
-const SKELETON = [0, 1, 2, 3, 4, 5, 6]
-const Barra = ({ w }: { w: string }) => <div className={`h-4 ${w} animate-pulse rounded-md bg-white/5`} />
 
 /**
  * Registro global: todos los pedidos de la cuenta del proveedor, hechos desde Bodega o a mano en su sitio. Se vuelve a leer solo
@@ -82,13 +80,7 @@ export default function HistorialCard({ pedidos, onRetry }: Readonly<HistorialCa
                 </thead>
                 <tbody>
                     {pedidos === undefined ? (
-                        SKELETON.map((i) => (
-                            <tr key={i}>
-                                <Td><Barra w="w-44" /></Td>
-                                <Td><Barra w="w-16" /></Td>
-                                <Td><Barra w="w-32" /></Td>
-                            </tr>
-                        ))
+                        <SkeletonRows columns={HEADER.length} rows={7} />
                     ) : vacio !== null || !pedidos ? (
                         <EmptyRow colSpan={HEADER.length} className={vacioClass}>{vacio}</EmptyRow>
                     ) : (
@@ -107,7 +99,7 @@ export default function HistorialCard({ pedidos, onRetry }: Readonly<HistorialCa
 
             <MobileFrame bodyHeight={TABLE_BODY_HEIGHT} heading={heading}>
                 {pedidos === undefined ? (
-                    SKELETON.slice(0, 3).map((i) => <div key={i} className="h-44 shrink-0 animate-pulse rounded-2xl bg-white/3" />)
+                    <SkeletonCards labels={HEADER} />
                 ) : vacio !== null || !pedidos ? (
                     <MobileEmpty className={vacioClass}>{vacio}</MobileEmpty>
                 ) : (

@@ -11,7 +11,7 @@ import PasswordInput from "@ui/password-input"
 import Select from "@ui/select"
 import Alert from "@ui/alert"
 import { Eye, Edit, Trash2, Plus } from "lucide-react"
-import { ActionsCell, ActionsTh, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, TableFrame, Td, Th } from "@ui/data-frame"
+import { ActionsCell, ActionsTh, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, SkeletonCards, SkeletonRows, TableFrame, Td, Th } from "@ui/data-frame"
 import { validateEmail, validatePassword, validateUsername, validatePhoneValue } from "@lib/validation"
 import { splitPhoneNumber } from "@lib/phone"
 
@@ -595,22 +595,7 @@ export default function Table<T extends Row>({
 
                 <tbody>
                     {loading ? (
-                        Array.from({ length: 4 }, (_, i) => (
-                            <tr key={`skeleton-${i}`}>
-                                {header.map((column) => (
-                                    <Td key={column}>
-                                        <div className="h-5 w-full animate-pulse rounded-md bg-white/5" />
-                                    </Td>
-                                ))}
-                                {showActions && (
-                                    <ActionsCell>
-                                        {Array.from({ length: actionCount }, (_, button) => (
-                                            <div key={button} className="h-9 w-9 animate-pulse rounded-xl bg-white/5" />
-                                        ))}
-                                    </ActionsCell>
-                                )}
-                            </tr>
-                        ))
+                        <SkeletonRows columns={header.length} actions={showActions ? actionCount : 0} />
                     ) : filteredRows.length === 0 ? (
                         <EmptyRow colSpan={header.length + (showActions ? 1 : 0)}>No hay datos disponibles.</EmptyRow>
                     ) : (
@@ -643,15 +628,7 @@ export default function Table<T extends Row>({
 
             <MobileFrame toolbar={toolbar(true)} heading={heading}>
                 {loading ? (
-                    Array.from({ length: 3 }, (_, i) => (
-                        <MobileCard
-                            key={`skeleton-${i}`}
-                            fields={header.map((column) => ({ label: column, value: <span className="inline-block h-4 w-24 animate-pulse rounded bg-white/5 align-middle" /> }))}
-                            actions={showActions ? Array.from({ length: actionCount }, (_, button) => (
-                                <div key={button} className="h-11 w-20 animate-pulse rounded-xl bg-white/5" />
-                            )) : undefined}
-                        />
-                    ))
+                    <SkeletonCards labels={header} actions={showActions ? actionCount : 0} />
                 ) : filteredRows.length === 0 ? (
                     <MobileEmpty>No hay datos disponibles.</MobileEmpty>
                 ) : (

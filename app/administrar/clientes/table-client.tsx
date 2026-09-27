@@ -20,13 +20,16 @@ const SIN_FILAS: CustomerRow[] = []
 interface TableClientProps {
     /** Solo un admin puede crear managers y administradores; un manager solo crea clientes. */
     esAdmin: boolean
+    /** Solo el esqueleto (loading.tsx): la tabla queda cargando y no se piden los clientes. */
+    esqueleto?: boolean
 }
 
-export default function TableClient({ esAdmin }: Readonly<TableClientProps>) {
+export default function TableClient({ esAdmin, esqueleto = false }: Readonly<TableClientProps>) {
     // undefined = cargando · null = error · array = datos listos
     const [customers, setCustomers] = useState<CustomerRow[] | null | undefined>(undefined)
 
     useEffect(() => {
+        if (esqueleto) return
         let active = true
         getAllCustomersAction().then((rows) => {
             if (active) setCustomers(rows)
@@ -34,7 +37,7 @@ export default function TableClient({ esAdmin }: Readonly<TableClientProps>) {
         return () => {
             active = false
         }
-    }, [])
+    }, [esqueleto])
 
     const reintentar = () => {
         setCustomers(undefined)

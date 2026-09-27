@@ -117,24 +117,32 @@ export default function CreateProductoForm({ ofertaPromise, isPending, onPending
     )
 }
 
+/** Mientras llega el escaneo: los mismos campos (deshabilitados) que el formulario real, así el modal no cambia de alto. */
 export function CreateProductoFormSkeleton({ onCancel }: { onCancel: () => void }) {
     return (
         <>
             <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
                     <label className="text-xs text-secondary font-medium">Licencia comprada</label>
-                    <div className="h-10 w-full rounded-lg bg-white/5 animate-pulse" />
-                    <p className="text-xs text-secondary">Buscando licencias activas en el proveedor...</p>
+                    <SelectDropdown
+                        ariaLabel="Licencia comprada"
+                        placeholder="Buscando licencias activas en el proveedor..."
+                        value=""
+                        onChange={() => {}}
+                        options={[]}
+                        className="animate-pulse"
+                        disabled
+                    />
                 </div>
                 <div className="flex flex-col gap-1">
                     <label className="text-xs text-secondary font-medium">Costo (proveedor)</label>
-                    <div className="h-10 w-full rounded-lg bg-white/5 animate-pulse" />
+                    <Input className="bg-white/3" value="--" readOnly />
                 </div>
                 <div className="flex flex-col gap-1">
                     <label className="text-xs text-secondary font-medium">
-                        Precio de venta<span className="text-accent ml-0.5">*</span>
+                        Precio de venta<span className="text-accent ml-0.5" aria-hidden="true">*</span>
                     </label>
-                    <div className="h-10 w-full rounded-lg bg-white/5 animate-pulse" />
+                    <Input className="bg-white/3" value="" disabled message="Obligatorio: sin este precio el producto no aparece en la Tienda." />
                 </div>
             </div>
             <div className="flex items-center justify-end gap-2 mt-4">

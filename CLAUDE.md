@@ -179,6 +179,11 @@ El patrón esperado es recibir `FormData` o un objeto plano y devolver:
 - `app/administrar/view-manager-and-admin.tsx` representa el dashboard de administración con resumen de servicios.
 - `app/administrar/view-user.tsx` representa la vista del usuario final.
 
+### Carga sin saltos (skeletons)
+- Cada ruta de `/administrar/*` tiene su `loading.tsx`, que renderiza **el mismo componente cliente** con los datos en `undefined` (= cargando): mismo marco, barra, filtros y filas (`SkeletonRows`/`SkeletonCards`/`SkeletonBar` de `app/ui/data-frame.tsx`, h-5 = una línea de text-sm). Nunca un esqueleto genérico.
+- El `PageHeader` de cada ruta vive en su `layout.tsx` (no en `page.tsx`), así no se repinta al llegar los datos.
+- El inicio está en el grupo `app/administrar/(inicio)/` para que su `loading.tsx` (que elige la vista por rol con `useRol()` de `dashboard-client.tsx`) no sea el fallback de las demás rutas.
+
 ### Tabla genérica
 El componente `app/ui/table.tsx` es central para CRUD en varias pantallas.
 

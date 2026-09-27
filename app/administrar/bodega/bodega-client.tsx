@@ -25,7 +25,8 @@ import { duracionDe } from "@lib/bodega/duracion"
 import type { BodegaCatalogo, BodegaProducto, ConsultaEnVivo, PedidoProveedor, ResultadoCompraUI, SaldoProveedor } from "@lib/bodega/tipos"
 
 interface BodegaClientProps {
-    initialCatalogo: BodegaCatalogo | null
+    /** undefined = la página aún carga (loading.tsx): esqueleto y nada se lee del proveedor · null = error */
+    initialCatalogo: BodegaCatalogo | null | undefined
     /** BODEGA_SIMULAR=1 en el servidor: todo se verifica contra el proveedor, pero no se paga. */
     simulacion: boolean
 }
@@ -84,8 +85,11 @@ export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<B
     const [releyendo, setReleyendo] = useState(false)
     const [filtro, setFiltro] = useState<FiltroCatalogo>(SIN_FILTRO)
 
+    const cargando = initialCatalogo === undefined
+
     // Saldo y pedidos se leen en paralelo del sitio del proveedor (cada uno con su sesión): el saldo suele llegar antes.
     useEffect(() => {
+        if (cargando) return
         let active = true
         getSaldoProveedorAction().then((s) => {
             if (active) setSaldo(s)
@@ -96,7 +100,7 @@ export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<B
         return () => {
             active = false
         }
-    }, [])
+    }, [cargando])
 
     // Tras una compra se vuelven a leer solos. Se deja lo que había a la vista mientras llega lo nuevo, así las tarjetas no
     // parpadean; si la relectura falla se conserva lo último leído. Devuelven si la lectura salió bien.
@@ -250,7 +254,7 @@ export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<B
         )
     }
 
-    const escaneo = textoEscaneo(initialCatalogo)
+    const escaneo = initialCatalogo ? textoEscaneo(initialCatalogo) : null
 
     return (
         <div className="flex flex-col gap-4">
@@ -304,7 +308,7 @@ export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<B
                         <SaldoCard saldo={saldo} onRetry={reintentarSaldo} />
                     </div>
                     <div className="md:flex-1">
-                        <ResumenBodegaCard productosEnStock={initialCatalogo.productos.length} pedidos={pedidos} />
+                        <ResumenBodegaCard productosEnStock={initialCatalogo?.productos.length} pedidos={pedidos} />
                     </div>
                 </div>
                 <div className="relative min-w-0 lg:col-span-2">
@@ -318,6 +322,7 @@ export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<B
             <Table
                 header={["Producto", "Plataforma", "Duración", "Precio"]}
                 data={filasVisibles}
+                loading={cargando}
                 hideCreate
                 builtinActions={[]}
                 entityName="producto"

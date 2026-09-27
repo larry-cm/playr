@@ -11,7 +11,7 @@ import SelectDropdown from "@ui/select-dropdown"
 import Modal from "@ui/modal"
 import Alert from "@ui/alert"
 import { AlertCircle, Eye, Pencil, RefreshCw, Trash2 } from "lucide-react"
-import { ActionsCell, ActionsTh, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, TableFrame, Td, Th } from "@ui/data-frame"
+import { ActionsCell, ActionsTh, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, SkeletonCards, SkeletonRows, TableFrame, Td, Th } from "@ui/data-frame"
 import type { PerfilRow } from "@action/manager-and-admin/perfiles/get-all-perfiles-action"
 import { editPerfilAction } from "@action/manager-and-admin/perfiles/edit-perfil-action"
 import { deletePerfilAction } from "@action/manager-and-admin/perfiles/delete-perfil-action"
@@ -28,15 +28,18 @@ const estadoOptions = (Object.keys(estadoLabel) as PerfilRow["estado"][]).map((v
     label: estadoLabel[value],
 }))
 
+const COLUMNAS = ["Plataforma", "Correo", "Perfil", "Estado", "Vencimiento"]
+
 interface PerfilesClientProps {
-    initialPerfiles: PerfilRow[] | null
+    /** undefined = la página aún carga (loading.tsx) · null = error */
+    initialPerfiles: PerfilRow[] | null | undefined
     /** Cuenta con la que abre el filtro de correo (viene de Cuentas → "Ver perfiles"); null = todas. */
     initialCuentaId?: number | null
 }
 
 export default function PerfilesClient({ initialPerfiles, initialCuentaId = null }: PerfilesClientProps) {
     const router = useRouter()
-    const [perfiles, setPerfiles] = useState<PerfilRow[] | null>(initialPerfiles)
+    const [perfiles, setPerfiles] = useState<PerfilRow[] | null | undefined>(initialPerfiles)
     // Cuando el servidor manda datos nuevos (Reintentar, o el revalidatePath de una acción) mandan esos.
     const [prevInitial, setPrevInitial] = useState(initialPerfiles)
     if (initialPerfiles !== prevInitial) {
@@ -223,7 +226,7 @@ export default function PerfilesClient({ initialPerfiles, initialCuentaId = null
             <TableFrame toolbar={toolbar(false)}>
                 <thead>
                     <tr>
-                        {["Plataforma", "Correo", "Perfil", "Estado", "Vencimiento"].map((column) => (
+                        {COLUMNAS.map((column) => (
                             <Th key={column}>{column}</Th>
                         ))}
                         <ActionsTh />
@@ -231,7 +234,9 @@ export default function PerfilesClient({ initialPerfiles, initialCuentaId = null
                 </thead>
 
                 <tbody>
-                    {filteredPerfiles.length === 0 ? (
+                    {perfiles === undefined ? (
+                        <SkeletonRows columns={COLUMNAS.length} actions={3} />
+                    ) : filteredPerfiles.length === 0 ? (
                         <EmptyRow colSpan={6}>{perfiles?.length ? "Ningún perfil coincide con la búsqueda o los filtros." : "No hay perfiles comprados todavía."}</EmptyRow>
                     ) : (
                         filteredPerfiles.map((row) => (
@@ -256,7 +261,9 @@ export default function PerfilesClient({ initialPerfiles, initialCuentaId = null
             </TableFrame>
 
             <MobileFrame toolbar={toolbar(true)}>
-                {filteredPerfiles.length === 0 ? (
+                {perfiles === undefined ? (
+                    <SkeletonCards labels={COLUMNAS} actions={3} />
+                ) : filteredPerfiles.length === 0 ? (
                     <MobileEmpty>{perfiles?.length ? "Ningún perfil coincide con la búsqueda o los filtros." : "No hay perfiles comprados todavía."}</MobileEmpty>
                 ) : (
                     filteredPerfiles.map((row) => (
@@ -380,7 +387,7 @@ export default function PerfilesClient({ initialPerfiles, initialCuentaId = null
                     {modalError && <Alert variant="error" message={modalError} />}
                     <p className="text-sm text-white/90">
                         {(() => {
-                            const row = perfiles.find((r) => r.id === deletingId)
+                            const row = perfiles?.find((r) => r.id === deletingId)
                             return row ? (
                                 <>¿Eliminar el perfil <strong className="font-semibold text-white">{capitalizar(row.nombre_perfil)}</strong> de {capitalizar(row.platform_nombre)} ({row.cuenta_email})?</>
                             ) : "¿Eliminar este perfil?"

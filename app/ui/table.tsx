@@ -38,6 +38,10 @@ interface TableProps<T extends Record<string, unknown>> {
     builtinActions?: ReadonlyArray<"view" | "edit" | "delete">;
     /** Acciones propias al final de cada fila: solo ícono en escritorio, con texto en móvil. */
     extraActions?: (row: T, layout: "desktop" | "mobile") => ReactNode;
+    /** Encabezado de la sección dentro del marco (SectionHeader), como en las tarjetas del panel. */
+    heading?: ReactNode;
+    /** Controles propios junto al buscador (p. ej. filtros); la tabla solo los muestra, el filtrado lo hace quien pasa data. */
+    filters?: (layout: "desktop" | "mobile") => ReactNode;
 }
 
 const ALL_BUILTIN_ACTIONS = ["view", "edit", "delete"] as const
@@ -82,6 +86,8 @@ export default function Table<T extends Record<string, unknown>>({
     hideCreate = false,
     builtinActions = ALL_BUILTIN_ACTIONS,
     extraActions,
+    heading,
+    filters,
 }: Readonly<TableProps<T>>) {
     const actionCount = Math.max(1, builtinActions.length + (extraActions ? 1 : 0))
     const [rows, setRows] = useState<T[]>(data)
@@ -431,7 +437,14 @@ export default function Table<T extends Record<string, unknown>>({
 
     const toolbar = (mobile: boolean) => (
         <>
-            <SearchInput value={search} onChange={setSearch} className={mobile ? "w-full" : undefined} />
+            {filters ? (
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                    <SearchInput value={search} onChange={setSearch} className={mobile ? "w-full" : "w-full lg:w-72"} />
+                    {filters(mobile ? "mobile" : "desktop")}
+                </div>
+            ) : (
+                <SearchInput value={search} onChange={setSearch} className={mobile ? "w-full" : undefined} />
+            )}
             {!hideCreate && (
                 <Button onClick={openCreate} variant="primary" leftIcon={<Plus className="h-4 w-4" />}>
                     Agregar
@@ -453,7 +466,7 @@ export default function Table<T extends Record<string, unknown>>({
             )}
 
             {/* Marco, densidad y alto compartidos con el resto de tablas del panel (app/ui/data-frame.tsx). */}
-            <TableFrame toolbar={toolbar(false)}>
+            <TableFrame toolbar={toolbar(false)} heading={heading}>
                 <thead>
                     <tr>
                         {header.map((column) => <Th key={column}>{column}</Th>)}
@@ -504,7 +517,7 @@ export default function Table<T extends Record<string, unknown>>({
                 </tbody>
             </TableFrame>
 
-            <MobileFrame toolbar={toolbar(true)}>
+            <MobileFrame toolbar={toolbar(true)} heading={heading}>
                 {loading ? (
                     Array.from({ length: 3 }, (_, i) => (
                         <MobileCard

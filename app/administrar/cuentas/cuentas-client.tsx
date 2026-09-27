@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import Card from "@ui/card"
 import Button from "@ui/button"
@@ -8,7 +8,7 @@ import Input from "@ui/input"
 import Modal from "@ui/modal"
 import Alert from "@ui/alert"
 import Link from "next/link"
-import { AlertCircle, ArrowUpRight, Eye, Pencil, Trash2 } from "lucide-react"
+import { AlertCircle, ArrowUpRight, Eye, Pencil, RefreshCw, Trash2 } from "lucide-react"
 import { ActionsCell, ActionsTh, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, TableFrame, Td, Th } from "@ui/data-frame"
 import type { CuentaRow } from "@action/manager-and-admin/cuentas/get-all-cuentas-action"
 import { editCuentaAction } from "@action/manager-and-admin/cuentas/edit-cuenta-action"
@@ -48,8 +48,17 @@ interface CuentasClientProps {
 export default function CuentasClient({ initialCuentas }: CuentasClientProps) {
     const router = useRouter()
     const [cuentas, setCuentas] = useState<CuentaRow[] | null>(initialCuentas)
+    // Cuando el servidor manda datos nuevos (Reintentar, o el revalidatePath de una acción) mandan esos.
+    const [prevInitial, setPrevInitial] = useState(initialCuentas)
+    if (initialCuentas !== prevInitial) {
+        setPrevInitial(initialCuentas)
+        setCuentas(initialCuentas)
+    }
     const [alert, setAlert] = useState<{ variant: "success" | "error"; message: string } | null>(null)
+    /** Error de la operación del modal abierto: se muestra dentro del modal, no detrás del fondo. */
+    const [modalError, setModalError] = useState<string | null>(null)
     const [isPending, setIsPending] = useState(false)
+    const [reintentando, startReintento] = useTransition()
 
     const [editingId, setEditingId] = useState<number | null>(null)
     const [editEmail, setEditEmail] = useState("")
@@ -81,23 +90,40 @@ export default function CuentasClient({ initialCuentas }: CuentasClientProps) {
     const deletingRow = cuentas?.find((row) => row.id === deletingId) ?? null
 
     const openEdit = (row: CuentaRow) => {
+        setModalError(null)
         setEditingId(row.id)
         setEditEmail(row.email)
     }
 
-    const cancelEdit = () => setEditingId(null)
+    const cancelEdit = () => {
+        setEditingId(null)
+        setModalError(null)
+    }
 
+    const openDelete = (id: number) => {
+        setModalError(null)
+        setDeletingId(id)
+    }
+
+    const cancelDelete = () => {
+        setDeletingId(null)
+        setModalError(null)
+    }
+
+    // Editar y eliminar actualizan la tabla en local, sin router.refresh(): las acciones ya revalidan Perfiles, Tienda y
+    // el panel (revalidatePath), así que esas páginas salen frescas al visitarlas.
     const saveEdit = async () => {
         if (editingId === null || isPending) return
         const id = editingId
 
         setIsPending(true)
+        setModalError(null)
         setAlert(null)
-        const error = await editCuentaAction({ id, email: editEmail })
+        const error = await editCuentaAction({ id, email: editEmail }).catch(() => "No se pudo guardar la cuenta. Inténtalo de nuevo.")
         setIsPending(false)
 
         if (error) {
-            setAlert({ variant: "error", message: error })
+            setModalError(error)
             return
         }
 
@@ -110,26 +136,26 @@ export default function CuentasClient({ initialCuentas }: CuentasClientProps) {
         )
         setAlert({ variant: "success", message: "Cuenta actualizada correctamente." })
         setEditingId(null)
-        router.refresh()
     }
 
     const confirmDelete = async () => {
         if (deletingId === null || isPending) return
+        const id = deletingId
         setIsPending(true)
+        setModalError(null)
         setAlert(null)
-        const error = await deleteCuentaAction({ id: deletingId })
+        const error = await deleteCuentaAction({ id }).catch(() => "No se pudo eliminar la cuenta. Inténtalo de nuevo.")
         setIsPending(false)
 
         if (error) {
-            setAlert({ variant: "error", message: error })
+            setModalError(error)
             return
         }
 
-        setCuentas((prev) => (prev ?? []).filter((row) => row.id !== deletingId))
+        // Se fueron también sus perfiles: Perfiles y los contadores del panel los revalida la acción.
+        setCuentas((prev) => (prev ?? []).filter((row) => row.id !== id))
         setAlert({ variant: "success", message: "Cuenta eliminada correctamente." })
         setDeletingId(null)
-        // Se fueron también sus perfiles: /administrar/perfiles y los contadores del panel cambian.
-        router.refresh()
     }
 
     if (cuentas === null) {
@@ -140,8 +166,11 @@ export default function CuentasClient({ initialCuentas }: CuentasClientProps) {
                 </div>
                 <h3 className="text-lg font-semibold text-white mb-1">Error al cargar las cuentas</h3>
                 <p className="text-sm text-white/60 max-w-md">
-                    Tuvimos un problema al obtener la información. Por favor intenta de nuevo más tarde o verifica la conexión.
+                    Tuvimos un problema al obtener la información. Verifica la conexión e inténtalo de nuevo.
                 </p>
+                <Button variant="secondary" className="mt-4" isLoading={reintentando} onClick={() => startReintento(() => router.refresh())} leftIcon={<RefreshCw className="h-4 w-4" />}>
+                    Reintentar
+                </Button>
             </Card>
         )
     }
@@ -149,7 +178,7 @@ export default function CuentasClient({ initialCuentas }: CuentasClientProps) {
     return (
         <div className="flex flex-col gap-4">
             {alert && (
-                <Alert variant={alert.variant} message={alert.message} onDismiss={() => setAlert(null)} />
+                <Alert variant={alert.variant} message={alert.message} onDismiss={() => setAlert(null)} autoDismissMs={alert.variant === "success" ? 5000 : undefined} />
             )}
 
             {/* Marco, densidad y alto compartidos con el resto de tablas del panel (app/ui/data-frame.tsx). */}
@@ -178,7 +207,7 @@ export default function CuentasClient({ initialCuentas }: CuentasClientProps) {
                                 <ActionsCell>
                                     <IconAction icon={Eye} label="Ver" onClick={() => setViewingId(row.id)} />
                                     <IconAction icon={Pencil} label="Editar" onClick={() => openEdit(row)} />
-                                    <IconAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => setDeletingId(row.id)} />
+                                    <IconAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => openDelete(row.id)} />
                                 </ActionsCell>
                             </tr>
                         ))
@@ -203,7 +232,7 @@ export default function CuentasClient({ initialCuentas }: CuentasClientProps) {
                                 <>
                                     <MobileAction icon={Eye} label="Ver" onClick={() => setViewingId(row.id)} />
                                     <MobileAction icon={Pencil} label="Editar" onClick={() => openEdit(row)} />
-                                    <MobileAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => setDeletingId(row.id)} />
+                                    <MobileAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => openDelete(row.id)} />
                                 </>
                             }
                         />
@@ -213,24 +242,27 @@ export default function CuentasClient({ initialCuentas }: CuentasClientProps) {
 
             {viewingRow && <VerCuentaModal key={viewingRow.id} cuenta={viewingRow} onClose={() => setViewingId(null)} />}
 
-            <Modal isOpen={editingId !== null} title="Editar cuenta" onClose={cancelEdit}>
+            <Modal isOpen={editingId !== null} title="Editar cuenta" onClose={cancelEdit} dismissible={!isPending}>
                 {editingRow && (
                     <div className="flex flex-col gap-3">
+                        {modalError && <Alert variant="error" message={modalError} />}
                         {/* Solo el correo se edita: el resto viene de la compra y se muestra deshabilitado. */}
                         <div className="flex flex-col gap-1">
                             <label className="text-xs text-secondary font-medium">Plataforma</label>
                             <Input className="bg-white/3 cursor-not-allowed opacity-60" value={`${capitalizar(editingRow.platform_nombre)} · ${accessTypeLabel[editingRow.access_type]}`} disabled />
                         </div>
                         <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">Correo</label>
+                            <label htmlFor="editar-cuenta-correo" className="text-xs text-secondary font-medium">Correo</label>
                             <Input
+                                id="editar-cuenta-correo"
                                 className="bg-white/3"
                                 type="email"
+                                autoComplete="off"
                                 value={editEmail}
                                 onChange={(e) => setEditEmail(e.target.value)}
                                 autoFocus
+                                message="Debe coincidir con el del proveedor: con él se consulta la contraseña."
                             />
-                            <p className="text-xs text-secondary">Debe coincidir con el del proveedor: con él se consulta la contraseña.</p>
                         </div>
                         {[
                             ["Vencimiento", formatDateOnly(editingRow.fecha_vencimiento)],
@@ -243,7 +275,7 @@ export default function CuentasClient({ initialCuentas }: CuentasClientProps) {
                         ))}
                         <div className="flex items-center justify-end gap-2 mt-2">
                             <Button variant="ghost" onClick={cancelEdit} disabled={isPending}>Cancelar</Button>
-                            <Button variant="primary" onClick={saveEdit} disabled={isPending}>
+                            <Button variant="primary" onClick={saveEdit} isLoading={isPending}>
                                 {isPending ? "Guardando..." : "Guardar"}
                             </Button>
                         </div>
@@ -251,15 +283,22 @@ export default function CuentasClient({ initialCuentas }: CuentasClientProps) {
                 )}
             </Modal>
 
-            <Modal isOpen={deletingId !== null} title="Confirmar eliminación" onClose={() => setDeletingId(null)}>
-                <div className="text-sm text-white/90">
-                    {deletingRow && deletingRow.perfiles_total > 0
-                        ? `¿Eliminar esta cuenta? También se eliminarán sus ${deletingRow.perfiles_total} perfil(es) y dejarán de estar a la venta.`
-                        : "¿Eliminar esta cuenta? Dejará de estar disponible para la venta."}
+            <Modal isOpen={deletingId !== null} title="Eliminar cuenta" onClose={cancelDelete} dismissible={!isPending}>
+                <div className="flex flex-col gap-3">
+                    {modalError && <Alert variant="error" message={modalError} />}
+                    <p className="text-sm text-white/90">
+                        ¿Eliminar{" "}
+                        {deletingRow ? (
+                            <>la cuenta <strong className="font-semibold text-white">{capitalizar(deletingRow.platform_nombre)} · {deletingRow.email}</strong>?</>
+                        ) : "esta cuenta?"}{" "}
+                        {deletingRow && deletingRow.perfiles_total > 0
+                            ? `También se eliminarán sus ${deletingRow.perfiles_total} perfil(es) y dejarán de estar a la venta.`
+                            : "Dejará de estar disponible para la venta."}
+                    </p>
                 </div>
                 <div className="flex items-center justify-end gap-2 mt-4">
-                    <Button variant="ghost" onClick={() => setDeletingId(null)} disabled={isPending}>Cancelar</Button>
-                    <Button variant="primary" onClick={confirmDelete} disabled={isPending}>
+                    <Button variant="ghost" onClick={cancelDelete} disabled={isPending}>Cancelar</Button>
+                    <Button variant="danger" onClick={confirmDelete} isLoading={isPending}>
                         {isPending ? "Eliminando..." : "Eliminar"}
                     </Button>
                 </div>

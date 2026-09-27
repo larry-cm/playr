@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useMemo, useState } from "react"
+import { Suspense, useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import Card from "@ui/card"
 import Button from "@ui/button"
@@ -8,7 +8,7 @@ import Input from "@ui/input"
 import CopyInput from "@ui/copy-input"
 import Modal from "@ui/modal"
 import Alert from "@ui/alert"
-import { AlertCircle, Plus, Pencil, Trash2, Eye } from "lucide-react"
+import { AlertCircle, Plus, Pencil, Trash2, Eye, RefreshCw } from "lucide-react"
 import { ActionsCell, ActionsTh, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, TableFrame, Td, Th } from "@ui/data-frame"
 import type { ProductoRow } from "@action/manager-and-admin/productos/get-all-productos-action"
 import type { LicenciaDisponible } from "@action/manager-and-admin/productos/get-licencias-disponibles-action"
@@ -56,8 +56,17 @@ interface ProductosClientProps {
 export default function ProductosClient({ initialProductos, licenciasPromise, oferta }: ProductosClientProps) {
     const router = useRouter()
     const [productos, setProductos] = useState<ProductoRow[] | null>(initialProductos)
+    // Cuando el servidor manda datos nuevos (Reintentar, o el revalidatePath de una acción) mandan esos.
+    const [prevInitial, setPrevInitial] = useState(initialProductos)
+    if (initialProductos !== prevInitial) {
+        setPrevInitial(initialProductos)
+        setProductos(initialProductos)
+    }
     const [alert, setAlert] = useState<{ variant: "success" | "error"; message: string } | null>(null)
+    /** Error de la operación del modal abierto: se muestra dentro del modal, no detrás del fondo. */
+    const [modalError, setModalError] = useState<string | null>(null)
     const [isPending, setIsPending] = useState(false)
+    const [reintentando, startReintento] = useTransition()
 
     const [createOpen, setCreateOpen] = useState(false)
     const [createTipo, setCreateTipo] = useState<"simple" | "combo">("simple")
@@ -81,44 +90,56 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
 
     const openCreate = () => {
         setCreateTipo("simple")
+        setModalError(null)
         setCreateOpen(true)
     }
-    const closeCreate = () => setCreateOpen(false)
+    const closeCreate = () => {
+        setCreateOpen(false)
+        setModalError(null)
+    }
 
     const handleCreated = (producto: ProductoRow) => {
         setProductos((prev) => [...(prev ?? []), producto])
         setAlert({ variant: "success", message: "Producto creado correctamente." })
         closeCreate()
-        // Refresca server components: nueva data de productos y, sobre todo, un ofertaPromise nuevo
-        // para la próxima apertura del modal (la licencia recién usada ya no debe volver a ofrecerse).
+        // Aquí sí se refresca: la promesa de licencias (escaneo en vivo del proveedor) tiene que ser nueva para la
+        // próxima apertura del modal, o la licencia recién usada se volvería a ofrecer.
         router.refresh()
     }
 
     const viewingRow = productos?.find((row) => row.id === viewingId) ?? null
     const editingRow = productos?.find((row) => row.id === editingId) ?? null
+    const deletingRow = productos?.find((row) => row.id === deletingId) ?? null
 
     const openEdit = (row: ProductoRow) => {
+        setModalError(null)
         setEditingId(row.id)
         setEditPrecioVenta(row.precio_venta === null ? "" : String(row.precio_venta))
     }
 
-    const cancelEdit = () => setEditingId(null)
+    const cancelEdit = () => {
+        setEditingId(null)
+        setModalError(null)
+    }
 
+    // Editar y eliminar actualizan la tabla en local, sin router.refresh(): refrescar vuelve a renderizar la página y con
+    // ella el escaneo en vivo de licencias al proveedor (lento), que estos cambios no necesitan.
     const saveEdit = async () => {
         if (editingId === null || isPending) return
         const id = editingId
         if (editPrecioVenta === "") {
-            setAlert({ variant: "error", message: "El precio de venta es obligatorio." })
+            setModalError("El precio de venta es obligatorio.")
             return
         }
 
         setIsPending(true)
+        setModalError(null)
         setAlert(null)
-        const error = await editProductoPreciosAction({ id, precio_venta: editPrecioVenta })
+        const error = await editProductoPreciosAction({ id, precio_venta: editPrecioVenta }).catch(() => "No se pudo guardar el producto. Inténtalo de nuevo.")
         setIsPending(false)
 
         if (error) {
-            setAlert({ variant: "error", message: error })
+            setModalError(error)
             return
         }
 
@@ -129,25 +150,35 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
         )
         setAlert({ variant: "success", message: "Producto actualizado correctamente." })
         setEditingId(null)
-        router.refresh()
+    }
+
+    const openDelete = (id: number) => {
+        setModalError(null)
+        setDeletingId(id)
+    }
+
+    const cancelDelete = () => {
+        setDeletingId(null)
+        setModalError(null)
     }
 
     const confirmDelete = async () => {
         if (deletingId === null || isPending) return
+        const id = deletingId
         setIsPending(true)
+        setModalError(null)
         setAlert(null)
-        const error = await deleteProductoAction({ id: deletingId })
+        const error = await deleteProductoAction({ id }).catch(() => "No se pudo eliminar el producto. Inténtalo de nuevo.")
         setIsPending(false)
 
         if (error) {
-            setAlert({ variant: "error", message: error })
+            setModalError(error)
             return
         }
 
-        setProductos((prev) => (prev ?? []).filter((row) => row.id !== deletingId))
+        setProductos((prev) => (prev ?? []).filter((row) => row.id !== id))
         setAlert({ variant: "success", message: "Producto eliminado correctamente." })
         setDeletingId(null)
-        router.refresh()
     }
 
     if (productos === null) {
@@ -158,8 +189,11 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                 </div>
                 <h3 className="text-lg font-semibold text-white mb-1">Error al cargar los productos</h3>
                 <p className="text-sm text-white/60 max-w-md">
-                    Tuvimos un problema al obtener la información. Por favor intenta de nuevo más tarde o verifica la conexión.
+                    Tuvimos un problema al obtener la información. Verifica la conexión e inténtalo de nuevo.
                 </p>
+                <Button variant="secondary" className="mt-4" isLoading={reintentando} onClick={() => startReintento(() => router.refresh())} leftIcon={<RefreshCw className="h-4 w-4" />}>
+                    Reintentar
+                </Button>
             </Card>
         )
     }
@@ -176,7 +210,7 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
     return (
         <div className="flex flex-col gap-4">
             {alert && (
-                <Alert variant={alert.variant} message={alert.message} onDismiss={() => setAlert(null)} />
+                <Alert variant={alert.variant} message={alert.message} onDismiss={() => setAlert(null)} autoDismissMs={alert.variant === "success" ? 5000 : undefined} />
             )}
 
             {/* Marco, densidad y alto compartidos con el resto de tablas del panel (app/ui/data-frame.tsx). */}
@@ -211,7 +245,7 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                                 <ActionsCell>
                                     <IconAction icon={Eye} label="Ver" onClick={() => setViewingId(row.id)} />
                                     <IconAction icon={Pencil} label="Editar" onClick={() => openEdit(row)} />
-                                    <IconAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => setDeletingId(row.id)} />
+                                    <IconAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => openDelete(row.id)} />
                                 </ActionsCell>
                             </tr>
                         ))
@@ -243,7 +277,7 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                                 <>
                                     <MobileAction icon={Eye} label="Ver" onClick={() => setViewingId(row.id)} />
                                     <MobileAction icon={Pencil} label="Editar" onClick={() => openEdit(row)} />
-                                    <MobileAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => setDeletingId(row.id)} />
+                                    <MobileAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => openDelete(row.id)} />
                                 </>
                             }
                         />
@@ -251,7 +285,7 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                 )}
             </MobileFrame>
 
-            <Modal isOpen={createOpen} title="Agregar producto" onClose={closeCreate}>
+            <Modal isOpen={createOpen} title="Agregar producto" onClose={closeCreate} dismissible={!isPending}>
                 {/* Los dos caminos son distintos de raíz: el simple parte de una licencia ya comprada
                     (una plataforma), el combo se arma eligiendo varias del catálogo del proveedor. */}
                 <div className="mb-4 inline-flex rounded-xl border border-white/10 bg-white/3 p-1">
@@ -259,8 +293,13 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                         <button
                             key={value}
                             type="button"
-                            onClick={() => setCreateTipo(value)}
-                            className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-200 ${createTipo === value
+                            onClick={() => {
+                                setCreateTipo(value)
+                                setModalError(null)
+                            }}
+                            disabled={isPending}
+                            aria-pressed={createTipo === value}
+                            className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-not-allowed ${createTipo === value
                                 ? "bg-accent/10 text-accent"
                                 : "text-secondary hover:text-white"
                                 }`}
@@ -270,6 +309,12 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                     ))}
                 </div>
 
+                {modalError && (
+                    <div className="mb-3">
+                        <Alert variant="error" message={modalError} />
+                    </div>
+                )}
+
                 {createTipo === "simple" ? (
                     <Suspense fallback={<CreateProductoFormSkeleton onCancel={closeCreate} />}>
                         <CreateProductoForm
@@ -277,7 +322,7 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                             isPending={isPending}
                             onPendingChange={setIsPending}
                             onSuccess={handleCreated}
-                            onError={(message) => setAlert({ variant: "error", message })}
+                            onError={setModalError}
                             onCancel={closeCreate}
                         />
                     </Suspense>
@@ -287,7 +332,7 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                         isPending={isPending}
                         onPendingChange={setIsPending}
                         onSuccess={handleCreated}
-                        onError={(message) => setAlert({ variant: "error", message })}
+                        onError={setModalError}
                         onCancel={closeCreate}
                     />
                 )}
@@ -314,9 +359,10 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                 )}
             </Modal>
 
-            <Modal isOpen={editingId !== null} title="Editar producto" onClose={cancelEdit}>
+            <Modal isOpen={editingId !== null} title="Editar producto" onClose={cancelEdit} dismissible={!isPending}>
                 {editingRow && (
                     <div className="flex flex-col gap-3">
+                        {modalError && <Alert variant="error" message={modalError} />}
                         {camposDeProducto(editingRow).map(([label, value]) => (
                             <div key={label} className="flex flex-col gap-1">
                                 <label className="text-xs text-secondary font-medium">{label}</label>
@@ -329,8 +375,9 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                             </div>
                         ))}
                         <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">Precio de venta</label>
+                            <label htmlFor="editar-producto-precio" className="text-xs text-secondary font-medium">Precio de venta</label>
                             <Input
+                                id="editar-producto-precio"
                                 className="bg-white/3"
                                 type="text"
                                 inputMode="numeric"
@@ -342,7 +389,7 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
 
                         <div className="flex items-center justify-end gap-2 mt-2">
                             <Button variant="ghost" onClick={cancelEdit} disabled={isPending}>Cancelar</Button>
-                            <Button variant="primary" onClick={saveEdit} disabled={isPending}>
+                            <Button variant="primary" onClick={saveEdit} isLoading={isPending}>
                                 {isPending ? "Guardando..." : "Guardar"}
                             </Button>
                         </div>
@@ -350,11 +397,17 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                 )}
             </Modal>
 
-            <Modal isOpen={deletingId !== null} title="Confirmar eliminación" onClose={() => setDeletingId(null)}>
-                <div className="text-sm text-white/90">¿Eliminar este producto? Dejará de estar disponible para la venta.</div>
+            <Modal isOpen={deletingId !== null} title="Eliminar producto" onClose={cancelDelete} dismissible={!isPending}>
+                <div className="flex flex-col gap-3">
+                    {modalError && <Alert variant="error" message={modalError} />}
+                    <p className="text-sm text-white/90">
+                        {deletingRow ? <>¿Eliminar <strong className="font-semibold text-white">{deletingRow.titulo}</strong>?</> : "¿Eliminar este producto?"} Dejará
+                        de estar disponible para la venta.
+                    </p>
+                </div>
                 <div className="flex items-center justify-end gap-2 mt-4">
-                    <Button variant="ghost" onClick={() => setDeletingId(null)} disabled={isPending}>Cancelar</Button>
-                    <Button variant="primary" onClick={confirmDelete} disabled={isPending}>
+                    <Button variant="ghost" onClick={cancelDelete} disabled={isPending}>Cancelar</Button>
+                    <Button variant="danger" onClick={confirmDelete} isLoading={isPending}>
                         {isPending ? "Eliminando..." : "Eliminar"}
                     </Button>
                 </div>

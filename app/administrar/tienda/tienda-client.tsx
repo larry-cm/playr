@@ -1,18 +1,25 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useTransition } from "react"
+import { useRouter } from "next/navigation"
 import Card from "@ui/card"
 import Button from "@ui/button"
 import { SearchInput } from "@ui/data-frame"
 import Select from "@ui/select"
-import { AlertCircle, MessageCircle } from "lucide-react"
+import { AlertCircle, MessageCircle, RefreshCw } from "lucide-react"
 import ProductGrid from "@/app/administrar/tienda/product-grid"
 import type { CatalogoDisponibleItem } from "@action/tienda/get-catalogo-disponible-action"
 import { formatCOP } from "@lib/currency"
 import { whatsappAdvisorNumber } from "@lib/const"
 
+// Número del asesor sin signos (wa.me solo acepta dígitos). Vacío = no configurado: no se puede pedir por WhatsApp.
+const telefonoAsesor = (whatsappAdvisorNumber ?? "").replace(/\D/g, "")
+
 export default function TiendaClient({ initialCatalogo }: { initialCatalogo: CatalogoDisponibleItem[] | null }) {
-    const [catalogo] = useState<CatalogoDisponibleItem[] | null>(initialCatalogo)
+    const router = useRouter()
+    const [reintentando, startReintento] = useTransition()
+    // Sin copia en estado: tras "Reintentar" (router.refresh) llega el catálogo nuevo por props.
+    const catalogo = initialCatalogo
     const [search, setSearch] = useState("")
     const [categoria, setCategoria] = useState("")
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
@@ -51,7 +58,8 @@ export default function TiendaClient({ initialCatalogo }: { initialCatalogo: Cat
         })
     }
 
-    const puedeEnviar = selectedItems.length > 0
+    const hayAsesor = telefonoAsesor.length > 0
+    const puedeEnviar = selectedItems.length > 0 && hayAsesor
 
     const lineasSeleccion = selectedItems
         .map((item, i) => `${i + 1}. ${item.platform_nombre} - ${item.perfil_nombre} - ${formatCOP(item.precio_venta)}`)
@@ -59,7 +67,6 @@ export default function TiendaClient({ initialCatalogo }: { initialCatalogo: Cat
 
     const mensaje = `Hola, quiero contratar estos perfiles:\n\n${lineasSeleccion}\n\nTotal: ${formatCOP(total)}`
 
-    const telefonoAsesor = (whatsappAdvisorNumber ?? "").replace(/\D/g, "")
     const whatsappUrl = `https://wa.me/${telefonoAsesor}?text=${encodeURIComponent(mensaje)}`
 
     if (catalogo === null) {
@@ -72,8 +79,11 @@ export default function TiendaClient({ initialCatalogo }: { initialCatalogo: Cat
                     Error al cargar la tienda
                 </h3>
                 <p className="text-sm text-white/60 max-w-md">
-                    Tuvimos un problema al obtener la información. Por favor intenta de nuevo más tarde o verifica la conexión.
+                    Tuvimos un problema al obtener la información. Verifica la conexión e inténtalo de nuevo.
                 </p>
+                <Button variant="secondary" className="mt-4" isLoading={reintentando} onClick={() => startReintento(() => router.refresh())} leftIcon={<RefreshCw className="h-4 w-4" />}>
+                    Reintentar
+                </Button>
             </Card>
         )
     }
@@ -84,8 +94,11 @@ export default function TiendaClient({ initialCatalogo }: { initialCatalogo: Cat
                 {/* Mismo buscador que las tablas del panel. El Input de formularios reserva espacio para mensajes y descuadraba la fila. */}
                 <SearchInput value={search} onChange={setSearch} placeholder="Buscar por perfil o plataforma..." className="flex-1" />
                 <div className="sm:w-56">
+                    {/* allowEmpty: "Todas las categorías" es una opción elegible para quitar el filtro. */}
                     <Select
+                        aria-label="Filtrar por categoría"
                         placeholder="Todas las categorías"
+                        allowEmpty
                         value={categoria}
                         onChange={(e) => setCategoria(e.target.value)}
                         options={categorias.map((c) => ({ value: c, label: c }))}
@@ -100,12 +113,20 @@ export default function TiendaClient({ initialCatalogo }: { initialCatalogo: Cat
             />
 
             <Card className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                <p className="text-sm text-secondary">
-                    {selectedItems.length} seleccionados · Total: <span className="text-white font-semibold">{formatCOP(total)}</span>
-                </p>
+                <div className="text-sm text-secondary">
+                    <p aria-live="polite">
+                        {selectedItems.length} seleccionados · Total: <span className="text-white font-semibold">{formatCOP(total)}</span>
+                    </p>
+                    {!hayAsesor && (
+                        <p className="mt-1 text-xs text-amber-400">
+                            Los pedidos por WhatsApp no están disponibles en este momento. Contacta a soporte desde el inicio.
+                        </p>
+                    )}
+                </div>
                 <Button
                     variant="primary"
                     disabled={!puedeEnviar}
+                    title={hayAsesor ? undefined : "No hay un número de asesor configurado"}
                     leftIcon={<MessageCircle className="w-4 h-4" />}
                     onClick={() => {
                         if (puedeEnviar) {

@@ -46,7 +46,7 @@ export default function CreateProductoForm({ ofertaPromise, isPending, onPending
             platform_id: selectedOferta.platform_id,
             access_type: selectedOferta.access_type,
             precio_venta: newPrecioVenta,
-        })
+        }).catch(() => "No se pudo crear el producto. Inténtalo de nuevo.")
         onPendingChange(false)
 
         if (typeof result === "string") {
@@ -62,6 +62,7 @@ export default function CreateProductoForm({ ofertaPromise, isPending, onPending
                 <div className="flex flex-col gap-1">
                     <label className="text-xs text-secondary font-medium">Licencia comprada</label>
                     <SelectDropdown
+                        ariaLabel="Licencia comprada"
                         placeholder="Selecciona una licencia"
                         value={selectedKey}
                         onChange={setSelectedKey}
@@ -77,7 +78,7 @@ export default function CreateProductoForm({ ofertaPromise, isPending, onPending
                     )}
                     {oferta && oferta.length === 0 && (
                         <p className="text-xs text-secondary">
-                            No tenés licencias activas sin producto todavía. Comprá o renová stock en el proveedor primero.
+                            No tienes licencias activas sin producto todavía. Compra o renueva stock en el proveedor primero.
                         </p>
                     )}
                 </div>
@@ -90,18 +91,20 @@ export default function CreateProductoForm({ ofertaPromise, isPending, onPending
                     />
                 </div>
                 <div className="flex flex-col gap-1">
-                    <label className="text-xs text-secondary font-medium">
-                        Precio de venta<span className="text-accent ml-0.5">*</span>
+                    <label htmlFor="crear-producto-precio" className="text-xs text-secondary font-medium">
+                        Precio de venta<span className="text-accent ml-0.5" aria-hidden="true">*</span>
                     </label>
+                    {/* Igual que en Editar: texto con teclado numérico y solo dígitos (sin flechas ni "e" de type="number"). */}
                     <Input
+                        id="crear-producto-precio"
                         className="bg-white/3"
-                        type="number"
-                        min="0"
+                        type="text"
+                        inputMode="numeric"
                         value={newPrecioVenta}
-                        onChange={(e) => setNewPrecioVenta(e.target.value)}
+                        onChange={(e) => setNewPrecioVenta(e.target.value.replace(/\D/g, ""))}
                         required
+                        message="Obligatorio: sin este precio el producto no aparece en la Tienda."
                     />
-                    <p className="text-xs text-secondary">Obligatorio: sin este precio el producto no aparece en la Tienda.</p>
                 </div>
             </div>
             <div className="flex items-center justify-end gap-2 mt-4">

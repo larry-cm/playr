@@ -1,7 +1,7 @@
 "use client"
 
 import { LayoutDashboard, LogOut, X, Store, Tag, Network, Monitor, Warehouse } from "lucide-react"
-import type { ReactNode } from "react"
+import type { ReactNode, Ref } from "react"
 
 import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
@@ -16,6 +16,9 @@ interface AsideProps {
     role: string;
     /** Campana de notificaciones (solo admin/manager). En móvil vive en el header, acá solo se muestra en escritorio. */
     bell?: ReactNode;
+    ref?: Ref<HTMLElement>;
+    /** En móvil, con el menú cerrado, lo saca del foco y del árbol de accesibilidad. */
+    inert?: boolean;
 }
 
 const navItems = [
@@ -27,7 +30,7 @@ const navItems = [
     { name: "Bodega", href: "/administrar/bodega", icon: Warehouse, roles: ["admin", "manager"] },
     { name: "Tienda", href: "/administrar/tienda", icon: Store, roles: ["user"] },
 ]
-export default function Aside({ sidebarOpen, setSidebarOpen, role, bell }: AsideProps) {
+export default function Aside({ sidebarOpen, setSidebarOpen, role, bell, ref, inert }: AsideProps) {
     const pathname = usePathname()
     const router = useRouter()
 
@@ -35,6 +38,9 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role, bell }: Aside
 
     return (
         <aside
+            ref={ref}
+            id="menu-lateral"
+            inert={inert}
             className={[
                 "fixed inset-y-0 left-0 z-50 w-64 flex flex-col bg-background border-r border-white/6 p-4",
                 "transition-transform duration-300 ease-in-out",
@@ -44,13 +50,14 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role, bell }: Aside
         >
             {/* Logo */}
             <div className="flex items-center justify-between px-2 py-3 mb-8">
-                <Link href="/administrar" className="flex items-center gap-2.5">
+                <Link href="/administrar" className="flex items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
                     <Image src={logoPlayr} width="28" height="28" alt="Playr" />
                     <span className="text-xl font-bold tracking-tight text-white">Playr</span>
                 </Link>
                 <button
                     onClick={() => setSidebarOpen(false)}
-                    className="lg:hidden p-1.5 rounded-lg hover:bg-white/5 transition-colors"
+                    type="button"
+                    className="lg:hidden p-3 -mr-2 rounded-lg hover:bg-white/5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                     aria-label="Cerrar menú"
                 >
                     <X className="w-4 h-4 text-secondary" />
@@ -68,7 +75,8 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role, bell }: Aside
                             key={item.href}
                             href={item.href}
                             onClick={() => setSidebarOpen(false)}
-                            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${isActive
+                            aria-current={isActive ? "page" : undefined}
+                            className={`flex items-center gap-3 px-3 py-3 lg:py-2.5 rounded-xl text-sm font-medium transition-all duration-200 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent ${isActive
                                 ? "bg-accent/10 border border-accent/20 text-accent"
                                 : "text-secondary border border-transparent hover:text-white hover:bg-white/5"
                                 }`}
@@ -87,7 +95,8 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role, bell }: Aside
                         await supabase.auth.signOut()
                         router.push("/")
                     }}
-                    className="flex items-center gap-3 px-3 py-2.5 w-full rounded-xl text-sm text-secondary hover:text-white hover:bg-white/5 transition-all duration-200"
+                    type="button"
+                    className="flex items-center gap-3 px-3 py-3 lg:py-2.5 w-full rounded-xl text-sm text-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent hover:text-white hover:bg-white/5 transition-all duration-200"
                 >
                     <LogOut className="w-4 h-4 shrink-0" />
                     Cerrar sesión

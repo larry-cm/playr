@@ -1,5 +1,6 @@
 "use server"
 
+import { esStaff, SIN_PERMISO } from "@lib/auth"
 import { revalidatePath } from "next/cache"
 import { createProductoSchema, firstErrorOfProducto } from "@lib/producto-schema"
 import { scrapeLicenciasActivas } from "@lib/scrape-licencias"
@@ -14,6 +15,8 @@ export async function createProductoAction(formData: {
     access_type: string
     precio_venta: number | string
 }): Promise<{ producto: ProductoRow } | string> {
+    if (!(await esStaff())) return SIN_PERMISO
+
     const data = createProductoSchema.safeParse(formData)
     if (!data.success) return firstErrorOfProducto(data.error)
 
@@ -46,7 +49,7 @@ export async function createProductoAction(formData: {
         return "No pudimos verificar tus licencias en el proveedor. Intenta de nuevo."
     }
     const propias = licencias.filter((l) => l.platformNombre === platform.nombre && l.access === data.data.access_type)
-    if (propias.length === 0) return "No tenés ninguna licencia activa de este producto en el proveedor."
+    if (propias.length === 0) return "No tienes ninguna licencia activa de este producto en el proveedor."
 
     // El costo es solo referencial (último precio scrapeado del catálogo público); si el proveedor
     // ya no lo vende no bloquea la creación, porque la licencia comprada sigue siendo tuya.

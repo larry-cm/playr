@@ -1,10 +1,14 @@
+import { cache } from "react"
 import { createSupabase } from "@lib/supabase/server"
 
-export async function getRoleUser(): Promise<"user" | "admin" | "manager" | "error"> {
+// cache(): el layout y la página lo piden en el mismo request; una sola consulta a auth + DB.
+export const getRoleUser = cache(async (): Promise<"user" | "admin" | "manager" | "error"> => {
     const supabase = await createSupabase()
     const { data: auth, error } = await supabase.auth.getUser()
     if (error || !auth.user) return "error"
 
+    // El rol vive en security.user_role (no en user_metadata, que el usuario puede editar). La RLS solo
+    // deja leer la fila propia y nadie la escribe desde el cliente: se asigna en el servidor.
     const { data, error: roleError } = await supabase
         .schema("security")
         .from("user_role")
@@ -19,4 +23,4 @@ export async function getRoleUser(): Promise<"user" | "admin" | "manager" | "err
     const nombre = data?.role?.nombre
     // Antes caía a "admin" si faltaba el dato; default seguro ahora es "user" (mínimo privilegio).
     return nombre === "admin" || nombre === "manager" || nombre === "user" ? nombre : "user"
-}
+})

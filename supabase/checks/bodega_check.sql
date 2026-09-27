@@ -84,7 +84,8 @@ begin
   assert n = 1, 'total debe ser cantidad*precio (3000), con comprador y saldo_antes';
   perform set_config('request.jwt.claim.sub', v_manager::text, true);
   set local role authenticated;
-  select count(*) into n from business.compra_proveedor;
+  -- solo las del check: la tabla puede tener compras reales
+  select count(*) into n from business.compra_proveedor where request_id::text like '00000000-0000-4000-8000-%';
   assert n = 1, format('manager debe ver 1 compra y ve %s', n);
   reset role;
 
@@ -103,7 +104,7 @@ begin
     assert sqlerrm = 'compra_en_curso', format('el error debia ser compra_en_curso y fue: %s', sqlerrm);
   end;
   reset role;
-  select count(*) into n from business.compra_proveedor;
+  select count(*) into n from business.compra_proveedor where request_id::text like '00000000-0000-4000-8000-%';
   assert n = 1, format('la compra rechazada no debe dejar fila: esperaba 1 y hay %s', n);
 
   -- 6) maquina de estados: solo transiciones validas
@@ -151,7 +152,9 @@ begin
   select estado into v_estado from business.compra_proveedor where id = c2;
   assert v_estado = 'incierta', format('la abandonada debe quedar incierta y quedo %s', v_estado);
 
-  -- 8) registrar_licencias: crea account + profile, cifra la clave, crea el producto SIN precio (no sale en la Tienda)
+  -- 8) registrar_licencias (migracion 20260922025911): misma plataforma + mismo correo = el mismo login, asi que los
+  -- perfiles se agrupan en UNA cuenta (perfil_max sube con los perfiles vivos); cifra la clave y crea el producto
+  -- SIN precio (no sale en la Tienda)
   perform set_config('request.jwt.claim.sub', v_admin::text, true);
   set local role authenticated;
   r := business.registrar_licencias(jsonb_build_array(
@@ -161,12 +164,20 @@ begin
   assert (r->>'registradas')::int = 2 and (r->>'duplicadas')::int = 0 and (r->>'productos_creados')::int = 1,
     format('esperaba 2 registradas, 0 duplicadas, 1 producto creado y fue %s', r);
   reset role;
-  select count(*) into n from business.account a join business.profile p on p.account_id = a.id
-   where a.platform_id = v_plat and a.access_type = 'pantalla' and a.perfil_max = 1 and p.estado = 'disponible' and a.exist and p.exist;
-  assert n = 2, format('deben existir 2 cuentas con su perfil disponible y hay %s', n);
-  select count(*) into n from business.account where platform_id = v_plat
+  select count(*) into n from business.account where platform_id = v_plat;
+  assert n = 1, format('los 2 perfiles del mismo correo deben quedar en 1 sola cuenta y hay %s cuentas', n);
+  select id into c1 from business.account where platform_id = v_plat;
+  select count(*) into n from business.account
+   where id = c1 and access_type = 'pantalla' and perfil_max = 2 and exist and fecha_vencimiento = '2026-10-20'
+     and costo = 1500 and sourced_from_listing_id = v_listing;
+  assert n = 1, 'la cuenta debe tomar acceso, vence, costo y listing del primer grupo, con perfil_max = 2 (perfiles vivos)';
+  select count(*) into n from business.profile
+   where account_id = c1 and exist and estado = 'disponible'
+     and ((nombre_perfil = 'PERFIL 1' and pin = '1111') or (nombre_perfil = 'PERFIL 2' and pin is null));
+  assert n = 2, format('la cuenta debe tener PERFIL 1 (pin 1111) y PERFIL 2 (sin pin) disponibles y tiene %s', n);
+  select count(*) into n from business.account where id = c1
    and password_enc <> 'secreta1' and extensions.pgp_sym_decrypt(decode(password_enc, 'base64'), v_key) = 'secreta1';
-  assert n = 2, 'la clave debe guardarse cifrada y descifrarse con la clave de cifrado';
+  assert n = 1, 'la clave debe guardarse cifrada y descifrarse con la clave de cifrado';
   select count(*) into n from business.producto where platform_id = v_plat and access_type = 'pantalla' and exist and precio_venta is null;
   assert n = 1, 'debe crearse 1 producto activo sin precio_venta';
   select count(*) into n from business.catalogo_disponible where platform_nombre = '__check__plat';
@@ -180,20 +191,39 @@ begin
   ), v_key);
   assert (r->>'registradas')::int = 0 and (r->>'duplicadas')::int = 1 and (r->>'productos_creados')::int = 0,
     format('repetir debe dar 0 registradas y 1 duplicada (email sin distinguir mayusculas) y fue %s', r);
+  reset role;
+  select count(*) into n from business.profile p join business.account a on a.id = p.account_id where a.platform_id = v_plat and p.exist;
+  assert n = 2, format('el duplicado no debe agregar perfiles y hay %s', n);
+  -- una cuenta con capacidad conocida mayor (ej. "pone 5 perfiles") no se achica al sumar un perfil nuevo del mismo correo
+  update business.account set perfil_max = 5 where id = c1;
+  set local role authenticated;
+  r := business.registrar_licencias(jsonb_build_array(
+    jsonb_build_object('platform_id', v_plat, 'access_type', 'pantalla', 'email', 'a@x.com', 'password', 'secreta1', 'perfil', 'PERFIL 3', 'vence', '2026-10-20')
+  ), v_key);
+  reset role;
+  assert (r->>'registradas')::int = 1, format('un perfil nuevo del mismo correo debe registrarse y fue %s', r);
+  select count(*) into n from business.account a where a.platform_id = v_plat and a.id = c1 and a.perfil_max = 5
+     and (select count(*) from business.profile p where p.account_id = a.id and p.exist) = 3;
+  assert n = 1 and (select count(*) from business.account where platform_id = v_plat) = 1,
+    'PERFIL 3 debe sumarse a la misma cuenta (3 perfiles) sin bajar perfil_max de 5';
+  set local role authenticated;
   -- ...pero el mismo perfil con OTRO vencimiento es una licencia nueva (renovacion): se registra
+  -- (OJO: hoy se agrupa en la cuenta del correo sin guardar su vencimiento, asi que reintentarla la duplica; no se prueba aqui)
   r := business.registrar_licencias(jsonb_build_array(
     jsonb_build_object('platform_id', v_plat, 'access_type', 'pantalla', 'email', 'a@x.com', 'password', 'renovada', 'perfil', 'PERFIL 1', 'vence', '2026-11-20')
   ), v_key);
   assert (r->>'registradas')::int = 1, format('una renovacion (otro vencimiento) debe registrarse y fue %s', r);
   reset role;
 
-  -- 10) todo o nada: un grupo invalido revierte tambien a los validos
+  -- 10) todo o nada: un grupo invalido revierte tambien a los validos (incluido uno que se agruparia en una cuenta existente)
   select count(*) into n from business.account where platform_id = v_plat;
+  select count(*) into c2 from business.profile p join business.account a on a.id = p.account_id where a.platform_id = v_plat;
   perform set_config('request.jwt.claim.sub', v_admin::text, true);
   set local role authenticated;
   begin
     perform business.registrar_licencias(jsonb_build_array(
       jsonb_build_object('platform_id', v_plat, 'access_type', 'pantalla', 'email', 'nuevo@x.com', 'password', 'p', 'perfil', 'PERFIL 9', 'vence', '2026-10-20'),
+      jsonb_build_object('platform_id', v_plat, 'access_type', 'pantalla', 'email', 'a@x.com', 'password', 'p', 'perfil', 'PERFIL 8', 'vence', '2026-10-20'),
       jsonb_build_object('platform_id', v_plat, 'access_type', 'pantalla', 'email', 'roto@x.com', 'password', 'p')
     ), v_key);
     assert false, 'un grupo sin perfil debe abortar el lote';
@@ -203,6 +233,8 @@ begin
   reset role;
   select count(*) into c1 from business.account where platform_id = v_plat;
   assert c1 = n, 'el lote fallido no debe dejar cuentas a medias';
+  select count(*) into n from business.profile p join business.account a on a.id = p.account_id where a.platform_id = v_plat;
+  assert n = c2, format('el lote fallido no debe dejar perfiles sueltos: habia %s y hay %s', c2, n);
 
   -- 11) clave de cifrado invalida y plataforma inexistente abortan
   set local role authenticated;
@@ -232,6 +264,10 @@ begin
   assert n = 1, format('revivir no debe crear una segunda fila y hay %s', n);
   select count(*) into n from business.producto where platform_id = v_plat and access_type = 'pantalla' and exist and precio_venta is null;
   assert n = 1, 'el producto revivido debe quedar activo y sin precio';
+  -- otro correo es otro login: cuenta propia de 1 perfil, no se mezcla con la de a@x.com
+  select count(*) into n from business.account a where a.platform_id = v_plat and lower(a.email) = 'b@x.com' and a.perfil_max = 1
+     and (select count(*) from business.profile p where p.account_id = a.id and p.exist and p.nombre_perfil = 'PERFIL 3') = 1;
+  assert n = 1, format('b@x.com debe tener su propia cuenta de 1 perfil y hay %s', n);
 
   -- 13) anon no llega a nada
   set local role anon;

@@ -1,5 +1,6 @@
 "use server"
 
+import { esStaff } from "@lib/auth"
 import { scrapeLicenciasActivas } from "@lib/scrape-licencias"
 import { notificar } from "@lib/notify"
 
@@ -20,6 +21,8 @@ const comboKey = (p: { platform_id: number; access_type: string }) => `${p.platf
  * (último precio scrapeado del catálogo público) cuando existe.
  */
 export async function getLicenciasDisponiblesAction(): Promise<LicenciaDisponible[] | null> {
+    if (!(await esStaff())) return null
+
     const base = process.env.PLATFORM_URL
     const email = process.env.PLATFORM_EMAIL
     const password = process.env.PLATFORM_PASSWORD

@@ -1,5 +1,6 @@
 "use server"
 
+import { esStaff, SIN_PERMISO } from "@lib/auth"
 import { revalidatePath } from "next/cache"
 
 /**
@@ -7,6 +8,8 @@ import { revalidatePath } from "next/cache"
  * si quedaran vivos seguirían apareciendo en /administrar/perfiles y en la Tienda como stock falso.
  */
 export async function deleteCuentaAction(formData: { id: number }): Promise<string | null> {
+    if (!(await esStaff())) return SIN_PERMISO
+
     if (!formData.id) return "Id no encontrado"
 
     const { createSupabase } = await import("@lib/supabase/server")

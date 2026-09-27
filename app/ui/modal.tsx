@@ -34,10 +34,10 @@ export default function Modal({ isOpen, title, onClose, children }: ModalProps) 
       <div
         role="dialog"
         aria-modal="true"
-        className="relative z-10 w-full max-w-2xl rounded-2xl shadow-2xl p-6"
+        className="relative z-10 flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col rounded-2xl shadow-2xl p-6"
         style={{ background: '#12121a', border: '1px solid rgba(255,255,255,0.08)' }}
       >
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex shrink-0 items-start justify-between gap-4">
           <h3 className="text-lg font-semibold text-white/95">{title}</h3>
           <button
             onClick={onClose}
@@ -49,7 +49,9 @@ export default function Modal({ isOpen, title, onClose, children }: ModalProps) 
           </button>
         </div>
 
-        <div className="mt-4 text-sm text-white/90">{children}</div>
+        {/* El título queda fijo y el contenido scrollea dentro del modal si no cabe en la pantalla.
+            -mx/px: la barra queda pegada al borde y los anillos de foco no se recortan. */}
+        <div className="-mx-6 mt-4 min-h-0 overflow-y-auto px-6 py-1 text-sm text-white/90 [scrollbar-color:rgba(255,255,255,0.15)_transparent] [scrollbar-width:thin]">{children}</div>
       </div>
     </div>
   )

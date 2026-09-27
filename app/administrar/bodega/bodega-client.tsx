@@ -1,25 +1,28 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import Card from "@ui/card"
 import Alert from "@ui/alert"
+import Button from "@ui/button"
 import Table from "@ui/table"
 import { SectionHeader } from "@ui/page-header"
 import { IconAction, MobileAction } from "@ui/data-frame"
-import { AlertCircle, Package, ShoppingCart } from "lucide-react"
+import { AlertCircle, Package, RefreshCw, ShoppingCart, TriangleAlert } from "lucide-react"
 import SaldoCard from "@/app/administrar/bodega/saldo-card"
 import ResumenBodegaCard from "@/app/administrar/bodega/resumen-card"
-import HistorialCard from "@/app/administrar/bodega/historial-card"
+import HistorialCard, { HISTORIAL_ID } from "@/app/administrar/bodega/historial-card"
 import ComprarModal from "@/app/administrar/bodega/comprar-modal"
 import FiltrosCatalogo, { pasaFiltro, SIN_FILTRO, type FiltroCatalogo } from "@/app/administrar/bodega/filtros-catalogo"
 import { getSaldoProveedorAction } from "@action/manager-and-admin/bodega/get-saldo-action"
 import { comprarBodegaAction } from "@action/manager-and-admin/bodega/comprar-action"
 import { getPedidosProveedorAction } from "@action/manager-and-admin/bodega/compras-action"
+import { consultarProductoBodegaAction } from "@action/manager-and-admin/bodega/consultar-producto-action"
 import { formatCOP } from "@lib/currency"
+import { formatColombianDateTime, formatDateOnly } from "@lib/date"
 import { capitalizar } from "@lib/text"
 import { duracionDe } from "@lib/bodega/duracion"
-import type { BodegaCatalogo, BodegaProducto, PedidoProveedor, ResultadoCompraUI, SaldoProveedor } from "@lib/bodega/tipos"
+import type { BodegaCatalogo, BodegaProducto, ConsultaEnVivo, PedidoProveedor, ResultadoCompraUI, SaldoProveedor } from "@lib/bodega/tipos"
 
 interface BodegaClientProps {
     initialCatalogo: BodegaCatalogo | null
@@ -36,13 +39,33 @@ type Fila = {
     producto: BodegaProducto
 }
 
+/** Una intención de compra: nace al abrir el modal y conserva su request_id (llave de idempotencia) en cada reintento. */
+interface Intencion {
+    /** El producto con el precio vigente que se conoce (el del escaneo, o el que informó el servidor al rechazar por cambio de precio). */
+    producto: BodegaProducto
+    requestId: string
+    /** Precio del último escaneo del cron, para avisar si el de ahora es distinto. */
+    precioEscaneo: number
+    /** Lectura en vivo de precio, stock y saldo (solo lectura en el proveedor). */
+    vivo: ConsultaEnVivo | "cargando"
+}
+
+/** Compra con resultado dudoso: puede haberse pagado. Bloquea volver a comprar ese producto hasta revisar el registro. */
+interface CompraIncierta {
+    listingId: number
+    nombre: string
+    mensaje: string
+    /** El registro de pedidos se volvió a leer DESPUÉS de la compra dudosa. */
+    registroLeido: boolean
+}
+
 const accesoLabel = (p: BodegaProducto) => (p.combo ? "Combo" : { completa: "Completa", pantalla: "Pantalla", otro: "Otro" }[p.access_type])
 
 type Variante = "success" | "error" | "warning" | "info"
 const varianteDe = (r: ResultadoCompraUI): Variante => (!r.ok ? "error" : r.nivel === "error" ? "success" : r.nivel)
 
-/** "2026-09-20" -> "20/09/2026" a mano: new Date("2026-09-20") es medianoche UTC y en Colombia (UTC-5) mostraria el dia anterior. */
-const fechaCorta = (iso: string) => iso.split("-").reverse().join("/")
+/** "dd/mm/aaaa, hh:mm" (hora de Colombia) si se conoce la hora del escaneo; solo la fecha en las corridas viejas, que no la guardaron. */
+const textoEscaneo = (c: BodegaCatalogo) => (c.escaneoEn ? formatColombianDateTime(c.escaneoEn) : c.escaneo ? formatDateOnly(c.escaneo) : null)
 
 /** Solo garantiza unicidad (es la llave de idempotencia de la compra), no secreto: por eso vale el respaldo sin crypto. */
 const nuevoId = () =>
@@ -54,9 +77,11 @@ export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<B
     const [pedidos, setPedidos] = useState<PedidoProveedor[] | null | undefined>(undefined)
     const [alert, setAlert] = useState<{ variant: Variante; message: string } | null>(null)
 
-    const [comprando, setComprando] = useState<BodegaProducto | null>(null)
+    const [intencion, setIntencion] = useState<Intencion | null>(null)
+    const [incierta, setIncierta] = useState<CompraIncierta | null>(null)
     const [modalError, setModalError] = useState<string | null>(null)
     const [isPending, setIsPending] = useState(false)
+    const [releyendo, setReleyendo] = useState(false)
     const [filtro, setFiltro] = useState<FiltroCatalogo>(SIN_FILTRO)
 
     // Saldo y pedidos se leen en paralelo del sitio del proveedor (cada uno con su sesión): el saldo suele llegar antes.
@@ -73,10 +98,37 @@ export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<B
         }
     }, [])
 
-    // Tras una compra se vuelven a leer solos (no hay botones de actualizar). Se deja lo que había a la vista
-    // mientras llega lo nuevo, así las tarjetas no parpadean; si la relectura falla se conserva lo último leído.
-    const refrescarSaldo = () => getSaldoProveedorAction().then((s) => s && setSaldo(s))
-    const refrescarPedidos = () => getPedidosProveedorAction().then((p) => p && setPedidos(p))
+    // Tras una compra se vuelven a leer solos. Se deja lo que había a la vista mientras llega lo nuevo, así las tarjetas no
+    // parpadean; si la relectura falla se conserva lo último leído. Devuelven si la lectura salió bien.
+    const refrescarSaldo = async () => {
+        const s = await getSaldoProveedorAction().catch(() => null)
+        if (s) setSaldo(s)
+        return s !== null
+    }
+    const refrescarPedidos = async () => {
+        const p = await getPedidosProveedorAction().catch(() => null)
+        if (p) setPedidos(p)
+        return p !== null
+    }
+
+    /** "Reintentar" de las tarjetas en error: aquí sí se muestra el esqueleto mientras se vuelve a leer. */
+    const reintentarSaldo = () => {
+        setSaldo(undefined)
+        getSaldoProveedorAction().then(setSaldo, () => setSaldo(null))
+    }
+    const reintentarPedidos = () => {
+        setPedidos(undefined)
+        getPedidosProveedorAction().then(setPedidos, () => setPedidos(null))
+    }
+
+    /** Relee el registro tras una compra dudosa; recién entonces se puede confirmar que se revisó. */
+    const releerRegistro = async () => {
+        setReleyendo(true)
+        const ok = await refrescarPedidos()
+        setReleyendo(false)
+        if (ok) setIncierta((prev) => (prev ? { ...prev, registroLeido: true } : prev))
+        document.getElementById(HISTORIAL_ID)?.scrollIntoView({ behavior: "smooth", block: "start" })
+    }
 
     const filas = useMemo<Fila[]>(
         () =>
@@ -93,47 +145,91 @@ export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<B
     const items = useMemo(() => filas.map((f) => ({ plataforma: f.Plataforma, precio: f.producto.precio, duracion: f.Duración })), [filas])
     const filasVisibles = useMemo(() => filas.filter((_, i) => pasaFiltro(items[i], filtro)), [filas, items, filtro])
 
-    const abrirCompra = (p: BodegaProducto) => {
-        setModalError(null)
-        setAlert(null)
-        setComprando(p)
+    const bloqueado = (p: BodegaProducto) => incierta?.listingId === p.listing_id
+
+    // Token de la lectura en vivo vigente: al cerrar el modal, abrir otro producto o reintentar cambia, y la respuesta vieja se descarta.
+    const consultaActual = useRef<string | null>(null)
+
+    /** Lee en vivo precio, stock y saldo del producto (sin tocar el carrito del proveedor). */
+    const verificarEnVivo = (listingId: number) => {
+        const token = nuevoId()
+        consultaActual.current = token
+        setIntencion((prev) => (prev ? { ...prev, vivo: "cargando" } : prev))
+        consultarProductoBodegaAction(listingId)
+            .catch((): ConsultaEnVivo => ({ ok: false, error: "No recibimos respuesta del servidor." }))
+            .then((vivo) => {
+                if (consultaActual.current !== token) return
+                setIntencion((prev) => (prev && prev.producto.listing_id === listingId ? { ...prev, vivo } : prev))
+                if (vivo.ok) setSaldo({ saldo: vivo.saldo, leidoEn: vivo.leidoEn })
+            })
     }
 
-    const confirmarCompra = async (cantidad: number) => {
-        if (!comprando || isPending) return
+    const cerrarCompra = () => {
+        consultaActual.current = null
+        setIntencion(null)
+    }
+
+    const abrirCompra = (p: BodegaProducto) => {
+        if (bloqueado(p)) return
+        setModalError(null)
+        setAlert(null)
+        setIntencion({ producto: p, requestId: nuevoId(), precioEscaneo: p.precio, vivo: "cargando" })
+        verificarEnVivo(p.listing_id)
+    }
+
+    /** `precio` es el precio unitario que el modal le mostró al manager (el verificado en vivo si se pudo leer): el servidor lo exige igual al de ahora. */
+    const confirmarCompra = async (cantidad: number, precio: number) => {
+        if (!intencion || isPending) return
+        const { producto, requestId } = intencion
         setIsPending(true)
         setModalError(null)
         setAlert(null)
 
         let r: ResultadoCompraUI
         try {
-            r = await comprarBodegaAction({ listing_id: comprando.listing_id, cantidad, precio: comprando.precio, request_id: nuevoId() })
+            r = await comprarBodegaAction({ listing_id: producto.listing_id, cantidad, precio, request_id: requestId })
         } catch {
             // Si la conexión se corta a mitad de camino la compra pudo haberse hecho: nunca decir "no se pagó" ni invitar a reintentar a ciegas.
             r = {
                 ok: false,
                 nivel: "error",
                 estado: "incierta",
-                mensaje: "No recibimos respuesta del servidor. La compra pudo haberse realizado: revisa el historial y el saldo antes de volver a intentar.",
+                mensaje: "No recibimos respuesta del servidor. La compra pudo haberse realizado: revisa el registro de compras y el saldo antes de volver a intentar.",
             }
         }
         setIsPending(false)
 
         if (typeof r.saldo === "number") setSaldo({ saldo: r.saldo, leidoEn: new Date().toISOString() })
-        else if (r.ok || r.estado === "incierta") refrescarSaldo()
-        if (r.ok || r.estado) refrescarPedidos()
+        else if (r.ok || r.estado === "incierta") void refrescarSaldo()
 
-        if (!r.ok && r.precioActual !== undefined) {
-            // el precio cambió en el proveedor: se muestra el nuevo para que el manager lo vuelva a confirmar
-            setComprando({ ...comprando, precio: r.precioActual })
+        if (r.estado === "incierta") {
+            // Puede haberse pagado: aviso fijo (no un error que se descarta) y ese producto queda bloqueado hasta revisar el registro.
+            cerrarCompra()
+            setIncierta({ listingId: producto.listing_id, nombre: capitalizar(producto.nombre), mensaje: r.mensaje, registroLeido: false })
+            void refrescarPedidos().then((ok) => {
+                if (ok) setIncierta((prev) => (prev && prev.listingId === producto.listing_id ? { ...prev, registroLeido: true } : prev))
+            })
+            return
+        }
+        if (r.ok || r.estado) void refrescarPedidos()
+
+        if (!r.ok) {
+            const precioActual = r.precioActual
+            setIntencion((prev) =>
+                prev && {
+                    ...prev,
+                    // el precio cambió en el proveedor: se muestra el nuevo (también como el verificado en vivo) para que el manager lo vuelva a confirmar
+                    producto: precioActual !== undefined ? { ...prev.producto, precio: precioActual } : prev.producto,
+                    vivo: precioActual !== undefined && prev.vivo !== "cargando" && prev.vivo.ok ? { ...prev.vivo, precio: precioActual } : prev.vivo,
+                    // "fallida" = el servidor ya registró (y cerró) ese request_id: reusarlo respondería "ya fue procesada".
+                    // Cualquier otro rechazo es previo al registro y el mismo intento conserva su llave.
+                    requestId: r.estado === "fallida" ? nuevoId() : requestId,
+                },
+            )
             setModalError(r.mensaje)
             return
         }
-        if (!r.ok && r.estado !== "incierta") {
-            setModalError(r.mensaje)
-            return
-        }
-        setComprando(null)
+        cerrarCompra()
         setAlert({ variant: varianteDe(r), message: r.mensaje })
     }
 
@@ -145,11 +241,16 @@ export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<B
                 </div>
                 <h3 className="text-lg font-semibold text-white mb-1">Error al cargar la bodega</h3>
                 <p className="text-sm text-white/60 max-w-md">
-                    Tuvimos un problema al obtener la información. Por favor intenta de nuevo más tarde o verifica la conexión.
+                    Tuvimos un problema al obtener la información. Verifica la conexión y recarga la página.
                 </p>
+                <Button variant="secondary" className="mt-4" onClick={() => window.location.reload()} leftIcon={<RefreshCw className="h-4 w-4" />}>
+                    Reintentar
+                </Button>
             </Card>
         )
     }
+
+    const escaneo = textoEscaneo(initialCatalogo)
 
     return (
         <div className="flex flex-col gap-4">
@@ -159,7 +260,40 @@ export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<B
                     message="Modo simulación activo: las compras se verifican contra el proveedor pero NO se pagan. Se desactiva quitando BODEGA_SIMULAR del servidor."
                 />
             )}
-            {alert && <Alert variant={alert.variant} message={alert.message} onDismiss={() => setAlert(null)} />}
+            {incierta && (
+                <div role="alert" className="flex flex-col gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-300 sm:flex-row sm:items-center">
+                    <TriangleAlert className="h-5 w-5 shrink-0 text-amber-400" aria-hidden="true" />
+                    <div className="flex-1">
+                        <p className="font-medium text-amber-200">No sabemos si la compra de {incierta.nombre} se pagó.</p>
+                        <p className="mt-0.5">
+                            {incierta.mensaje} Mientras tanto no se puede volver a comprar este producto.
+                            {!incierta.registroLeido && " Primero vuelve a leer el registro de compras."}
+                        </p>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                        <Button variant="secondary" size="sm" onClick={releerRegistro} isLoading={releyendo} leftIcon={<RefreshCw className="h-4 w-4" />}>
+                            Ver registro de compras
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={!incierta.registroLeido}
+                            title={incierta.registroLeido ? undefined : "Disponible cuando el registro de compras se haya vuelto a leer"}
+                            onClick={() => setIncierta(null)}
+                        >
+                            Ya lo revisé
+                        </Button>
+                    </div>
+                </div>
+            )}
+            {alert && (
+                <Alert
+                    variant={alert.variant}
+                    message={alert.message}
+                    onDismiss={() => setAlert(null)}
+                    autoDismissMs={alert.variant === "success" ? 8000 : undefined}
+                />
+            )}
 
             {/* Arriba lo que se consulta primero: saldo y resumen a la izquierda, el registro global de pedidos a lo ancho del resto.
                 Desde lg el registro va en absoluto: la fila la mide la columna izquierda (con su alto natural) y el registro la llena
@@ -167,7 +301,7 @@ export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<B
             <div className="grid gap-4 lg:grid-cols-3">
                 <div className="flex flex-col gap-4 md:flex-row lg:flex-col">
                     <div className="md:flex-1 lg:flex-none">
-                        <SaldoCard saldo={saldo} />
+                        <SaldoCard saldo={saldo} onRetry={reintentarSaldo} />
                     </div>
                     <div className="md:flex-1">
                         <ResumenBodegaCard productosEnStock={initialCatalogo.productos.length} pedidos={pedidos} />
@@ -175,7 +309,7 @@ export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<B
                 </div>
                 <div className="relative min-w-0 lg:col-span-2">
                     <div className="lg:absolute lg:inset-0">
-                        <HistorialCard pedidos={pedidos} />
+                        <HistorialCard pedidos={pedidos} onRetry={reintentarPedidos} />
                     </div>
                 </div>
             </div>
@@ -186,9 +320,20 @@ export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<B
                 data={filasVisibles}
                 hideCreate
                 builtinActions={[]}
+                entityName="producto"
                 extraActions={(row, layout) => {
                     const Action = layout === "desktop" ? IconAction : MobileAction
-                    return <Action icon={ShoppingCart} label="Comprar" title={`Comprar ${row.Producto}`} tone="accent" onClick={() => abrirCompra(row.producto)} />
+                    const enRevision = bloqueado(row.producto)
+                    return (
+                        <Action
+                            icon={ShoppingCart}
+                            label={layout === "desktop" ? `Comprar ${row.Producto}` : "Comprar"}
+                            title={enRevision ? "Revisa el registro de compras antes de volver a comprar este producto" : `Comprar ${row.Producto}`}
+                            tone="accent"
+                            disabled={enRevision}
+                            onClick={() => abrirCompra(row.producto)}
+                        />
+                    )
                 }}
                 filters={(layout) => <FiltrosCatalogo items={items} value={filtro} onChange={setFiltro} mobile={layout === "mobile"} />}
                 heading={
@@ -197,8 +342,8 @@ export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<B
                         title="Catálogo disponible"
                         description={
                             <>
-                                Stock del último escaneo al proveedor{initialCatalogo.escaneo && ` · ${fechaCorta(initialCatalogo.escaneo)}`}. Al
-                                comprar se verifica en vivo — fija el precio de venta en{" "}
+                                {escaneo ? `Stock del escaneo del ${escaneo}` : "Stock del último escaneo al proveedor"}. Al comprar se
+                                verifica en vivo — fija el precio de venta en{" "}
                                 <Link href="/administrar/productos" className="text-accent hover:underline">Productos</Link>.
                             </>
                         }
@@ -206,16 +351,20 @@ export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<B
                 }
             />
 
-            {comprando && (
+            {intencion && (
                 <ComprarModal
-                    key={comprando.listing_id}
-                    producto={comprando}
-                    accesoLabel={accesoLabel(comprando)}
+                    key={intencion.producto.listing_id}
+                    producto={intencion.producto}
+                    accesoLabel={accesoLabel(intencion.producto)}
                     saldo={saldo ? saldo.saldo : null}
+                    escaneo={escaneo}
+                    precioEscaneo={intencion.precioEscaneo}
+                    vivo={intencion.vivo}
+                    onReverificar={() => verificarEnVivo(intencion.producto.listing_id)}
                     pending={isPending}
                     error={modalError}
                     onConfirm={confirmarCompra}
-                    onClose={() => setComprando(null)}
+                    onClose={cerrarCompra}
                 />
             )}
         </div>

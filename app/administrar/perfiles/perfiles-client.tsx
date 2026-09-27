@@ -14,6 +14,7 @@ import { ActionsCell, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpt
 import type { PerfilRow } from "@action/manager-and-admin/perfiles/get-all-perfiles-action"
 import { editPerfilAction } from "@action/manager-and-admin/perfiles/edit-perfil-action"
 import { deletePerfilAction } from "@action/manager-and-admin/perfiles/delete-perfil-action"
+import { getClavePerfilAction, type ClavePerfil } from "@action/manager-and-admin/perfiles/get-clave-perfil-action"
 import { accessTypeLabel } from "@lib/access-type"
 import { formatDateOnly } from "@lib/date"
 
@@ -65,9 +66,33 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
     const editingRow = perfiles?.find((row) => row.id === editingId) ?? null
     const viewingRow = perfiles?.find((row) => row.id === viewingId) ?? null
 
+    // La contraseña se lee en vivo del proveedor (tarda unos segundos): se pide al abrir Ver/Editar y se guarda por
+    // cuenta, porque todos los perfiles de una cuenta comparten la clave. Un error no se guarda: al reabrir se reintenta.
+    const [claves, setClaves] = useState<Record<number, "cargando" | ClavePerfil>>({})
+
+    const cargarClave = async (row: PerfilRow) => {
+        const actual = claves[row.account_id]
+        if (actual === "cargando" || (actual && actual.ok)) return
+        setClaves((prev) => ({ ...prev, [row.account_id]: "cargando" }))
+        const res = await getClavePerfilAction(row.id)
+        setClaves((prev) => ({ ...prev, [row.account_id]: res }))
+    }
+
+    const campoClave = (row: PerfilRow) => {
+        const clave = claves[row.account_id]
+        if (!clave || clave === "cargando") return { value: "", placeholder: "Consultando al proveedor...", error: undefined }
+        return clave.ok ? { value: clave.password, placeholder: "--", error: undefined } : { value: "", placeholder: "--", error: clave.error }
+    }
+
+    const openView = (row: PerfilRow) => {
+        setViewingId(row.id)
+        void cargarClave(row)
+    }
+
     const openEdit = (row: PerfilRow) => {
         setEditingId(row.id)
         setEditEstado(row.estado)
+        void cargarClave(row)
     }
 
     const cancelEdit = () => setEditingId(null)
@@ -141,7 +166,7 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
             <TableFrame toolbar={<SearchInput value={search} onChange={setSearch} />}>
                 <thead>
                     <tr>
-                        {["Plataforma", "Perfil", "PIN", "Cuenta", "Estado", "Vencimiento"].map((column) => (
+                        {["Plataforma", "Perfil", "PIN", "Correo", "Estado", "Vencimiento"].map((column) => (
                             <Th key={column}>{column}</Th>
                         ))}
                         <Th align="right">Acciones</Th>
@@ -164,7 +189,7 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
                                 </Td>
                                 <Td className="whitespace-nowrap">{formatDateOnly(row.fecha_vencimiento)}</Td>
                                 <ActionsCell>
-                                    <IconAction icon={Eye} label="Ver" onClick={() => setViewingId(row.id)} />
+                                    <IconAction icon={Eye} label="Ver" onClick={() => openView(row)} />
                                     <IconAction icon={Pencil} label="Editar" onClick={() => openEdit(row)} />
                                     <IconAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => setDeletingId(row.id)} />
                                 </ActionsCell>
@@ -185,13 +210,13 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
                                 { label: "Plataforma", value: row.platform_nombre },
                                 { label: "Perfil", value: row.nombre_perfil },
                                 { label: "PIN", value: row.pin ?? "--" },
-                                { label: "Cuenta", value: row.cuenta_email, className: "break-all" },
+                                { label: "Correo", value: row.cuenta_email, className: "break-all" },
                                 { label: "Estado", value: estadoLabel[row.estado], className: "font-medium", style: { color: estadoColor[row.estado] } },
                                 { label: "Vencimiento", value: formatDateOnly(row.fecha_vencimiento) },
                             ]}
                             actions={
                                 <>
-                                    <MobileAction icon={Eye} label="Ver" onClick={() => setViewingId(row.id)} />
+                                    <MobileAction icon={Eye} label="Ver" onClick={() => openView(row)} />
                                     <MobileAction icon={Pencil} label="Editar" onClick={() => openEdit(row)} />
                                     <MobileAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => setDeletingId(row.id)} />
                                 </>
@@ -208,15 +233,21 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
                             ["Plataforma", `${viewingRow.platform_nombre} · ${accessTypeLabel[viewingRow.access_type]}`],
                             ["Perfil", viewingRow.nombre_perfil],
                             ["PIN", viewingRow.pin ?? ""],
-                            ["Cuenta", viewingRow.cuenta_email],
+                            ["Correo", viewingRow.cuenta_email],
+                            ["Contraseña", campoClave(viewingRow).value, campoClave(viewingRow).placeholder, campoClave(viewingRow).error],
                             ["Estado", estadoLabel[viewingRow.estado]],
                             ["Vencimiento", formatDateOnly(viewingRow.fecha_vencimiento)],
-                        ].map(([label, value]) => (
+                        ].map(([label, value, placeholder = "--", error]) => (
                             <div key={label} className="flex flex-col gap-1">
                                 <label className="text-xs text-secondary font-medium">{label}</label>
-                                <CopyInput className="bg-white/3" value={value} placeholder="--" readOnly copyLabel="Copiar" successLabel="Copiado" />
+                                <CopyInput className="bg-white/3" value={value ?? ""} placeholder={placeholder} readOnly copyLabel="Copiar" successLabel="Copiado" />
+                                {error && <p className="text-xs text-red-400">{error}</p>}
                             </div>
                         ))}
+
+                        <div className="flex items-center justify-end gap-2 mt-2">
+                            <Button variant="ghost" onClick={() => setViewingId(null)}>Cerrar</Button>
+                        </div>
                     </div>
                 )}
             </Modal>
@@ -227,13 +258,15 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
                         {/* Solo el estado se edita: el resto viene del proveedor y se muestra deshabilitado. */}
                         {[
                             ["Plataforma", `${editingRow.platform_nombre} · ${accessTypeLabel[editingRow.access_type]}`],
-                            ["Cuenta", editingRow.cuenta_email],
+                            ["Correo", editingRow.cuenta_email],
+                            ["Contraseña", campoClave(editingRow).value, campoClave(editingRow).placeholder, campoClave(editingRow).error],
                             ["Nombre del perfil", editingRow.nombre_perfil],
                             ["PIN", editingRow.pin ?? ""],
-                        ].map(([label, value]) => (
+                        ].map(([label, value, placeholder = "--", error]) => (
                             <div key={label} className="flex flex-col gap-1">
                                 <label className="text-xs text-secondary font-medium">{label}</label>
-                                <Input className="bg-white/3 cursor-not-allowed opacity-60" value={value} placeholder="--" disabled />
+                                <Input className="bg-white/3 cursor-not-allowed opacity-60" value={value ?? ""} placeholder={placeholder} disabled />
+                                {error && <p className="text-xs text-red-400">{error}</p>}
                             </div>
                         ))}
                         <div className="flex flex-col gap-1">

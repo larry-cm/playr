@@ -8,7 +8,7 @@ import Input from "@ui/input"
 import CopyInput from "@ui/copy-input"
 import Modal from "@ui/modal"
 import Alert from "@ui/alert"
-import { AlertCircle, Plus, Pencil, Trash2 } from "lucide-react"
+import { AlertCircle, Plus, Pencil, Trash2, Eye } from "lucide-react"
 import { ActionsCell, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, TableFrame, Td, Th } from "@ui/data-frame"
 import type { ProductoRow } from "@action/manager-and-admin/productos/get-all-productos-action"
 import type { LicenciaDisponible } from "@action/manager-and-admin/productos/get-licencias-disponibles-action"
@@ -36,6 +36,15 @@ const gananciaColor = (ganancia: number | null) =>
             ? '#34d399'
             : '#f87171'
 
+/** Campos de solo lectura del producto, en el orden en que se muestran en Ver y en Editar. */
+const camposDeProducto = (row: ProductoRow): [string, string][] => [
+    [row.access_type === "combo" ? "Nombre del combo" : "Plataforma", row.titulo],
+    ...(row.combo_items.length > 0 ? [["Incluye", contenidoDeCombo(row)] as [string, string]] : []),
+    ["Categoría", row.categoria],
+    ["Tipo de acceso", accessTypeLabel[row.access_type]],
+    ["Costo (proveedor)", row.costo === null ? "--" : formatCOP(row.costo)],
+]
+
 interface ProductosClientProps {
     initialProductos: ProductoRow[] | null
     /** Licencias ya compradas sin producto: la base del producto simple (escaneo lento del proveedor). */
@@ -53,6 +62,7 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
     const [createOpen, setCreateOpen] = useState(false)
     const [createTipo, setCreateTipo] = useState<"simple" | "combo">("simple")
 
+    const [viewingId, setViewingId] = useState<number | null>(null)
     const [editingId, setEditingId] = useState<number | null>(null)
     const [editPrecioVenta, setEditPrecioVenta] = useState("")
 
@@ -84,6 +94,7 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
         router.refresh()
     }
 
+    const viewingRow = productos?.find((row) => row.id === viewingId) ?? null
     const editingRow = productos?.find((row) => row.id === editingId) ?? null
 
     const openEdit = (row: ProductoRow) => {
@@ -172,7 +183,7 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
             <TableFrame toolbar={toolbar(false)}>
                 <thead>
                     <tr>
-                        {["Producto", "Categoría", "Tipo de acceso", "Costo (proveedor)", "Precio de venta", "Ganancia"].map((column) => (
+                        {["Producto", "Tipo de acceso", "Costo (proveedor)", "Precio de venta", "Ganancia"].map((column) => (
                             <Th key={column}>{column}</Th>
                         ))}
                         <Th align="right">Acciones</Th>
@@ -181,7 +192,7 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
 
                 <tbody>
                     {filteredProductos.length === 0 ? (
-                        <EmptyRow colSpan={7}>No hay productos configurados todavía.</EmptyRow>
+                        <EmptyRow colSpan={6}>No hay productos configurados todavía.</EmptyRow>
                     ) : (
                         filteredProductos.map((row) => (
                             <tr key={row.id} className={ROW_CLASS}>
@@ -191,7 +202,6 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                                         <span className="block text-xs font-normal text-secondary">{contenidoDeCombo(row)}</span>
                                     )}
                                 </Td>
-                                <Td>{row.categoria}</Td>
                                 <Td>{accessTypeLabel[row.access_type]}</Td>
                                 <Td className="whitespace-nowrap">{row.costo === null ? "--" : formatCOP(row.costo)}</Td>
                                 <Td className="whitespace-nowrap">{row.precio_venta === null ? "--" : formatCOP(row.precio_venta)}</Td>
@@ -199,6 +209,7 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                                     {gananciaOf(row) === null ? "--" : formatCOP(gananciaOf(row)!)}
                                 </Td>
                                 <ActionsCell>
+                                    <IconAction icon={Eye} label="Ver" onClick={() => setViewingId(row.id)} />
                                     <IconAction icon={Pencil} label="Editar" onClick={() => openEdit(row)} />
                                     <IconAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => setDeletingId(row.id)} />
                                 </ActionsCell>
@@ -218,7 +229,6 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                             fields={[
                                 { label: "Producto", value: row.titulo, className: "font-semibold" },
                                 ...(row.combo_items.length > 0 ? [{ label: "Incluye", value: contenidoDeCombo(row) }] : []),
-                                { label: "Categoría", value: row.categoria },
                                 { label: "Tipo de acceso", value: accessTypeLabel[row.access_type] },
                                 { label: "Costo (proveedor)", value: row.costo === null ? "--" : formatCOP(row.costo) },
                                 { label: "Precio de venta", value: row.precio_venta === null ? "--" : formatCOP(row.precio_venta) },
@@ -231,6 +241,7 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                             ]}
                             actions={
                                 <>
+                                    <MobileAction icon={Eye} label="Ver" onClick={() => setViewingId(row.id)} />
                                     <MobileAction icon={Pencil} label="Editar" onClick={() => openEdit(row)} />
                                     <MobileAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => setDeletingId(row.id)} />
                                 </>
@@ -282,43 +293,50 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                 )}
             </Modal>
 
+            <Modal isOpen={viewingId !== null} title="Ver producto" onClose={() => setViewingId(null)}>
+                {viewingRow && (
+                    <div className="flex flex-col gap-3">
+                        {[
+                            ...camposDeProducto(viewingRow),
+                            ["Precio de venta", viewingRow.precio_venta === null ? "--" : formatCOP(viewingRow.precio_venta)],
+                            ["Ganancia", gananciaOf(viewingRow) === null ? "--" : formatCOP(gananciaOf(viewingRow)!)],
+                        ].map(([label, value]) => (
+                            <div key={label} className="flex flex-col gap-1">
+                                <label className="text-xs text-secondary font-medium">{label}</label>
+                                <CopyInput value={value} readOnly copyLabel="Copiar" successLabel="Copiado" />
+                            </div>
+                        ))}
+
+                        <div className="flex items-center justify-end gap-2 mt-2">
+                            <Button variant="ghost" onClick={() => setViewingId(null)}>Cerrar</Button>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
             <Modal isOpen={editingId !== null} title="Editar producto" onClose={cancelEdit}>
                 {editingRow && (
                     <div className="flex flex-col gap-3">
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">
-                                {editingRow.access_type === "combo" ? "Nombre del combo" : "Plataforma"}
-                            </label>
-                            <CopyInput value={editingRow.titulo} readOnly copyLabel="Copiar" successLabel="Copiado" />
-                        </div>
-                        {editingRow.combo_items.length > 0 && (
-                            <div className="flex flex-col gap-1">
-                                <label className="text-xs text-secondary font-medium">Incluye</label>
-                                <CopyInput value={contenidoDeCombo(editingRow)} readOnly copyLabel="Copiar" successLabel="Copiado" />
-                                {/* La receta de un combo es su identidad: cambiarla es armar otro combo. */}
-                                <p className="text-xs text-secondary">Para cambiar el contenido, crea un combo nuevo y elimina este.</p>
+                        {camposDeProducto(editingRow).map(([label, value]) => (
+                            <div key={label} className="flex flex-col gap-1">
+                                <label className="text-xs text-secondary font-medium">{label}</label>
+                                {/* Solo el precio de venta se edita: el resto se ve apagado para que se note. */}
+                                <Input value={value} disabled className="cursor-not-allowed opacity-50" />
+                                {label === "Incluye" && (
+                                    // La receta de un combo es su identidad: cambiarla es armar otro combo.
+                                    <p className="text-xs text-secondary">Para cambiar el contenido, crea un combo nuevo y elimina este.</p>
+                                )}
                             </div>
-                        )}
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">Categoría</label>
-                            <CopyInput value={editingRow.categoria} readOnly copyLabel="Copiar" successLabel="Copiado" />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">Tipo de acceso</label>
-                            <CopyInput value={accessTypeLabel[editingRow.access_type]} readOnly copyLabel="Copiar" successLabel="Copiado" />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">Costo (proveedor)</label>
-                            <CopyInput value={editingRow.costo === null ? "--" : formatCOP(editingRow.costo)} readOnly copyLabel="Copiar" successLabel="Copiado" />
-                        </div>
+                        ))}
                         <div className="flex flex-col gap-1">
                             <label className="text-xs text-secondary font-medium">Precio de venta</label>
                             <Input
                                 className="bg-white/3"
-                                type="number"
-                                min="0"
+                                type="text"
+                                inputMode="numeric"
+                                autoFocus
                                 value={editPrecioVenta}
-                                onChange={(e) => setEditPrecioVenta(e.target.value)}
+                                onChange={(e) => setEditPrecioVenta(e.target.value.replace(/\D/g, ""))}
                             />
                         </div>
 

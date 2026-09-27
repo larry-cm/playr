@@ -2,18 +2,11 @@ import { z } from "zod"
 
 /**
  * Un perfil (business.profile) es la pantalla individual que se vende: siempre pertenece a una
- * cuenta ya comprada, así que este módulo no crea perfiles, solo edita los que llegaron con una
- * compra. El estado es lo que decide si el perfil aparece en la Tienda (catalogo_disponible solo
- * muestra 'disponible').
+ * cuenta ya comprada, así que este módulo no crea perfiles. Nombre y PIN vienen del proveedor y no
+ * se editan; lo único editable es el estado, que decide si el perfil aparece en la Tienda
+ * (catalogo_disponible solo muestra 'disponible').
  */
 export const editPerfilSchema = z.object({
-    nombre_perfil: z.string().trim().min(1, "Ingresa el nombre del perfil.").max(60, "El nombre admite hasta 60 caracteres."),
-    pin: z
-        .string()
-        .trim()
-        .max(20, "El PIN admite hasta 20 caracteres.")
-        .optional()
-        .transform((value) => (value === undefined || value === "" ? null : value)),
     estado: z.enum(["disponible", "vendido", "suspendido", "en_soporte"], { message: "Selecciona un estado válido." }),
 })
 

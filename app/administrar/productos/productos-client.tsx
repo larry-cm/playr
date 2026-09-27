@@ -8,7 +8,7 @@ import Input from "@ui/input"
 import CopyInput from "@ui/copy-input"
 import Modal from "@ui/modal"
 import Alert from "@ui/alert"
-import { AlertCircle, Plus, Pencil, Trash2, Search } from "lucide-react"
+import { AlertCircle, Plus, Pencil, Trash2, Search, Eye } from "lucide-react"
 import type { ProductoRow } from "@action/manager-and-admin/productos/get-all-productos-action"
 import type { LicenciaDisponible } from "@action/manager-and-admin/productos/get-licencias-disponibles-action"
 import type { OfertaProveedorItem } from "@action/manager-and-admin/productos/get-oferta-proveedor-action"
@@ -35,6 +35,15 @@ const gananciaColor = (ganancia: number | null) =>
             ? '#34d399'
             : '#f87171'
 
+/** Campos de solo lectura del producto, en el orden en que se muestran en Ver y en Editar. */
+const camposDeProducto = (row: ProductoRow): [string, string][] => [
+    [row.access_type === "combo" ? "Nombre del combo" : "Plataforma", row.titulo],
+    ...(row.combo_items.length > 0 ? [["Incluye", contenidoDeCombo(row)] as [string, string]] : []),
+    ["Categoría", row.categoria],
+    ["Tipo de acceso", accessTypeLabel[row.access_type]],
+    ["Costo (proveedor)", row.costo === null ? "--" : formatCOP(row.costo)],
+]
+
 interface ProductosClientProps {
     initialProductos: ProductoRow[] | null
     /** Licencias ya compradas sin producto: la base del producto simple (escaneo lento del proveedor). */
@@ -52,6 +61,7 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
     const [createOpen, setCreateOpen] = useState(false)
     const [createTipo, setCreateTipo] = useState<"simple" | "combo">("simple")
 
+    const [viewingId, setViewingId] = useState<number | null>(null)
     const [editingId, setEditingId] = useState<number | null>(null)
     const [editPrecioVenta, setEditPrecioVenta] = useState("")
 
@@ -83,6 +93,7 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
         router.refresh()
     }
 
+    const viewingRow = productos?.find((row) => row.id === viewingId) ?? null
     const editingRow = productos?.find((row) => row.id === editingId) ?? null
 
     const openEdit = (row: ProductoRow) => {
@@ -191,12 +202,12 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                             <table className="w-full border-collapse text-left text-sm" style={{ color: 'var(--color-foreground)' }}>
                                 <thead>
                                     <tr>
-                                        {["Producto", "Categoría", "Tipo de acceso", "Costo (proveedor)", "Precio de venta", "Ganancia"].map((column) => (
+                                        {["Producto", "Tipo de acceso", "Costo (proveedor)", "Precio de venta", "Ganancia"].map((column) => (
                                             <th key={column} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--color-secondary)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                                                 {column}
                                             </th>
                                         ))}
-                                        <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--color-secondary)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                                        <th className="w-px whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--color-secondary)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                                             Acciones
                                         </th>
                                     </tr>
@@ -205,7 +216,7 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                                 <tbody>
                                     {filteredProductos.length === 0 ? (
                                         <tr>
-                                            <td colSpan={7} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--color-secondary)' }}>
+                                            <td colSpan={6} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--color-secondary)' }}>
                                                 No hay productos configurados todavía.
                                             </td>
                                         </tr>
@@ -220,7 +231,6 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                                                         </span>
                                                     )}
                                                 </td>
-                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.categoria}</td>
                                                 <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{accessTypeLabel[row.access_type]}</td>
                                                 <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                                     {row.costo === null ? "--" : formatCOP(row.costo)}
@@ -231,8 +241,17 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                                                 <td className="px-4 py-4 align-middle font-medium" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: gananciaColor(gananciaOf(row)) }}>
                                                     {gananciaOf(row) === null ? "--" : formatCOP(gananciaOf(row)!)}
                                                 </td>
-                                                <td className="px-4 py-4 align-middle text-right" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                <td className="whitespace-nowrap px-4 py-4 align-middle text-left" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                                     <div className="inline-flex items-center gap-2 *:cursor-pointer">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setViewingId(row.id)}
+                                                            aria-label="Ver"
+                                                            title="Ver"
+                                                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent) focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/25"
+                                                        >
+                                                            <Eye className="h-4 w-4" />
+                                                        </button>
                                                         <button
                                                             type="button"
                                                             onClick={() => openEdit(row)}
@@ -291,7 +310,6 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                                     {[
                                         ["Producto", row.titulo],
                                         ...(row.combo_items.length > 0 ? [["Incluye", contenidoDeCombo(row)]] : []),
-                                        ["Categoría", row.categoria],
                                         ["Tipo de acceso", accessTypeLabel[row.access_type]],
                                         ["Costo (proveedor)", row.costo === null ? "--" : formatCOP(row.costo)],
                                         ["Precio de venta", row.precio_venta === null ? "--" : formatCOP(row.precio_venta)],
@@ -308,6 +326,13 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                                         </div>
                                     </div>
                                     <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3 *:cursor-pointer">
+                                        <button
+                                            type="button"
+                                            onClick={() => setViewingId(row.id)}
+                                            className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 px-3 text-sm text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent)"
+                                        >
+                                            <Eye className="mr-2 h-4 w-4" />Ver
+                                        </button>
                                         <button
                                             type="button"
                                             onClick={() => openEdit(row)}
@@ -372,43 +397,50 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                 )}
             </Modal>
 
+            <Modal isOpen={viewingId !== null} title="Ver producto" onClose={() => setViewingId(null)}>
+                {viewingRow && (
+                    <div className="flex flex-col gap-3">
+                        {[
+                            ...camposDeProducto(viewingRow),
+                            ["Precio de venta", viewingRow.precio_venta === null ? "--" : formatCOP(viewingRow.precio_venta)],
+                            ["Ganancia", gananciaOf(viewingRow) === null ? "--" : formatCOP(gananciaOf(viewingRow)!)],
+                        ].map(([label, value]) => (
+                            <div key={label} className="flex flex-col gap-1">
+                                <label className="text-xs text-secondary font-medium">{label}</label>
+                                <CopyInput value={value} readOnly copyLabel="Copiar" successLabel="Copiado" />
+                            </div>
+                        ))}
+
+                        <div className="flex items-center justify-end gap-2 mt-2">
+                            <Button variant="ghost" onClick={() => setViewingId(null)}>Cerrar</Button>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
             <Modal isOpen={editingId !== null} title="Editar producto" onClose={cancelEdit}>
                 {editingRow && (
                     <div className="flex flex-col gap-3">
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">
-                                {editingRow.access_type === "combo" ? "Nombre del combo" : "Plataforma"}
-                            </label>
-                            <CopyInput value={editingRow.titulo} readOnly copyLabel="Copiar" successLabel="Copiado" />
-                        </div>
-                        {editingRow.combo_items.length > 0 && (
-                            <div className="flex flex-col gap-1">
-                                <label className="text-xs text-secondary font-medium">Incluye</label>
-                                <CopyInput value={contenidoDeCombo(editingRow)} readOnly copyLabel="Copiar" successLabel="Copiado" />
-                                {/* La receta de un combo es su identidad: cambiarla es armar otro combo. */}
-                                <p className="text-xs text-secondary">Para cambiar el contenido, crea un combo nuevo y elimina este.</p>
+                        {camposDeProducto(editingRow).map(([label, value]) => (
+                            <div key={label} className="flex flex-col gap-1">
+                                <label className="text-xs text-secondary font-medium">{label}</label>
+                                {/* Solo el precio de venta se edita: el resto se ve apagado para que se note. */}
+                                <Input value={value} disabled className="cursor-not-allowed opacity-50" />
+                                {label === "Incluye" && (
+                                    // La receta de un combo es su identidad: cambiarla es armar otro combo.
+                                    <p className="text-xs text-secondary">Para cambiar el contenido, crea un combo nuevo y elimina este.</p>
+                                )}
                             </div>
-                        )}
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">Categoría</label>
-                            <CopyInput value={editingRow.categoria} readOnly copyLabel="Copiar" successLabel="Copiado" />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">Tipo de acceso</label>
-                            <CopyInput value={accessTypeLabel[editingRow.access_type]} readOnly copyLabel="Copiar" successLabel="Copiado" />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">Costo (proveedor)</label>
-                            <CopyInput value={editingRow.costo === null ? "--" : formatCOP(editingRow.costo)} readOnly copyLabel="Copiar" successLabel="Copiado" />
-                        </div>
+                        ))}
                         <div className="flex flex-col gap-1">
                             <label className="text-xs text-secondary font-medium">Precio de venta</label>
                             <Input
                                 className="bg-white/3"
-                                type="number"
-                                min="0"
+                                type="text"
+                                inputMode="numeric"
+                                autoFocus
                                 value={editPrecioVenta}
-                                onChange={(e) => setEditPrecioVenta(e.target.value)}
+                                onChange={(e) => setEditPrecioVenta(e.target.value.replace(/\D/g, ""))}
                             />
                         </div>
 

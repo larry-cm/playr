@@ -71,11 +71,6 @@ export default function BodegaClient({ initialCatalogo, initialCompras, simulaci
     }
     const refrescarCompras = () => getComprasBodegaAction().then((c) => c && setCompras(c))
 
-    const pendientesRegistro = useMemo(
-        () => compras?.filter((c) => c.estado === "pendiente_registro").length ?? 0,
-        [compras],
-    )
-
     const filas = useMemo<Fila[]>(
         () =>
             (initialCatalogo?.productos ?? []).map((p) => ({
@@ -174,7 +169,7 @@ export default function BodegaClient({ initialCatalogo, initialCompras, simulaci
 
             <div className="grid gap-4 md:grid-cols-2">
                 <SaldoCard saldo={saldo} onRefresh={refrescarSaldo} />
-                <ResumenBodegaCard productosEnStock={initialCatalogo.productos.length} pendientesRegistro={pendientesRegistro} />
+                <ResumenBodegaCard productosEnStock={initialCatalogo.productos.length} />
             </div>
 
             <div className="flex flex-col gap-3">

@@ -1,9 +1,12 @@
 "use server"
 
+import { esStaff, SIN_PERMISO } from "@lib/auth"
 import { createSupabase } from "@lib/supabase/server"
 
 // Soft-delete (exist=false): la fila sigue en la DB, solo deja de mostrarse.
 export async function deleteNotificacionAction(formData: { id: number }): Promise<string | null> {
+    if (!(await esStaff())) return SIN_PERMISO
+
     if (!formData.id) return "Id no encontrado"
 
     const supabase = await createSupabase()

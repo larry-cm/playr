@@ -14,7 +14,7 @@ import {
     ProveedorError, quitarDelCarrito,
     type CheckoutLeido, type ProveedorCfg, type Sesion,
 } from "@lib/bodega/proveedor"
-import { MAX_CANTIDAD, type AccessType, type EstadoCompra } from "@lib/bodega/tipos"
+import { MAX_CANTIDAD, type AccessType, type ConsultaEnVivo, type EstadoCompra } from "@lib/bodega/tipos"
 
 export type { EstadoCompra }
 
@@ -102,6 +102,37 @@ function mensajeDe(e: unknown, generico: string): string {
     if (e instanceof ProveedorError) return e.message
     console.error("bodega:", e)
     return generico
+}
+
+// ---- consulta en vivo (solo lectura) -------------------------------------------------------------------------------
+
+/**
+ * Lo que el modal de compra muestra como "verificado ahora": login en frío, saldo y ficha del producto, con los MISMOS pasos de
+ * lectura que el punto 1 de comprar(). SOLO LEE: no agrega al carrito, no abre el checkout ni paga. No reemplaza a comprar(),
+ * que vuelve a verificar todo en vivo antes de pagar.
+ */
+export async function consultarEnVivo(nombre: string, deps: Pick<CompraDeps, "cfg" | "avisar" | "ahora">): Promise<ConsultaEnVivo> {
+    const ahora = deps.ahora ?? Date.now
+    let s: Sesion
+    try {
+        s = await conectar(deps.cfg)
+    } catch (e) {
+        const mensaje = mensajeDe(e, "No pude conectar con el proveedor.")
+        await deps.avisar({ origen: "scraping", tipo: "error", titulo: "No se pudo iniciar sesión en el proveedor", mensaje })
+        return { ok: false, error: mensaje }
+    }
+    try {
+        const saldo = await leerSaldo(s)
+        const vivo = await buscarProducto(s, nombre)
+        if (vivo.enStock && !vivo.comprable)
+            return { ok: false, error: "Este producto pide elegir opciones o datos extra en el sitio del proveedor: no se puede comprar desde aquí." }
+        return { ok: true, precio: vivo.precio, stock: vivo.enStock ? vivo.stockMax : 0, saldo, leidoEn: new Date(ahora()).toISOString() }
+    } catch (e) {
+        const mensaje = mensajeDe(e, "No pude verificar el producto en el proveedor.")
+        if (e instanceof ProveedorError && (e.codigo === "saldo" || e.codigo === "sitio"))
+            await deps.avisar({ origen: "scraping", tipo: "error", titulo: "No se pudo leer el proveedor", mensaje })
+        return { ok: false, error: mensaje }
+    }
 }
 
 // ---- compra --------------------------------------------------------------------------------------------------------

@@ -20,9 +20,19 @@ export interface BodegaProducto {
 
 export interface BodegaCatalogo {
     productos: BodegaProducto[]
-    /** Fecha (YYYY-MM-DD) del escaneo del que salen los productos. El cron solo guarda la fecha, no la hora. */
+    /** Fecha (YYYY-MM-DD, día de Colombia) del escaneo del que salen los productos. */
     escaneo: string | null
+    /** Momento exacto (ISO) de ese escaneo; null en las corridas anteriores a la migración 20260927210001 (solo se sabe la fecha). */
+    escaneoEn: string | null
 }
+
+/**
+ * Lectura EN VIVO del proveedor al abrir el modal de compra (solo lectura: no toca el carrito). stock: 0 = agotado ahora;
+ * null = hay stock pero el sitio no informa cuántas unidades.
+ */
+export type ConsultaEnVivo =
+    | { ok: true; precio: number; stock: number | null; saldo: number; leidoEn: string }
+    | { ok: false; error: string }
 
 /** Un pedido de la cuenta del proveedor, se haya hecho desde Bodega o a mano en su sitio. */
 export interface PedidoProveedor {

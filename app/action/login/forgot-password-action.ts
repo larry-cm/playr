@@ -2,12 +2,15 @@
 
 import { z } from "zod"
 import { createSupabase } from "@lib/supabase/server"
-import { headers } from "next/headers"
 import { translateAuthError } from "@lib/supabase/auth-errors"
 
 const schema = z.object({
     email: z
         .string({
+            message: "Ingresa un correo electrónico.",
+        })
+        .trim()
+        .min(1, {
             message: "Ingresa un correo electrónico.",
         })
         .email({
@@ -19,6 +22,16 @@ export type ForgotPasswordState = {
     success: boolean
     errors?: Record<string, string[] | undefined>
     message?: string
+}
+
+// El enlace del correo apunta a una URL fija. Nunca se arma con el header
+// Origin: lo controla quien hace la petición y permitiría mandar el enlace
+// (con el código de recuperación) a un dominio ajeno.
+function getSiteUrl(): string | null {
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+    if (siteUrl) return siteUrl.replace(/\/+$/, "")
+    if (process.env.NODE_ENV !== "production") return "http://localhost:3000"
+    return null
 }
 
 export const forgotPasswordAction = async (initialState: ForgotPasswordState, formData: FormData) => {
@@ -33,12 +46,19 @@ export const forgotPasswordAction = async (initialState: ForgotPasswordState, fo
         } satisfies ForgotPasswordState
     }
 
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || (await headers()).get('origin') || 'http://localhost:3000'
-    const redirectTo = `${siteUrl}/reestablecer`
+    const siteUrl = getSiteUrl()
+    if (!siteUrl) {
+        console.error("forgotPasswordAction: falta NEXT_PUBLIC_SITE_URL en producción")
+        return {
+            success: false,
+            errors: {},
+            message: "No se pudo enviar el enlace. Intenta más tarde.",
+        } satisfies ForgotPasswordState
+    }
 
     const supabase = await createSupabase()
     const { error } = await supabase.auth.resetPasswordForEmail(data.data.email, {
-        redirectTo,
+        redirectTo: `${siteUrl}/reestablecer`,
     })
 
     if (error) {
@@ -47,7 +67,7 @@ export const forgotPasswordAction = async (initialState: ForgotPasswordState, fo
             success: false,
             errors: {},
             message: isRateLimited
-                ? "Has alcanzado el límite de solicitudes. El sistema permite hasta 2 correos por hora. Intenta de nuevo más tarde."
+                ? "Demasiados intentos. Intenta más tarde."
                 : translateAuthError(error.message),
         } satisfies ForgotPasswordState
     }

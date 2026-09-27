@@ -1,5 +1,6 @@
 "use server"
 
+import { esStaff, SIN_PERMISO } from "@lib/auth"
 import { revalidatePath } from "next/cache"
 import { createComboSchema, firstErrorOfProducto } from "@lib/producto-schema"
 import type { ProductoRow } from "@action/manager-and-admin/productos/get-all-productos-action"
@@ -27,6 +28,8 @@ export async function createComboAction(formData: {
     precio_venta: number | string
     items: ComboItemInput[]
 }): Promise<{ producto: ProductoRow } | string> {
+    if (!(await esStaff())) return SIN_PERMISO
+
     const data = createComboSchema.safeParse(formData)
     if (!data.success) return firstErrorOfProducto(data.error)
 
@@ -44,7 +47,7 @@ export async function createComboAction(formData: {
     let costo = 0
     for (const item of data.data.items) {
         const encontrada = ofertaByKey.get(ofertaKey(item))
-        if (!encontrada) return "Alguna de las opciones elegidas ya no la vende el proveedor. Volvé a armar el combo."
+        if (!encontrada) return "Alguna de las opciones elegidas ya no la vende el proveedor. Vuelve a armar el combo."
         // El costo de un ítem puede no conocerse todavía; el del combo queda incompleto, no en cero.
         if (encontrada.costo === null) {
             costo = Number.NaN

@@ -1,6 +1,10 @@
 "use server"
 
+import { esStaff, SIN_PERMISO } from "@lib/auth"
+
 export async function deleteCustomerAction(formData: { id: string }) {
+    if (!(await esStaff())) return SIN_PERMISO
+
     const { id } = formData
     if (!id) {
         return "Id no encontrado"
@@ -15,7 +19,7 @@ export async function deleteCustomerAction(formData: { id: string }) {
             .eq("id", id)
         if (!error) return null
         return "Error al eliminar el cliente"
-    } catch (error) {
+    } catch {
         return "Error al intentar eliminar el cliente"
     }
 }

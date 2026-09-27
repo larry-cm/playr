@@ -1,5 +1,6 @@
 "use server"
 
+import { esStaff } from "@lib/auth"
 import type { SimpleAccessType } from "@lib/access-type"
 
 export interface PerfilRow {
@@ -33,6 +34,8 @@ type AccountEmbed = {
  * password_enc de la cuenta nunca se selecciona: esta pantalla no descifra ni muestra contraseñas.
  */
 export async function getAllPerfilesAction(): Promise<PerfilRow[] | null> {
+    if (!(await esStaff())) return null
+
     const { createSupabase } = await import("@lib/supabase/server")
     const supabase = await createSupabase()
     try {

@@ -149,12 +149,12 @@ export function NotificacionesBell({ count, onClick }: { count: number; onClick:
         <button
             type="button"
             onClick={onClick}
-            className="relative p-2 rounded-xl hover:bg-white/5 transition-colors"
+            className="relative p-3 lg:p-2 rounded-xl hover:bg-white/5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             aria-label={count > 0 ? `Notificaciones (${count} sin ver)` : "Notificaciones"}
         >
             <Bell className="w-5 h-5 text-secondary" />
             {count > 0 && (
-                <span className="absolute top-0.5 right-0.5 min-w-4 h-4 px-1 rounded-full bg-accent text-[10px] leading-4 font-semibold text-white text-center">
+                <span className="absolute top-1.5 right-1.5 lg:top-0.5 lg:right-0.5 min-w-4 h-4 px-1 rounded-full bg-accent text-[10px] leading-4 font-semibold text-white text-center">
                     {count > 99 ? "99+" : count}
                 </span>
             )}

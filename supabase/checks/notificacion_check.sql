@@ -18,7 +18,9 @@ begin
   select ur.auth_user_id into v_cliente from security.user_role ur join security.role r on r.id = ur.role_id where r.nombre = 'user' limit 1;
   assert v_admin is not null and v_manager is not null and v_cliente is not null, 'faltan usuarios admin/manager/user para probar';
 
-  -- 1) notificar deduplica: mismos 4 campos = 1 fila; cambiar cualquiera de los 4 = fila nueva
+  -- 1) notificar deduplica (como la Edge Function: service_role; desde 20260927200001 solo staff o service_role crean avisos)
+  perform set_config('request.jwt.claim.role', 'service_role', true);
+  --   : mismos 4 campos = 1 fila; cambiar cualquiera de los 4 = fila nueva
   perform business.notificar('scraping', 'error', '__check__a', 'm1');
   perform business.notificar('scraping', 'error', '__check__a', 'm1');
   select count(*) into n from business.notificacion where titulo = '__check__a';
@@ -30,12 +32,14 @@ begin
   assert n = 4, format('dedupe: distinto mensaje/tipo/origen debe crear fila; esperaba 4 y hay %s', n);
 
   -- 2) un cliente (rol user) no ve nada
+  perform set_config('request.jwt.claim.role', 'authenticated', true);
   perform set_config('request.jwt.claim.sub', v_cliente::text, true);
   set local role authenticated;
   select count(*) into n from business.notificacion where titulo like '\_\_check\_\_%';
   assert n = 0, format('cliente no debe ver notificaciones y ve %s', n);
 
-  -- 3) ...pero puede reportar una falla de la plataforma (notificar es security definer)
+  -- 3) ...ni puede crear avisos: notificar no inserta nada para un cliente (evita avisos falsos en la campana;
+  --    las fallas de acciones de clientes las reporta el servidor con la clave secreta)
   perform business.notificar('plataforma', 'error', '__check__b', 'desde cliente');
 
   -- 4) ...y no puede insertar directo, ni borrar, ni descartar
@@ -53,18 +57,18 @@ begin
   end;
   reset role;
   select count(*) into n from business.notificacion where titulo like '\_\_check\_\_%' and exist;
-  assert n = 5, format('cliente no debe poder insertar/borrar/descartar: esperaba 5 visibles (4 + 1) y hay %s', n);
+  assert n = 4, format('cliente no debe poder crear/insertar/borrar/descartar: esperaba 4 visibles y hay %s', n);
 
   -- 5) admin y manager ven todo
   perform set_config('request.jwt.claim.sub', v_admin::text, true);
   set local role authenticated;
   select count(*) into n from business.notificacion where titulo like '\_\_check\_\_%';
-  assert n = 5, format('admin debe ver 5 y ve %s', n);
+  assert n = 4, format('admin debe ver 4 y ve %s', n);
   reset role;
   perform set_config('request.jwt.claim.sub', v_manager::text, true);
   set local role authenticated;
   select count(*) into n from business.notificacion where titulo like '\_\_check\_\_%';
-  assert n = 5, format('manager debe ver 5 y ve %s', n);
+  assert n = 4, format('manager debe ver 4 y ve %s', n);
   reset role;
 
   -- 6) admin: puede descartar (exist=false), pero no borrar de verdad, ni editar, ni reactivar una descartada

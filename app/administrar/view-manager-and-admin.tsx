@@ -22,7 +22,7 @@ export default function ViewServer({
 
             <div className="mt-6 flex-1 grid grid-cols-2 divide-x divide-white/6">
                 <div className="flex flex-col items-center justify-center gap-3 px-2">
-                    <Link href="/administrar/perfiles" className="p-3 rounded-xl bg-accent/10">
+                    <Link href="/administrar/perfiles" className="p-3 rounded-xl bg-accent/10" aria-label="Ir a Perfiles">
                         <Monitor className="w-6 h-6 text-accent" />
                     </Link>
                     <div className="text-center">
@@ -32,7 +32,7 @@ export default function ViewServer({
                         <Link
                             href="/administrar/perfiles"
                             className="flex items-center justify-center gap-1 mt-2 group"
-                            title="Ir a la pagina para manejar perfiles"
+                            title="Ir a la página de perfiles"
                         >
                             <p className="text-xs text-secondary tracking-wide uppercase">
                                 Perfiles
@@ -44,7 +44,7 @@ export default function ViewServer({
 
                 </div>
                 <div className="flex flex-col items-center justify-center gap-3 px-2">
-                    <Link href="/administrar/cuentas" className="p-3 rounded-xl bg-accent/10">
+                    <Link href="/administrar/cuentas" className="p-3 rounded-xl bg-accent/10" aria-label="Ir a Cuentas">
                         <Network className="w-6 h-6 text-accent" />
                     </Link>
                     <div className="text-center">
@@ -54,7 +54,7 @@ export default function ViewServer({
                         <Link
                             href="/administrar/cuentas"
                             className="flex items-center justify-center gap-1 mt-2 group"
-                            title="Ir a la pagina para administrar cuentas"
+                            title="Ir a la página de cuentas"
                         >
                             <p className="text-xs text-secondary tracking-wide uppercase">
                                 Cuentas

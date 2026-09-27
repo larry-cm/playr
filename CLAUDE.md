@@ -34,7 +34,7 @@ pnpm lint
 Notas:
 - El proyecto usa pnpm, no npm/yarn.
 - El comando de desarrollo es `pnpm dev` y corre un servidor Next.js local.
-- `pnpm lint` ya se ejecutó y actualmente falla; ver sección de estado real al final.
+- `pnpm lint` y `pnpm build` pasan (ver sección 12).
 
 ## 3) Variables de entorno requeridas
 
@@ -43,6 +43,9 @@ El proyecto lee estas variables de entorno en `app/lib/const.ts`:
 ```bash
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+SUPABASE_SECRET_KEY            # solo servidor: crear usuarios, asignar roles, avisos (app/lib/supabase/admin.ts)
+NEXT_PUBLIC_SITE_URL           # URL pública; la usa el enlace de recuperar contraseña
+NEXT_PUBLIC_WHATSAPP_ADVISOR_NUMBER  # solo respaldo: el número del asesor lo edita el admin en /administrar/ajustes (business.ajuste, clave whatsapp_asesor; getWhatsappAsesor() en app/lib/ajustes.ts)
 ```
 
 Si faltan, la app no podrá conectarse a Supabase.
@@ -130,22 +133,15 @@ Usar estos aliases en lugar de rutas relativas largas. Es el patrón esperado po
 - Si el login es correcto, redirige a `/administrar`.
 
 ### Roles
-- `getRoleUser()` en `app/action/get-role-action.ts` consultá `supabase.auth.getUser()` y devuelve:
-  - `user`
-  - `admin`
-  - `manager`
-  - `error`
-- El rol real se toma principalmente desde `user.user_metadata.role`.
+- `getRoleUser()` (`app/action/get-role-action.ts`, envuelto en React `cache()`) devuelve `user | admin | manager | error`. El rol vive en **`security.user_role`** (no en `user_metadata`, que el usuario puede editar); si falta, "user".
+- `business.es_staff()` (security definer) lee la misma tabla y es la base de toda la RLS.
+- **Nadie asigna roles desde el cliente**: `security.user_role`/`role` no tienen INSERT/UPDATE/DELETE para `authenticated`. Los asigna el servidor con `createSupabaseAdmin()` (clave secreta) después de verificar que quien llama es admin.
+- **Registro público cerrado** en Supabase Auth (`disable_signup`). Los usuarios los crea el staff en Clientes (`createCustomerAction` → `auth.admin.createUser`; contraseña escrita por el staff con las reglas de `validatePassword`; solo un admin puede crear admin/manager).
 
 ### Rutas protegidas
-- El layout de dashboard en `app/administrar/layout.tsx` llama `getRoleUser()`.
-- El `Aside` filtra items de navegación por rol en `app/administrar/aside.tsx`.
-- El archivo `proxy.ts` también intenta proteger `/administrar` con un redirect si no hay usuario autenticado.
-
-Importante: hay una diferencia de modelo aquí:
-- `getRoleUser()` usa `user.user_metadata.role`
-- `proxy.ts` valida `data.user?.role === "authenticated"`
-Esto probablemente no está alineado y es una zona a revisar si aparece bug de permisos.
+- `proxy.ts` solo exige sesión en `/administrar` (`data.user.role === "authenticated"` es el rol JWT, no el de la app).
+- **Toda server action de `manager-and-admin` empieza con `if (!(await esStaff())) return …`** (`app/lib/auth.ts`) y toda página de staff redirige si el rol no es admin/manager. Las actions son endpoints POST públicos: ocultar el botón no protege nada.
+- RLS (migración `20260927200001_seguridad_rls_por_rol.sql`): `business.*` y `security.*` solo staff; datos del proveedor/mercado solo lectura (los escribe la Edge Function con service_role); el cliente solo ve su fila de rol/cliente y `business.catalogo_disponible` (vista con permisos del dueño, sin costos). El esquema viejo `main` quedó cerrado y fuera de la API (respaldo en `../playr-backups/main-2026-09-27/`).
 
 ## 7) Patrones de validación y server actions
 
@@ -183,6 +179,11 @@ El patrón esperado es recibir `FormData` o un objeto plano y devolver:
 - `app/administrar/page.tsx` decide si mostrar `ViewUser` o `ViewManagerAndAdmin` según el rol.
 - `app/administrar/view-manager-and-admin.tsx` representa el dashboard de administración con resumen de servicios.
 - `app/administrar/view-user.tsx` representa la vista del usuario final.
+
+### Carga sin saltos (skeletons)
+- Cada ruta de `/administrar/*` tiene su `loading.tsx`, que renderiza **el mismo componente cliente** con los datos en `undefined` (= cargando): mismo marco, barra, filtros y filas (`SkeletonRows`/`SkeletonCards`/`SkeletonBar` de `app/ui/data-frame.tsx`, h-5 = una línea de text-sm). Nunca un esqueleto genérico.
+- El `PageHeader` de cada ruta vive en su `layout.tsx` (no en `page.tsx`), así no se repinta al llegar los datos.
+- El inicio está en el grupo `app/administrar/(inicio)/` para que su `loading.tsx` (que elige la vista por rol con `useRol()` de `dashboard-client.tsx`) no sea el fallback de las demás rutas.
 
 ### Tabla genérica
 El componente `app/ui/table.tsx` es central para CRUD en varias pantallas.
@@ -237,24 +238,12 @@ La normalización del teléfono se hace así:
 - Los nombres de archivos y componentes suelen estar en camelCase/pascalCase según el caso.
 - Las acciones del lado servidor llevan `"use server"` explícito.
 
-## 12) Estado real del proyecto (verificado)
+## 12) Estado real del proyecto (verificado 2026-09-27)
 
-Verifiqué esto con `pnpm lint`:
-
-- Resultado: falla con errores reales.
-- Conteo verificado: 11 errores y 4 warnings.
-
-Errores principales:
-- `app/ui/table.tsx`: uso de `any` en varios puntos y un problema de React hooks (`setState` directo en `useEffect`)
-- `app/action/manager-and-admin/customers/create-customer-action.ts`: `any`
-- `app/action/manager-and-admin/customers/edit-customer-action.ts`: `any`
-
-Warnings relevantes:
-- `delete-customer-action.ts` y `get-all-customers-action.ts`: variables `error` sin usar
-- `app/lib/supabase/middleware.ts`: `options` sin usar
-- `proxy.ts`: `error` asignado sin uso
-
-En resumen, el proyecto está funcionalmente en desarrollo y no está limpio de lint, así que cualquier cambio que se haga debería considerar este estado antes de cerrar tareas.
+- `pnpm lint`, `pnpm exec tsc --noEmit` y `pnpm build` pasan limpios. `supabase/functions/**` (Deno) está excluido de lint y de tsconfig; se prueba con `node supabase/functions/stock-price-watch/lib_test.ts`.
+- Auditoría de seguridad + UX aplicada (rama `fix/auditoria-seguridad-ux`): roles/RLS por rol (sección 6), headers de seguridad en `next.config.ts`, `error.tsx`/`loading.tsx`/`not-found.tsx`, títulos por ruta, accesibilidad de `Modal`/`SelectDropdown`/inputs.
+- Checks de `supabase/checks/` pasan (bodega_check ajustado a cuentas agrupadas por plataforma+correo). Si `db query --linked` da 401 (token vencido), correrlos con `psql` contra el pooler (puerto 5432) y la contraseña de la DB.
+- Pendiente de decidir: `registrar_licencias` no es idempotente en renovaciones (mismo correo+perfil, otro vencimiento: agrega el perfil otra vez sin guardar el vencimiento/clave nuevos) y agrupa Completa con Pantalla si comparten correo.
 
 ## 13) Sugerencias para trabajar sin perder contexto
 
@@ -292,7 +281,7 @@ Si se trabaja con este repo, conviene asumir que:
 - Desplegar siempre con `supabase functions deploy stock-price-watch --no-verify-jwt --project-ref tnwcnpzjlpophcqnqrxb`; sin `--no-verify-jwt` el cron recibe 401.
 - Identidad de producto = `clave()` en `lib.ts` (ignora mayúsculas, prefijo `z ` de combos, espacios y signos): el sitio y el seed difieren en eso. `lib.ts` es solo `fetch` + regex para poder probarlo fuera de Deno: `node supabase/functions/stock-price-watch/lib_test.ts`.
 - La función aborta sin escribir si el login falla, si los productos parseados no igualan el total publicado, o si el catálogo cae a menos de la mitad de la corrida anterior.
-- `market_alert.enviado_at` significa "momento de detección" (no hay envío). `extraction_run` solo guarda la fecha, no la hora.
+- `market_alert.enviado_at` significa "momento de detección" (no hay envío). `extraction_run.created_at` guarda la hora del escaneo desde la migración `20260927210001` (las corridas anteriores quedan en NULL, solo con `fecha_extraccion`).
 - Operación (ver estado, correr ya, pausar, cambiar horario): `Bobeda de Larry/Informe de productos/manual-tarea-diaria.md`.
 - Si una corrida falla (login, parseo, guardas, DB) deja un aviso `error` en la bandeja de notificaciones (sección 18). `?dry=1` nunca avisa.
 
@@ -302,7 +291,7 @@ Bandeja de avisos **importantes** para admin/manager: fallas y advertencias del 
 
 - Tabla `business.notificacion`: `origen` (`scraping` | `plataforma`), `tipo` (`error` rojo | `advertencia` ámbar | `info` azul "Novedad" | `exito` verde "Disponible"; define color e icono), `titulo`, `mensaje`, `exist`, `created_at`. "Eliminar" = `exist=false` (soft-delete global, no por usuario): la fila queda en la DB y la UI no la muestra. Nadie hace DELETE ni INSERT directo (sin privilegio).
 - RLS: solo admin/manager leen y descartan (el rol `user` no ve nada). Único UPDATE permitido: `exist=false`.
-- Crear avisos siempre con `business.notificar(p_origen, p_tipo, p_titulo, p_mensaje)` (security definer): desde Next con `notificar()` de `app/lib/notify.ts` (nunca lanza), desde la Edge Function con `db.rpc("notificar", …)`. Descarta el aviso si ya hay uno idéntico (mismos 4 campos) sin eliminar, así una falla persistente no se acumula; si se elimina y la falla sigue, vuelve a avisar.
+- Crear avisos siempre con `business.notificar(p_origen, p_tipo, p_titulo, p_mensaje)` (security definer; solo inserta si llama staff o service_role, para un cliente no hace nada): desde Next con `notificar()` de `app/lib/notify.ts` (nunca lanza; usa la clave secreta si está, así avisa aunque la falla ocurra en una acción de cliente), desde la Edge Function con `db.rpc("notificar", …)`. Descarta el aviso si ya hay uno idéntico (mismos 4 campos) sin eliminar, así una falla persistente no se acumula; si se elimina y la falla sigue, vuelve a avisar.
 - Hoy emiten: `stock-price-watch` (corrida fallida, y los cambios del catálogo del proveedor en cada corrida: `advertencia` se agotó / `exito` volvió el stock (por producto = plataforma + Completa/Pantalla, hay stock si algún listing está disponible; los combos y no reconocidos cuentan cada uno por separado) y `info` productos nuevos; un aviso por tipo y corrida, nunca en la primera corrida; el detalle de todo cambio sigue en `market_alert`), el scraper de licencias de la app (`getLicenciasDisponiblesAction`, `createProductoAction`) y la Tienda (`getCatalogoDisponibleAction`).
 - UI: campana en `aside.tsx` (escritorio) y en el header móvil de `dashboard-client.tsx`; drawer lateral en `app/administrar/notificaciones.tsx` con buscador (sin tildes), filtros por tipo y origen, color por tipo y eliminar. Lee las 100 más recientes al cargar y al abrir (sin realtime).
 - Check ejecutable (RLS + dedupe; corre en una transacción con ROLLBACK y no deja filas): `supabase db query --linked -f supabase/checks/notificacion_check.sql`.
@@ -323,5 +312,4 @@ Bandeja de avisos **importantes** para admin/manager: fallas y advertencias del 
 - Catálogo disponible: columna **Duración** leída del nombre del producto (`duracionDe()` en `app/lib/bodega/duracion.ts`: "3 MESES", "X2 MESES", "1 AÑO", "33 DIAS", "30 CREDITOS"; sin duración en el nombre = "1 mes", lo que duraron las cuentas ya entregadas) y filtros por plataforma y rango de precio fijo (`filtros-catalogo.tsx`, prop `filters` de la tabla genérica; cada opción lleva su conteo en una pastilla, `count` de `SelectDropdown`).
 - `BODEGA_SIMULAR=1` en el servidor (no lo controla el cliente): ejecuta todo el flujo contra el sitio real y **se detiene justo antes de pagar** (quita lo agregado; la compra queda `fallida` "Simulación"). Sirve para ensayar sin gastar.
 - Verificación sin gastar: `supabase db query --linked -f supabase/checks/bodega_check.sql` (permisos, idempotencia, candado, estados, registro; ROLLBACK, no deja filas; correrlo tras aplicar la migración). El flujo se probó contra un proveedor simulado con el marcado real (pago, rechazo, respuesta rota, doble envío, carrito ajeno, entrega tardía/irreconocible…) y las guardas de `comprar()` con mutation testing. **El POST de pago con dinero real nunca se ejecutó desde código**: la primera compra real la hace el manager desde el módulo.
-- Ojo: el rol `user` puede leer `market_listing*` directo por PostgREST (baseline "authenticated only" del proyecto; el costo del proveedor no es secreto para RLS) y varias actions viejas de `manager-and-admin` no verifican rol; las de Bodega sí. `pnpm build` falla por el tsconfig que incluye `supabase/functions/**` (Deno), preexistente.
 

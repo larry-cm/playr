@@ -15,10 +15,13 @@ interface PasswordInputProps {
   onBlur?: React.FocusEventHandler<HTMLInputElement>;
   required?: boolean;
   validation?: ValidationState;
+  /** "current-password" (login) o "new-password" (alta, cambio de contraseña). */
+  autoComplete?: string;
+  disabled?: boolean;
 }
 
 export default function PasswordInput({
-  id = "password",
+  id,
   name = "password",
   label = "Contraseña",
   error,
@@ -29,6 +32,8 @@ export default function PasswordInput({
   onBlur,
   required,
   validation,
+  autoComplete = "current-password",
+  disabled,
 }: PasswordInputProps) {
   const [showPassword, setShowPassword] = useState(false)
 
@@ -46,14 +51,16 @@ export default function PasswordInput({
       required={required}
       validation={validation}
       message={message}
+      autoComplete={autoComplete}
+      disabled={disabled}
       leftIcon={<Lock className="w-4 h-4" />}
       rightIcon={
         <button
           type="button"
           onClick={() => setShowPassword(!showPassword)}
-          tabIndex={-1}
-          aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-          className="p-0.5 rounded-md transition-colors cursor-pointer hover:text-white"
+          aria-label="Mostrar contraseña"
+          aria-pressed={showPassword}
+          className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors cursor-pointer hover:text-white hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
         >
           {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
         </button>

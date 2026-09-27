@@ -1,4 +1,5 @@
 import { createSupabase } from "@lib/supabase/server"
+import { createSupabaseAdmin } from "@lib/supabase/admin"
 
 export interface Aviso {
     origen: "scraping" | "plataforma"
@@ -15,7 +16,9 @@ export interface Aviso {
  */
 export async function notificar({ origen, tipo, titulo, mensaje }: Aviso): Promise<void> {
     try {
-        const supabase = await createSupabase()
+        // business.notificar solo inserta para staff o service_role: con la clave secreta avisa aunque la
+        // falla ocurra en una acción de un cliente (p. ej. la Tienda). Sin ella, usa la sesión actual.
+        const supabase = createSupabaseAdmin() ?? (await createSupabase())
         const { error } = await supabase.schema("business").rpc("notificar", {
             p_origen: origen,
             p_tipo: tipo,

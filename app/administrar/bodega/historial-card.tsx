@@ -1,8 +1,9 @@
 "use client"
 
-import { History } from "lucide-react"
+import { History, RefreshCw } from "lucide-react"
+import Button from "@ui/button"
 import { SectionHeader } from "@ui/page-header"
-import { EmptyRow, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, TABLE_BODY_HEIGHT, TableFrame, Td, Th } from "@ui/data-frame"
+import { EmptyRow, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SkeletonCards, SkeletonRows, TABLE_BODY_HEIGHT, TableFrame, Td, Th } from "@ui/data-frame"
 import { formatCOP } from "@lib/currency"
 import { capitalizar } from "@lib/text"
 import type { PedidoProveedor } from "@lib/bodega/tipos"
@@ -40,28 +41,36 @@ function Productos({ p }: Readonly<{ p: PedidoProveedor }>) {
 interface HistorialCardProps {
     /** undefined = cargando · null = no se pudo leer */
     pedidos: PedidoProveedor[] | null | undefined
+    /** Vuelve a leer los pedidos (botón "Reintentar" del estado de error). */
+    onRetry: () => void
 }
+
+/** Ancla del registro: el aviso de compra dudosa lleva hasta aquí. */
+export const HISTORIAL_ID = "registro-de-compras"
 
 const heading = <SectionHeader icon={History} title="Registro de compras" description="Todos los pedidos de la cuenta del proveedor, leídos en vivo" />
 
-const SKELETON = [0, 1, 2, 3, 4, 5, 6]
-const Barra = ({ w }: { w: string }) => <div className={`h-4 ${w} animate-pulse rounded-md bg-white/5`} />
 
 /**
  * Registro global: todos los pedidos de la cuenta del proveedor, hechos desde Bodega o a mano en su sitio. Se vuelve a leer solo
- * al cargar la página y después de cada compra (sin botón). El alto no depende de los datos (cargando, vacía o llena mide
+ * al cargar la página y después de cada compra ("Reintentar" si falla). El alto no depende de los datos (cargando, vacía o llena mide
  * lo mismo, así la tarjeta no "crece" cuando llegan): desde lg iguala el de la columna de saldo y resumen, debajo es fijo.
  */
-export default function HistorialCard({ pedidos }: Readonly<HistorialCardProps>) {
+export default function HistorialCard({ pedidos, onRetry }: Readonly<HistorialCardProps>) {
     const vacio = pedidos === null ? (
-        "No pudimos leer los pedidos del proveedor. Recarga la página en un momento."
+        <span className="inline-flex flex-col items-center gap-3">
+            No pudimos leer los pedidos del proveedor.
+            <Button variant="secondary" size="sm" onClick={onRetry} leftIcon={<RefreshCw className="h-4 w-4" />}>
+                Reintentar
+            </Button>
+        </span>
     ) : pedidos?.length === 0 ? (
         "La cuenta del proveedor todavía no tiene pedidos."
     ) : null
     const vacioClass = pedidos === null ? "text-red-400" : undefined
 
     return (
-        <>
+        <div id={HISTORIAL_ID} className="scroll-mt-4 lg:h-full">
 
             <TableFrame bodyHeight={TABLE_BODY_HEIGHT} heading={heading} fill>
                 <thead>
@@ -71,13 +80,7 @@ export default function HistorialCard({ pedidos }: Readonly<HistorialCardProps>)
                 </thead>
                 <tbody>
                     {pedidos === undefined ? (
-                        SKELETON.map((i) => (
-                            <tr key={i}>
-                                <Td><Barra w="w-44" /></Td>
-                                <Td><Barra w="w-16" /></Td>
-                                <Td><Barra w="w-32" /></Td>
-                            </tr>
-                        ))
+                        <SkeletonRows columns={HEADER.length} rows={7} />
                     ) : vacio !== null || !pedidos ? (
                         <EmptyRow colSpan={HEADER.length} className={vacioClass}>{vacio}</EmptyRow>
                     ) : (
@@ -96,7 +99,7 @@ export default function HistorialCard({ pedidos }: Readonly<HistorialCardProps>)
 
             <MobileFrame bodyHeight={TABLE_BODY_HEIGHT} heading={heading}>
                 {pedidos === undefined ? (
-                    SKELETON.slice(0, 3).map((i) => <div key={i} className="h-44 shrink-0 animate-pulse rounded-2xl bg-white/3" />)
+                    <SkeletonCards labels={HEADER} />
                 ) : vacio !== null || !pedidos ? (
                     <MobileEmpty className={vacioClass}>{vacio}</MobileEmpty>
                 ) : (
@@ -112,6 +115,6 @@ export default function HistorialCard({ pedidos }: Readonly<HistorialCardProps>)
                     ))
                 )}
             </MobileFrame>
-        </>
+        </div>
     )
 }

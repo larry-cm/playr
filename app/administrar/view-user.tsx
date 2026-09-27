@@ -2,70 +2,48 @@
 
 import Card from "@ui/card"
 import { SectionHeader } from "@ui/page-header"
-import { AlertTriangle, RefreshCw, ChevronRight, Monitor, List } from "lucide-react"
+import { ShoppingBag, ChevronRight, MessageCircle } from "lucide-react"
 import Link from "next/link"
-import SoporteCard from "@/app/administrar/soporte-card"
+import SoporteCard, { SOPORTE_ID } from "@/app/administrar/soporte-card"
 
-export default function ViewClientPage() {
+const LINK_CLASS =
+    "group flex min-h-11 items-center gap-3 rounded-xl border border-white/10 bg-white/3 px-4 py-3 text-sm text-white transition-colors hover:border-accent/30 hover:bg-accent/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+
+/**
+ * Inicio del cliente. Aún no hay de dónde leer los perfiles que compró (ni sus problemas o cambios), así que en vez de
+ * contadores en cero se le muestra qué puede hacer: pedir en la Tienda o escribir a soporte.
+ */
+export default function ViewClientPage({ telefonoAsesor }: Readonly<{ /** Ver SoporteCard: "" = no configurado · undefined = aún carga. */ telefonoAsesor?: string }>) {
     return (
         <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="sm:col-span-2">
                 <Card className="h-full flex flex-col">
-                    <SectionHeader
-                        icon={List}
-                        title="Resumen de Perfiles"
-                        action={
-                        <Link
-                            href="/administrar/tienda"
-                            className="p-2 rounded-lg hover:bg-white/5 transition-colors"
-                            title="Ver más"
-                        >
-                            <ChevronRight className="w-5 h-5 text-secondary" />
-                        </Link>
-                        }
-                    />
+                    <SectionHeader icon={ShoppingBag} title="Tus perfiles" description="Elige lo que quieres ver y pídelo por WhatsApp." />
 
                     <div className="mt-6 border-t border-white/6" />
 
-                    <div className="mt-6 flex-1 grid grid-cols-3 divide-x divide-white/6">
-                        <div className="flex flex-col items-center justify-center gap-3 px-2">
-                            <div className="p-3 rounded-xl bg-accent/10">
-                                <Monitor className="w-6 h-6 text-accent" />
-                            </div>
-                            <div className="text-center">
-                                <p className="text-4xl font-bold leading-none">0</p>
-                                <p className="mt-2 text-xs text-secondary tracking-wide uppercase">
-                                    Perfiles
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex flex-col items-center justify-center gap-3 px-2">
-                            <div className="p-3 rounded-xl bg-amber-400/10">
-                                <AlertTriangle className="w-6 h-6 text-amber-400" />
-                            </div>
-                            <div className="text-center">
-                                <p className="text-4xl font-bold leading-none">0</p>
-                                <p className="mt-2 text-xs text-secondary tracking-wide uppercase">
-                                    Problemas
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex flex-col items-center justify-center gap-3 px-2">
-                            <div className="p-3 rounded-xl bg-sky-400/10">
-                                <RefreshCw className="w-6 h-6 text-sky-400" />
-                            </div>
-                            <div className="text-center">
-                                <p className="text-4xl font-bold leading-none">0</p>
-                                <p className="mt-2 text-xs text-secondary tracking-wide uppercase">
-                                    Cambios
-                                </p>
-                            </div>
+                    <div className="mt-6 flex flex-1 flex-col gap-4">
+                        <p className="text-sm text-secondary">
+                            En la Tienda ves los perfiles disponibles con su precio. Elige uno o varios y envía el pedido: un asesor te
+                            responde por WhatsApp con los datos de acceso. Si un perfil deja de funcionar, escríbenos desde Soporte.
+                        </p>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            <Link href="/administrar/tienda" className={LINK_CLASS}>
+                                <ShoppingBag className="h-5 w-5 shrink-0 text-accent" aria-hidden="true" />
+                                <span className="flex-1 font-medium">Ir a la Tienda</span>
+                                <ChevronRight className="h-4 w-4 text-secondary transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                            </Link>
+                            <a href={`#${SOPORTE_ID}`} className={LINK_CLASS}>
+                                <MessageCircle className="h-5 w-5 shrink-0 text-accent" aria-hidden="true" />
+                                <span className="flex-1 font-medium">Contactar a soporte</span>
+                                <ChevronRight className="h-4 w-4 text-secondary transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                            </a>
                         </div>
                     </div>
                 </Card>
             </div>
 
-            <SoporteCard />
+            <SoporteCard telefonoAsesor={telefonoAsesor} />
         </section>
     )
 }

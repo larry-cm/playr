@@ -2,7 +2,6 @@ import { redirect } from "next/navigation"
 import { getRoleUser } from "@action/get-role-action"
 import { getBodegaCatalogoAction } from "@action/manager-and-admin/bodega/get-bodega-action"
 import BodegaClient from "@/app/administrar/bodega/bodega-client"
-import PageHeader from "@ui/page-header"
 
 // Una compra abre sesión, verifica y paga en el proveedor (varias peticiones HTTP encadenadas): puede pasar del límite por
 // defecto de algunos hosts serverless. También cubre las server actions que se invocan desde esta página.
@@ -16,10 +15,5 @@ export default async function PageAdministrarBodega() {
     // sitio del proveedor (más lento) y los pide el cliente, así la página no espera por ellos.
     const catalogo = await getBodegaCatalogoAction()
 
-    return (
-        <section className="flex flex-col gap-4">
-            <PageHeader title="Bodega" description="Compra stock al proveedor con el saldo de su monedero." />
-            <BodegaClient initialCatalogo={catalogo} simulacion={process.env.BODEGA_SIMULAR === "1"} />
-        </section>
-    )
+    return <BodegaClient initialCatalogo={catalogo} simulacion={process.env.BODEGA_SIMULAR === "1"} />
 }

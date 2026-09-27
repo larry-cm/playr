@@ -1,21 +1,24 @@
 "use client"
 
 import Card from "@ui/card"
+import Button from "@ui/button"
 import { SectionHeader } from "@ui/page-header"
-import { AlertCircle, Wallet } from "lucide-react"
+import { AlertCircle, RefreshCw, Wallet } from "lucide-react"
 import { formatCOP } from "@lib/currency"
 import type { SaldoProveedor } from "@lib/bodega/tipos"
 
 interface SaldoCardProps {
     /** undefined = cargando · null = error · objeto = leído del proveedor */
     saldo: SaldoProveedor | null | undefined
+    /** Vuelve a leer el saldo (botón "Reintentar" del estado de error). */
+    onRetry: () => void
 }
 
 /**
- * Como todas las secciones de Bodega: encabezado dentro de la tarjeta, línea y contenido. Sin botón: el saldo se vuelve a leer solo al
- * cargar la página y después de cada compra.
+ * Como todas las secciones de Bodega: encabezado dentro de la tarjeta, línea y contenido. El saldo se vuelve a leer solo al
+ * cargar la página y después de cada compra; si la lectura falla, "Reintentar".
  */
-export default function SaldoCard({ saldo }: Readonly<SaldoCardProps>) {
+export default function SaldoCard({ saldo, onRetry }: Readonly<SaldoCardProps>) {
     const cargando = saldo === undefined
 
     return (
@@ -27,11 +30,17 @@ export default function SaldoCard({ saldo }: Readonly<SaldoCardProps>) {
             {/* Alto mínimo fijo: mide lo mismo cargando, con saldo o con error. */}
             <div className="mt-6 flex min-h-10 flex-1 items-center">
                 {cargando ? (
-                    <div className="h-10 w-40 animate-pulse rounded-md bg-white/5" />
+                    // h-9 = una línea de text-4xl leading-none, el alto del saldo real
+                    <div className="h-9 w-40 animate-pulse rounded-md bg-white/5" />
                 ) : saldo === null ? (
-                    <div className="flex items-center gap-2 text-sm text-red-400">
-                        <AlertCircle className="h-4 w-4 shrink-0" />
-                        No pudimos leer el saldo del proveedor. Recarga la página en un momento.
+                    <div className="flex w-full flex-wrap items-center justify-between gap-3">
+                        <p className="flex items-center gap-2 text-sm text-red-400">
+                            <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
+                            No pudimos leer el saldo del proveedor.
+                        </p>
+                        <Button variant="secondary" size="sm" onClick={onRetry} leftIcon={<RefreshCw className="h-4 w-4" />}>
+                            Reintentar
+                        </Button>
                     </div>
                 ) : (
                     <div className="flex w-full flex-wrap items-end justify-between gap-2">

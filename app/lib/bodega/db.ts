@@ -62,11 +62,17 @@ export async function leerCatalogoBodega(supabase: SupabaseClient, host: string)
     const biz = supabase.schema("business")
     const { data: prov, error: e1 } = await biz.from("provider").select("id").eq("nombre", host).maybeSingle()
     if (e1) return null
-    if (!prov) return { productos: [], escaneo: null }
+    if (!prov) return { productos: [], escaneo: null, escaneoEn: null }
 
-    const { data: run, error: e2 } = await biz.from("extraction_run").select("id,fecha_extraccion").eq("provider_id", prov.id).order("id", { ascending: false }).limit(1).maybeSingle()
+    const { data: run, error: e2 } = await biz
+        .from("extraction_run")
+        .select("id,fecha_extraccion,created_at")
+        .eq("provider_id", prov.id)
+        .order("id", { ascending: false })
+        .limit(1)
+        .maybeSingle()
     if (e2) return null
-    if (!run) return { productos: [], escaneo: null }
+    if (!run) return { productos: [], escaneo: null, escaneoEn: null }
 
     const { data, error } = await biz
         .from("market_listing_snapshot")
@@ -96,5 +102,6 @@ export async function leerCatalogoBodega(supabase: SupabaseClient, host: string)
         (a.platform_nombre ?? "").localeCompare(b.platform_nombre ?? "") ||
         orden[a.access_type] - orden[b.access_type] || a.precio - b.precio || a.nombre.localeCompare(b.nombre),
     )
-    return { productos, escaneo: run.fecha_extraccion }
+    // created_at es NULL en las corridas anteriores a la migración 20260927210001: de esas solo se conoce la fecha
+    return { productos, escaneo: run.fecha_extraccion, escaneoEn: run.created_at ?? null }
 }

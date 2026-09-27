@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { validateEmail, validateUsername, validatePhoneValue } from "@lib/validation"
+import { validateEmail, validatePassword, validateUsername, validatePhoneValue } from "@lib/validation"
 import { splitPhoneNumber } from "@lib/phone"
 
 /**
@@ -23,16 +23,14 @@ export const customerBaseSchema = z.object({
     phone: fromValidator(validatePhoneValue),
 })
 
-/** Al crear se suman las credenciales y el rol, que la tabla no pide al usuario. */
+/** Al crear se suman la contraseña (la escribe el staff, con las mismas reglas que el registro) y el rol. */
 export const createCustomerSchema = customerBaseSchema.extend({
-    password: z
-        .string({ message: "Ingresa una contraseña." })
-        .min(6, { message: "La contraseña debe tener al menos 6 caracteres." }),
+    password: z.string().superRefine((value, ctx) => {
+        const error = validatePassword(value)
+        if (error) ctx.addIssue({ code: "custom", message: error })
+    }),
 
-    rol: z
-        .enum(["user", "admin", "manager"], { message: "Selecciona un rol válido." })
-        .optional()
-        .default("user"),
+    rol: z.enum(["user", "admin", "manager"], { message: "Selecciona un rol válido." }),
 })
 
 /** La tabla muestra un único mensaje por intento, así que colapsamos el error. */

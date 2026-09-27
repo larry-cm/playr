@@ -1,8 +1,11 @@
 "use server"
 
+import { esStaff, SIN_PERMISO } from "@lib/auth"
 import { revalidatePath } from "next/cache"
 
 export async function deleteProductoAction(formData: { id: number }): Promise<string | null> {
+    if (!(await esStaff())) return SIN_PERMISO
+
     if (!formData.id) return "Id no encontrado"
 
     const { createSupabase } = await import("@lib/supabase/server")
@@ -16,7 +19,6 @@ export async function deleteProductoAction(formData: { id: number }): Promise<st
 
     if (error) return "Error al eliminar el producto."
 
-    revalidatePath("/administrar/productos")
     revalidatePath("/administrar/tienda")
     return null
 }

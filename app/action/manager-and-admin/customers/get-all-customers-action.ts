@@ -1,6 +1,10 @@
 "use server"
 
+import { esStaff } from "@lib/auth"
+
 export async function getAllCustomersAction() {
+    if (!(await esStaff())) return null
+
     const { createSupabase } = await import("@lib/supabase/server")
     const { formatColombianDate } = await import("@lib/date")
     const { formatPhoneNumber } = await import("@lib/phone")
@@ -29,7 +33,7 @@ export async function getAllCustomersAction() {
             Teléfono: formatPhoneNumber(customer.phone),
             "Fecha de Creación": safeDate(customer.created_at)
         }))
-    } catch (error) {
+    } catch {
         return []
     }
 

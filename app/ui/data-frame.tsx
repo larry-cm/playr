@@ -49,6 +49,7 @@ export function SearchInput({ value, onChange, placeholder = "Buscar", className
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 placeholder={placeholder}
+                aria-label={placeholder}
                 className="w-full rounded-xl border border-white/10 bg-white/3 py-2.5 pl-9 pr-3 text-sm text-white outline-none transition placeholder:text-muted focus:border-accent/40 focus:ring-1 focus:ring-accent/20"
             />
         </div>
@@ -179,9 +180,9 @@ interface ActionProps {
 }
 
 const ACTION_BASE =
-    "h-9 cursor-pointer items-center justify-center rounded-xl border transition-all duration-200 focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60"
+    "cursor-pointer items-center justify-center rounded-xl border transition-all duration-200 focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60"
 
-/** Botón de acción de fila en escritorio: solo ícono, 36×36. */
+/** Botón de acción de fila en escritorio: solo ícono, 36×36 a la vista; el ::after lo lleva a 44×44 de área táctil. */
 export function IconAction({ icon: Icon, label, onClick, tone = "default", title, disabled, spinning }: Readonly<ActionProps>) {
     return (
         <button
@@ -190,17 +191,17 @@ export function IconAction({ icon: Icon, label, onClick, tone = "default", title
             disabled={disabled}
             aria-label={label}
             title={title ?? label}
-            className={`flex w-9 shrink-0 ${ACTION_BASE} ${TONE[tone]}`}
+            className={`relative flex h-9 w-9 shrink-0 after:absolute after:-inset-1 after:content-[''] ${ACTION_BASE} ${TONE[tone]}`}
         >
             <Icon className={`h-4 w-4 ${spinning ? "animate-spin" : ""}`} />
         </button>
     )
 }
 
-/** Botón de acción de fila en móvil: ícono + texto, mismo alto que en escritorio. */
+/** Botón de acción de fila en móvil: ícono + texto, 44px de alto (área táctil). */
 export function MobileAction({ icon: Icon, label, onClick, tone = "default", title, disabled, spinning }: Readonly<ActionProps>) {
     return (
-        <button type="button" onClick={onClick} disabled={disabled} title={title} className={`inline-flex px-3 text-sm ${ACTION_BASE} ${TONE[tone]}`}>
+        <button type="button" onClick={onClick} disabled={disabled} title={title} className={`inline-flex h-11 px-3 text-sm ${ACTION_BASE} ${TONE[tone]}`}>
             <Icon className={`mr-2 h-4 w-4 ${spinning ? "animate-spin" : ""}`} />
             {label}
         </button>
@@ -231,6 +232,44 @@ export function MobileCard({ fields, actions }: Readonly<{ fields: MobileField[]
             </div>
         </div>
     )
+}
+
+/** Barra de carga del alto de una línea de texto (h-5 = línea de text-sm): la fila mide lo mismo cargando que con datos. */
+export function SkeletonBar({ className = "w-full" }: Readonly<{ className?: string }>) {
+    return <div className={`h-5 animate-pulse rounded-md bg-white/5 ${className}`} />
+}
+
+/** Filas de carga de escritorio: misma celda (Td) y mismos botones de 36px que las filas reales. */
+export function SkeletonRows({ columns, actions = 0, rows = 4 }: Readonly<{ columns: number; actions?: number; rows?: number }>) {
+    return Array.from({ length: rows }, (_, i) => (
+        <tr key={`skeleton-${i}`}>
+            {Array.from({ length: columns }, (_, c) => (
+                <Td key={c}>
+                    <SkeletonBar />
+                </Td>
+            ))}
+            {actions > 0 && (
+                <ActionsCell>
+                    {Array.from({ length: actions }, (_, b) => (
+                        <div key={b} className="h-9 w-9 animate-pulse rounded-xl bg-white/5" />
+                    ))}
+                </ActionsCell>
+            )}
+        </tr>
+    ))
+}
+
+/** Tarjetas de carga de móvil: las mismas MobileCard con sus etiquetas reales y botones de 44px. */
+export function SkeletonCards({ labels, actions = 0, count = 3 }: Readonly<{ labels: string[]; actions?: number; count?: number }>) {
+    return Array.from({ length: count }, (_, i) => (
+        <MobileCard
+            key={`skeleton-${i}`}
+            fields={labels.map((label) => ({ label, value: <SkeletonBar className="w-24" /> }))}
+            actions={actions > 0 ? Array.from({ length: actions }, (_, b) => (
+                <div key={b} className="h-11 w-24 animate-pulse rounded-xl bg-white/5" />
+            )) : undefined}
+        />
+    ))
 }
 
 /** Mensaje "sin datos" o "error" de la versión móvil. */

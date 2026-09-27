@@ -44,9 +44,20 @@ async function avisarCambios(db: Db, listings: Listing[], plats: { id: number; n
   }
 }
 
+// Compara en tiempo constante (hash de ambos lados: mismo largo siempre) para no filtrar el secret por tiempos.
+async function mismoSecret(recibido: string, esperado: string): Promise<boolean> {
+  const h = async (t: string) => new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)));
+  const [a, b] = await Promise.all([h(recibido), h(esperado)]);
+  let dif = 0;
+  for (let i = 0; i < a.length; i++) dif |= a[i] ^ b[i];
+  return dif === 0;
+}
+
 Deno.serve(async (req) => {
-  const secret = env("CRON_SECRET");
-  if (!secret || req.headers.get("x-cron-secret") !== secret) return json({ error: "unauthorized" }, 401);
+  const secret = Deno.env.get("CRON_SECRET");
+  if (!secret || !(await mismoSecret(req.headers.get("x-cron-secret") ?? "", secret))) {
+    return json({ error: "unauthorized" }, 401);
+  }
   const dry = new URL(req.url).searchParams.has("dry");
   let db: ReturnType<typeof mkDb> | undefined; // fuera del try: el catch lo necesita para avisar de la falla
   try {
@@ -126,6 +137,7 @@ Deno.serve(async (req) => {
     if (db && !dry) {
       await avisar(db, "error", "Falló el escaneo del proveedor", msg);
     }
-    return json({ error: msg }, 500);
+    // El detalle queda en los logs y en la campana; solo el ensayo (?dry=1) lo devuelve, para diagnosticar a mano.
+    return json({ error: dry ? msg : "la corrida falló (ver logs / notificaciones)" }, 500);
   }
 });

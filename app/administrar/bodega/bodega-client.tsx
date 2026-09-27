@@ -174,7 +174,7 @@ export default function BodegaClient({ initialCatalogo, initialCompras, simulaci
                     {initialCatalogo.escaneo && ` (${fechaCorta(initialCatalogo.escaneo)})`}. Al comprar se vuelve a verificar en vivo. Lo
                     comprado queda en el inventario; fija su precio de venta en <Link href="/administrar/productos" className="text-accent hover:underline">Productos</Link>.
                 </p>
-                {/* Mismo componente y marco que Clientes; aquí solo lectura, con "Comprar" como acción de la fila. */}
+                {/* Tabla genérica (app/ui/table.tsx) en solo lectura, con "Comprar" como acción de la fila. */}
                 <Table
                     header={["Producto", "Plataforma", "Acceso", "Precio"]}
                     data={filas}

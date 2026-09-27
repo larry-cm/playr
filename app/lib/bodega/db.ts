@@ -5,7 +5,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { esCombo, type GrupoRegistrable } from "@lib/bodega/entrega"
 import type { BodegaDb, CompraRow, ListingRow, ResultadoRegistro } from "@lib/bodega/compra"
-import type { AccessType, BodegaCatalogo, BodegaProducto, CompraHistorial, EstadoCompra } from "@lib/bodega/tipos"
+import type { AccessType, BodegaCatalogo, BodegaProducto, EstadoCompra } from "@lib/bodega/tipos"
 
 const num = (v: unknown) => (v === null || v === undefined ? null : Number(v))
 
@@ -116,23 +116,17 @@ export async function leerCatalogoBodega(supabase: SupabaseClient, host: string)
     return { productos, escaneo: run.fecha_extraccion }
 }
 
-export async function leerCompras(supabase: SupabaseClient, limite = 20): Promise<CompraHistorial[] | null> {
+/**
+ * Compras de Bodega ya pagadas cuya entrega no se pudo registrar en el inventario, por número de pedido del proveedor: el registro
+ * global de pedidos las marca y ofrece reintentar el registro.
+ */
+export async function leerPendientesRegistro(supabase: SupabaseClient): Promise<Map<number, { compraId: number; detalle: string | null }> | null> {
     const { data, error } = await supabase
         .schema("business")
         .from("compra_proveedor")
-        .select("id,cantidad,total,estado,pedido_proveedor,detalle,created_at,listing:listing_id(nombre_raw)")
-        .order("created_at", { ascending: false })
-        .limit(limite)
+        .select("id,pedido_proveedor,detalle")
+        .in("estado", ["pendiente_registro", "pagada"])
+        .not("pedido_proveedor", "is", null)
     if (error) return null
-    type Fila = { id: number; cantidad: number; total: number; estado: EstadoCompra; pedido_proveedor: number | null; detalle: string | null; created_at: string; listing: { nombre_raw: string } | null }
-    return (data as unknown as Fila[]).map((r) => ({
-        id: r.id,
-        producto: (r.listing?.nombre_raw ?? "--").replace(/^z\s+(?=COMBO\b)/i, ""),
-        cantidad: r.cantidad,
-        total: Number(r.total),
-        estado: r.estado,
-        pedido_proveedor: r.pedido_proveedor,
-        detalle: r.detalle,
-        created_at: r.created_at,
-    }))
+    return new Map((data as { id: number; pedido_proveedor: number; detalle: string | null }[]).map((r) => [Number(r.pedido_proveedor), { compraId: r.id, detalle: r.detalle }]))
 }

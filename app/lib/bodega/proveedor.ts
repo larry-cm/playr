@@ -6,6 +6,7 @@
 // (saldo, precio, carrito ajeno, un solo item, pago solo con monedero) viven en compra.ts.
 
 import { decode, limpiar, loginUltimateMember, parseFechaEs, UA } from "@lib/scrape-licencias"
+import type { PedidoProveedor } from "@lib/bodega/tipos"
 
 export type CodigoError =
     | "config" | "login" | "sitio" | "saldo" | "producto" | "agotado" | "precio" | "carrito" | "checkout"
@@ -450,10 +451,59 @@ export async function leerLicenciasDelPedido(s: Sesion, pedidoId: number): Promi
     return (await leerLicencias(s)).filter((l) => l.pedidoId === pedidoId)
 }
 
-/** Estado del pedido en el sitio ("Completado", "Procesando"...), o null si no se pudo leer. */
-export async function leerEstadoPedido(s: Sesion, pedidoId: number): Promise<string | null> {
-    const { status, html } = await pagina(s, `/mi-cuenta/view-order/${pedidoId}/`)
-    if (status !== 200) return null
-    const m = /<mark class="order-status[^>]*>([\s\S]*?)<\/mark>/.exec(html)
-    return m ? limpiar(m[1]) : null
+
+// ---- registro de pedidos -------------------------------------------------------------------------------------------
+
+/** Una página de "Mis pedidos" (WooCommerce) y la URL de la siguiente, si hay. */
+export function parsePedidos(html: string): { pedidos: Omit<PedidoProveedor, "productos">[]; siguiente: string | null } {
+    const pedidos: Omit<PedidoProveedor, "productos">[] = []
+    for (const row of html.split('class="woocommerce-orders-table__row ').slice(1)) {
+        const id = /view-order\/(\d+)\//.exec(row)?.[1]
+        const fecha = /<time datetime="([^"]+)"/.exec(row)?.[1]
+        const estado = /cell-order-status[^>]*>([\s\S]*?)<\/td>/.exec(row)?.[1]
+        const total = /cell-order-total[^>]*>([\s\S]*?)<\/td>/.exec(row)?.[1]
+        if (!id || !fecha || !estado || !total) continue
+        pedidos.push({
+            id: Number(id),
+            fecha,
+            estado: limpiar(estado),
+            // "$3.800 para 1 artículo"
+            total: parsePrecio(limpiar(total).split(" para ")[0]),
+            articulos: Number(/(\d+)\s+art[ií]culo/.exec(limpiar(total))?.[1] ?? 1),
+        })
+    }
+    const siguiente = /woocommerce-button--next[^>]*href="([^"]+)"/.exec(html)?.[1] ?? null
+    return { pedidos, siguiente: siguiente && decode(siguiente) }
+}
+
+/**
+ * TODOS los pedidos de la cuenta del proveedor (hechos desde Bodega o a mano en el sitio), del más nuevo al más viejo, con los
+ * productos de cada uno sacados de "Mis licencias" ("Mis pedidos" solo trae el total y la cantidad de artículos).
+ */
+export async function leerPedidos(s: Sesion, maxPaginas = 20): Promise<PedidoProveedor[]> {
+    const [licencias, pedidos] = await Promise.all([
+        leerLicencias(s),
+        (async () => {
+            const out: Omit<PedidoProveedor, "productos">[] = []
+            let url: string | null = "/mi-cuenta/orders/"
+            for (let i = 0; url && i < maxPaginas; i++) {
+                const { status, html } = await pagina(s, url)
+                if (status !== 200) throw new ProveedorError(`No pude leer "Mis pedidos" del proveedor (HTTP ${status}).`, "sitio")
+                const p = parsePedidos(html)
+                out.push(...p.pedidos)
+                url = p.siguiente
+            }
+            return out
+        })(),
+    ])
+
+    const porPedido = new Map<number, Map<string, number>>()
+    for (const l of licencias) {
+        if (l.pedidoId === null) continue
+        const nombre = l.producto.replace(/^z\s+(?=COMBO\b)/i, "")
+        const m = porPedido.get(l.pedidoId) ?? new Map<string, number>()
+        m.set(nombre, (m.get(nombre) ?? 0) + 1)
+        porPedido.set(l.pedidoId, m)
+    }
+    return pedidos.map((p) => ({ ...p, productos: [...(porPedido.get(p.id) ?? [])].map(([nombre, cantidad]) => ({ nombre, cantidad })) }))
 }

@@ -2,22 +2,31 @@
 
 import { revalidatePath } from "next/cache"
 import { getRoleUser } from "@action/get-role-action"
-import { bodegaDb, leerCompras } from "@lib/bodega/db"
+import { bodegaDb, leerPendientesRegistro } from "@lib/bodega/db"
 import { reintentarRegistro } from "@lib/bodega/compra"
-import { cfgProveedor } from "@lib/bodega/proveedor"
-import type { CompraHistorial, ResultadoCompraUI } from "@lib/bodega/tipos"
+import { cfgProveedor, conectar, leerPedidos } from "@lib/bodega/proveedor"
+import type { PedidoRegistro, ResultadoCompraUI } from "@lib/bodega/tipos"
 import { notificar } from "@lib/notify"
 
-/** Últimas compras hechas desde la bodega (quién compró, qué, cuánto y cómo terminó). Solo admin/manager (RLS también lo exige). */
-export async function getComprasBodegaAction(): Promise<CompraHistorial[] | null> {
+/**
+ * Registro GLOBAL de compras: todos los pedidos de la cuenta del proveedor (hechos desde Bodega o a mano en su sitio), leídos en
+ * vivo. Los que son compras de Bodega con la entrega sin registrar vienen marcados para poder reintentar el registro.
+ * Solo admin/manager. null = no se pudo leer.
+ */
+export async function getPedidosProveedorAction(): Promise<PedidoRegistro[] | null> {
     const role = await getRoleUser()
     if (role !== "admin" && role !== "manager") return null
+
+    const cfg = cfgProveedor()
+    if (!cfg) return null
 
     const { createSupabase } = await import("@lib/supabase/server")
     const supabase = await createSupabase()
     try {
-        return await leerCompras(supabase)
-    } catch {
+        const [pedidos, pendientes] = await Promise.all([conectar(cfg).then(leerPedidos), leerPendientesRegistro(supabase)])
+        return pedidos.map((p) => ({ ...p, pendiente: pendientes?.get(p.id) ?? null }))
+    } catch (e) {
+        await notificar({ origen: "scraping", tipo: "error", titulo: "No se pudieron leer los pedidos del proveedor", mensaje: e })
         return null
     }
 }

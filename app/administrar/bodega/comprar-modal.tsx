@@ -6,6 +6,7 @@ import Button from "@ui/button"
 import Input from "@ui/input"
 import Alert from "@ui/alert"
 import { formatCOP } from "@lib/currency"
+import { capitalizar } from "@lib/text"
 import { MAX_CANTIDAD, type BodegaProducto } from "@lib/bodega/tipos"
 
 interface ComprarModalProps {
@@ -36,9 +37,9 @@ export default function ComprarModal({ producto, accesoLabel, saldo, pending, er
                 {error && <Alert variant="error" message={error} />}
 
                 <div className="rounded-xl border border-white/10 bg-white/3 px-4 py-3">
-                    <p className="font-medium text-white">{producto.nombre}</p>
+                    <p className="font-medium text-white">{capitalizar(producto.nombre)}</p>
                     <p className="text-xs text-secondary mt-0.5">
-                        {producto.platform_nombre ?? "Combo"} · {accesoLabel}
+                        {producto.platform_nombre ? capitalizar(producto.platform_nombre) : "Combo"} · {accesoLabel}
                     </p>
                 </div>
 

@@ -24,15 +24,22 @@ export interface BodegaCatalogo {
     escaneo: string | null
 }
 
-export interface CompraHistorial {
+/** Un pedido de la cuenta del proveedor, se haya hecho desde Bodega o a mano en su sitio. */
+export interface PedidoProveedor {
     id: number
-    producto: string
-    cantidad: number
+    /** ISO con zona (atributo datetime del sitio). */
+    fecha: string
+    /** Etiqueta del sitio: "Completado", "Procesando"... */
+    estado: string
     total: number
-    estado: EstadoCompra
-    pedido_proveedor: number | null
-    detalle: string | null
-    created_at: string
+    articulos: number
+    /** Productos del pedido (de "Mis licencias"), sin repetir. Vacío si el pedido no tiene licencias. */
+    productos: { nombre: string; cantidad: number }[]
+}
+
+/** Pedido del registro global + la compra de Bodega cuya entrega quedó sin registrar en el inventario, si la hay. */
+export interface PedidoRegistro extends PedidoProveedor {
+    pendiente: { compraId: number; detalle: string | null } | null
 }
 
 export interface SaldoProveedor {

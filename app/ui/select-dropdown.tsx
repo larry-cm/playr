@@ -8,6 +8,8 @@ export interface DropdownOption {
   label: string;
   dropdownLabel?: string;
   icon?: ReactNode;
+  /** Cantidad de resultados de la opción: se muestra a la derecha en una pastilla; en 0 la opción se ve apagada. */
+  count?: number;
 }
 
 interface SelectDropdownProps {
@@ -146,7 +148,12 @@ export default function SelectDropdown({
                       }`}
                   >
                     {opt.icon && <span className="shrink-0">{opt.icon}</span>}
-                    <span className="truncate">{opt.dropdownLabel ?? opt.label}</span>
+                    <span className={`truncate ${opt.count === 0 && opt.value !== value ? "text-muted" : ""}`}>{opt.dropdownLabel ?? opt.label}</span>
+                    {opt.count !== undefined && (
+                      <span className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-xs tabular-nums ${opt.value === value ? "bg-accent/15 text-accent" : "bg-white/5 text-secondary"}`}>
+                        {opt.count}
+                      </span>
+                    )}
                   </button>
                 ))
               )}

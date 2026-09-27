@@ -14,23 +14,13 @@ import { ActionsCell, ActionsTh, EmptyRow, IconAction, MobileAction, MobileCard,
 import type { PerfilRow } from "@action/manager-and-admin/perfiles/get-all-perfiles-action"
 import { editPerfilAction } from "@action/manager-and-admin/perfiles/edit-perfil-action"
 import { deletePerfilAction } from "@action/manager-and-admin/perfiles/delete-perfil-action"
-import { getClavePerfilAction, type ClavePerfil } from "@action/manager-and-admin/perfiles/get-clave-perfil-action"
+import { getClavePerfilAction } from "@action/manager-and-admin/perfiles/get-clave-perfil-action"
+import type { ClavePerfil } from "@lib/claves"
 import { accessTypeLabel } from "@lib/access-type"
 import { formatDateOnly } from "@lib/date"
-
-const estadoLabel: Record<PerfilRow["estado"], string> = {
-    disponible: "Disponible",
-    vendido: "Vendido",
-    suspendido: "Suspendido",
-    en_soporte: "En soporte",
-}
-
-const estadoColor: Record<PerfilRow["estado"], string> = {
-    disponible: "#34d399",
-    vendido: "var(--color-accent)",
-    suspendido: "#f87171",
-    en_soporte: "#fbbf24",
-}
+import { capitalizar } from "@lib/text"
+import FiltrosSelect, { pasaFiltro, sinFiltro, type Filtro } from "@ui/filtros-select"
+import { CAMPOS_PERFILES, estadoColor, estadoLabel } from "@/app/administrar/perfiles/filtros-perfiles"
 
 const estadoOptions = (Object.keys(estadoLabel) as PerfilRow["estado"][]).map((value) => ({
     value,
@@ -39,9 +29,11 @@ const estadoOptions = (Object.keys(estadoLabel) as PerfilRow["estado"][]).map((v
 
 interface PerfilesClientProps {
     initialPerfiles: PerfilRow[] | null
+    /** Cuenta con la que abre el filtro de correo (viene de Cuentas → "Ver perfiles"); null = todas. */
+    initialCuentaId?: number | null
 }
 
-export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps) {
+export default function PerfilesClient({ initialPerfiles, initialCuentaId = null }: PerfilesClientProps) {
     const router = useRouter()
     const [perfiles, setPerfiles] = useState<PerfilRow[] | null>(initialPerfiles)
     const [alert, setAlert] = useState<{ variant: "success" | "error"; message: string } | null>(null)
@@ -49,37 +41,59 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
 
     const [editingId, setEditingId] = useState<number | null>(null)
     const [editEstado, setEditEstado] = useState<PerfilRow["estado"]>("disponible")
+    const [editNombre, setEditNombre] = useState("")
+    const [editPin, setEditPin] = useState("")
+    const [editEmail, setEditEmail] = useState("")
+    // null = sin tocar: el campo muestra la contraseña vigente (del proveedor) y no se envía.
+    const [editPassword, setEditPassword] = useState<string | null>(null)
 
     const [viewingId, setViewingId] = useState<number | null>(null)
     const [deletingId, setDeletingId] = useState<number | null>(null)
     const [search, setSearch] = useState("")
+    const [filtro, setFiltro] = useState<Filtro>({ ...sinFiltro(CAMPOS_PERFILES), cuenta: initialCuentaId === null ? "" : String(initialCuentaId) })
 
     const filteredPerfiles = useMemo(() => {
         const query = search.trim().toLowerCase()
-        if (!query) return perfiles ?? []
-        return (perfiles ?? []).filter((row) =>
+        const filtrados = (perfiles ?? []).filter((row) => pasaFiltro(row, CAMPOS_PERFILES, filtro))
+        if (!query) return filtrados
+        return filtrados.filter((row) =>
             [row.platform_nombre, row.cuenta_email, row.nombre_perfil, estadoLabel[row.estado]]
                 .some((value) => value.toLowerCase().includes(query))
         )
-    }, [perfiles, search])
+    }, [perfiles, search, filtro])
+
+    // La URL refleja la cuenta elegida: así el enlace de Cuentas y un recargo abren con el mismo filtro de correo.
+    const cambiarFiltro = (nuevo: Filtro) => {
+        if (nuevo.cuenta !== filtro.cuenta) {
+            router.replace(nuevo.cuenta ? `/administrar/perfiles?cuenta=${nuevo.cuenta}` : "/administrar/perfiles", { scroll: false })
+        }
+        setFiltro(nuevo)
+    }
+
+    const toolbar = (mobile: boolean) => (
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <SearchInput value={search} onChange={setSearch} className={mobile ? "w-full" : "w-full lg:w-72"} />
+            <FiltrosSelect campos={CAMPOS_PERFILES} items={perfiles ?? []} value={filtro} onChange={cambiarFiltro} mobile={mobile} />
+        </div>
+    )
 
     const editingRow = perfiles?.find((row) => row.id === editingId) ?? null
     const viewingRow = perfiles?.find((row) => row.id === viewingId) ?? null
 
-    // La contraseña se lee en vivo del proveedor (tarda unos segundos): se pide al abrir Ver/Editar y se guarda por
-    // cuenta, porque todos los perfiles de una cuenta comparten la clave. Un error no se guarda: al reabrir se reintenta.
+    // La contraseña de cada perfil es la editada (si la tiene) o la del proveedor en vivo (tarda unos segundos): se pide al
+    // abrir Ver/Editar y se guarda por perfil. Un error no se guarda: al reabrir se reintenta.
     const [claves, setClaves] = useState<Record<number, "cargando" | ClavePerfil>>({})
 
     const cargarClave = async (row: PerfilRow) => {
-        const actual = claves[row.account_id]
+        const actual = claves[row.id]
         if (actual === "cargando" || (actual && actual.ok)) return
-        setClaves((prev) => ({ ...prev, [row.account_id]: "cargando" }))
+        setClaves((prev) => ({ ...prev, [row.id]: "cargando" }))
         const res = await getClavePerfilAction(row.id)
-        setClaves((prev) => ({ ...prev, [row.account_id]: res }))
+        setClaves((prev) => ({ ...prev, [row.id]: res }))
     }
 
     const campoClave = (row: PerfilRow) => {
-        const clave = claves[row.account_id]
+        const clave = claves[row.id]
         if (!clave || clave === "cargando") return { value: "", placeholder: "Consultando al proveedor...", error: undefined }
         return clave.ok ? { value: clave.password, placeholder: "--", error: undefined } : { value: "", placeholder: "--", error: clave.error }
     }
@@ -92,6 +106,10 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
     const openEdit = (row: PerfilRow) => {
         setEditingId(row.id)
         setEditEstado(row.estado)
+        setEditNombre(row.nombre_perfil)
+        setEditPin(row.pin ?? "")
+        setEditEmail(row.cuenta_email)
+        setEditPassword(null)
         void cargarClave(row)
     }
 
@@ -100,10 +118,15 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
     const saveEdit = async () => {
         if (editingId === null || isPending) return
         const id = editingId
+        const row = perfiles?.find((r) => r.id === id)
+        if (!row) return
+        const vigente = campoClave(row).value
+        const password = editPassword !== null && editPassword.trim() !== vigente ? editPassword.trim() : undefined
+        const email = editEmail.trim().toLowerCase()
 
         setIsPending(true)
         setAlert(null)
-        const error = await editPerfilAction({ id, estado: editEstado })
+        const error = await editPerfilAction({ id, estado: editEstado, nombre_perfil: editNombre, pin: editPin, email, password })
         setIsPending(false)
 
         if (error) {
@@ -111,13 +134,15 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
             return
         }
 
+        // Solo cambia este perfil: los demás de la cuenta conservan sus datos.
         setPerfiles((prev) =>
-            (prev ?? []).map((row) =>
-                row.id === id
-                    ? { ...row, estado: editEstado }
-                    : row
+            (prev ?? []).map((r) =>
+                r.id === id
+                    ? { ...r, estado: editEstado, nombre_perfil: editNombre.trim(), pin: editPin.trim() || null, cuenta_email: email }
+                    : r
             )
         )
+        if (password !== undefined) setClaves((prev) => ({ ...prev, [row.id]: { ok: true, password } }))
         setAlert({ variant: "success", message: "Perfil actualizado correctamente." })
         setEditingId(null)
         // El estado decide si el perfil sigue en la Tienda: refrescar los server components.
@@ -163,10 +188,10 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
             )}
 
             {/* Marco, densidad y alto compartidos con el resto de tablas del panel (app/ui/data-frame.tsx). */}
-            <TableFrame toolbar={<SearchInput value={search} onChange={setSearch} />}>
+            <TableFrame toolbar={toolbar(false)}>
                 <thead>
                     <tr>
-                        {["Plataforma", "Perfil", "PIN", "Correo", "Estado", "Vencimiento"].map((column) => (
+                        {["Plataforma", "Correo", "Perfil", "Estado", "Vencimiento"].map((column) => (
                             <Th key={column}>{column}</Th>
                         ))}
                         <ActionsTh />
@@ -175,15 +200,14 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
 
                 <tbody>
                     {filteredPerfiles.length === 0 ? (
-                        <EmptyRow colSpan={7}>No hay perfiles comprados todavía.</EmptyRow>
+                        <EmptyRow colSpan={6}>{perfiles?.length ? "Ningún perfil coincide con la búsqueda o los filtros." : "No hay perfiles comprados todavía."}</EmptyRow>
                     ) : (
                         filteredPerfiles.map((row) => (
                             <tr key={row.id} className={ROW_CLASS}>
-                                <Td className="font-semibold whitespace-nowrap">{row.platform_nombre}</Td>
-                                <Td className="whitespace-nowrap">{row.nombre_perfil}</Td>
-                                <Td className="whitespace-nowrap">{row.pin ?? "--"}</Td>
+                                <Td className="font-semibold whitespace-nowrap">{capitalizar(row.platform_nombre)}</Td>
                                 {/* El correo es lo más largo: parte línea para que la tabla no scrollee en x. */}
                                 <Td className="break-all">{row.cuenta_email}</Td>
+                                <Td className="whitespace-nowrap">{capitalizar(row.nombre_perfil)}</Td>
                                 <Td className="font-medium whitespace-nowrap" style={{ color: estadoColor[row.estado] }}>
                                     {estadoLabel[row.estado]}
                                 </Td>
@@ -199,18 +223,17 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
                 </tbody>
             </TableFrame>
 
-            <MobileFrame toolbar={<SearchInput value={search} onChange={setSearch} className="w-full" />}>
+            <MobileFrame toolbar={toolbar(true)}>
                 {filteredPerfiles.length === 0 ? (
-                    <MobileEmpty>No hay perfiles comprados todavía.</MobileEmpty>
+                    <MobileEmpty>{perfiles?.length ? "Ningún perfil coincide con la búsqueda o los filtros." : "No hay perfiles comprados todavía."}</MobileEmpty>
                 ) : (
                     filteredPerfiles.map((row) => (
                         <MobileCard
                             key={row.id}
                             fields={[
-                                { label: "Plataforma", value: row.platform_nombre },
-                                { label: "Perfil", value: row.nombre_perfil },
-                                { label: "PIN", value: row.pin ?? "--" },
+                                { label: "Plataforma", value: capitalizar(row.platform_nombre) },
                                 { label: "Correo", value: row.cuenta_email, className: "break-all" },
+                                { label: "Perfil", value: capitalizar(row.nombre_perfil) },
                                 { label: "Estado", value: estadoLabel[row.estado], className: "font-medium", style: { color: estadoColor[row.estado] } },
                                 { label: "Vencimiento", value: formatDateOnly(row.fecha_vencimiento) },
                             ]}
@@ -230,8 +253,8 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
                 {viewingRow && (
                     <div className="flex flex-col gap-3">
                         {[
-                            ["Plataforma", `${viewingRow.platform_nombre} · ${accessTypeLabel[viewingRow.access_type]}`],
-                            ["Perfil", viewingRow.nombre_perfil],
+                            ["Plataforma", `${capitalizar(viewingRow.platform_nombre)} · ${accessTypeLabel[viewingRow.access_type]}`],
+                            ["Perfil", capitalizar(viewingRow.nombre_perfil)],
                             ["PIN", viewingRow.pin ?? ""],
                             ["Correo", viewingRow.cuenta_email],
                             ["Contraseña", campoClave(viewingRow).value, campoClave(viewingRow).placeholder, campoClave(viewingRow).error],
@@ -255,20 +278,34 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
             <Modal isOpen={editingId !== null} title="Editar perfil" onClose={cancelEdit}>
                 {editingRow && (
                     <div className="flex flex-col gap-3">
-                        {/* Solo el estado se edita: el resto viene del proveedor y se muestra deshabilitado. */}
-                        {[
-                            ["Plataforma", `${editingRow.platform_nombre} · ${accessTypeLabel[editingRow.access_type]}`],
-                            ["Correo", editingRow.cuenta_email],
-                            ["Contraseña", campoClave(editingRow).value, campoClave(editingRow).placeholder, campoClave(editingRow).error],
-                            ["Nombre del perfil", editingRow.nombre_perfil],
-                            ["PIN", editingRow.pin ?? ""],
-                        ].map(([label, value, placeholder = "--", error]) => (
-                            <div key={label} className="flex flex-col gap-1">
-                                <label className="text-xs text-secondary font-medium">{label}</label>
-                                <Input className="bg-white/3 cursor-not-allowed opacity-60" value={value ?? ""} placeholder={placeholder} disabled />
-                                {error && <p className="text-xs text-red-400">{error}</p>}
-                            </div>
-                        ))}
+                        <div className="flex flex-col gap-1">
+                            <label className="text-xs text-secondary font-medium">Plataforma</label>
+                            <Input className="bg-white/3 cursor-not-allowed opacity-60" value={`${capitalizar(editingRow.platform_nombre)} · ${accessTypeLabel[editingRow.access_type]}`} disabled />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-xs text-secondary font-medium">Correo</label>
+                            <Input className="bg-white/3" type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-xs text-secondary font-medium">Contraseña</label>
+                            <Input
+                                className="bg-white/3"
+                                value={editPassword ?? campoClave(editingRow).value}
+                                placeholder={campoClave(editingRow).placeholder}
+                                onChange={(e) => setEditPassword(e.target.value)}
+                            />
+                            {campoClave(editingRow).error && editPassword === null && <p className="text-xs text-red-400">{campoClave(editingRow).error}</p>}
+                        </div>
+                        {/* Correo y contraseña propios de este perfil (app/lib/claves.ts): no tocan a los demás de la cuenta. */}
+                        <p className="-mt-1 text-xs text-secondary">Mientras no los edites, el correo es el de la cuenta y la contraseña la del proveedor; al editarlos quedan solo para este perfil.</p>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-xs text-secondary font-medium">Nombre del perfil</label>
+                            <Input className="bg-white/3" value={editNombre} onChange={(e) => setEditNombre(e.target.value)} />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-xs text-secondary font-medium">PIN</label>
+                            <Input className="bg-white/3" inputMode="numeric" value={editPin} onChange={(e) => setEditPin(e.target.value.replace(/\D/g, ""))} placeholder="Sin PIN" />
+                        </div>
                         <div className="flex flex-col gap-1">
                             <label className="text-xs text-secondary font-medium">Estado</label>
                             <SelectDropdown

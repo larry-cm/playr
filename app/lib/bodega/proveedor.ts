@@ -439,10 +439,15 @@ export function parseLicencias(html: string): LicenciaProveedor[] {
     return out
 }
 
-export async function leerLicenciasDelPedido(s: Sesion, pedidoId: number): Promise<LicenciaProveedor[]> {
+/** Todas las licencias de "Mis licencias", vigentes o no. */
+export async function leerLicencias(s: Sesion): Promise<LicenciaProveedor[]> {
     const { status, html } = await pagina(s, "/mi-cuenta/view-license-keys/")
     if (status !== 200) throw new ProveedorError(`No pude leer "Mis licencias" del proveedor (HTTP ${status}).`, "sitio")
-    return parseLicencias(html).filter((l) => l.pedidoId === pedidoId)
+    return parseLicencias(html)
+}
+
+export async function leerLicenciasDelPedido(s: Sesion, pedidoId: number): Promise<LicenciaProveedor[]> {
+    return (await leerLicencias(s)).filter((l) => l.pedidoId === pedidoId)
 }
 
 /** Estado del pedido en el sitio ("Completado", "Procesando"...), o null si no se pudo leer. */

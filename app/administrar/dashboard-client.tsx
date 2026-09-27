@@ -32,7 +32,8 @@ export default function DashboardClient({
                 {bell ? <div className="-mr-2">{bell}</div> : <div className="w-9" />}
             </header>
 
-            <div className="flex min-h-screen py-12 lg:py-0">
+            {/* Alto fijo de pantalla: el aside queda quieto y cada página scrollea dentro del main. */}
+            <div className="flex h-dvh overflow-hidden">
                 {/* Overlay */}
                 {sidebarOpen && (
                     <div
@@ -45,7 +46,8 @@ export default function DashboardClient({
                 <Aside sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} role={role} bell={bell} />
 
                 {/* Main content */}
-                <main className="flex-1 p-4 sm:p-6 lg:p-8 pt-14 lg:pt-8 overflow-auto">
+                {/* Barra nativa: oscura por color-scheme: dark (globals.css), igual que la del html. */}
+                <main className="flex-1 min-w-0 overflow-y-auto p-4 pt-18 sm:p-6 sm:pt-20 lg:p-8 [scrollbar-gutter:stable]">
                     <div className="animate-[fadeIn_0.6s_ease-out]">
                         {children}
                     </div>

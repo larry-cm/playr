@@ -60,7 +60,7 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role, bell }: Aside
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 space-y-1">
+            <nav className="flex-1 min-h-0 overflow-y-auto space-y-1">
                 {filteredItems.map((item) => {
                     const Icon = item.icon
                     const isActive = pathname === item.href

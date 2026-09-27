@@ -3,8 +3,7 @@ import { createSupabase } from "@lib/supabase/server"
 export async function resumeServicesAction() {
     const supabase = await createSupabase()
 
-    const [clients, accountsWithProfiles, profiles] = await Promise.all([
-        supabase.schema("security").from("client").select("id", { count: "exact", head: true }).eq("exist", true),
+    const [accountsWithProfiles, profiles] = await Promise.all([
         // Cuentas = logins que agrupan VARIOS perfiles de UNA plataforma (ver /administrar/cuentas y
         // get-all-cuentas-action.ts). Una cuenta con un solo perfil vivo es un perfil comprado suelto,
         // no una cuenta, así que este conteo necesita la lista completa (PostgREST no puede filtrar
@@ -31,7 +30,6 @@ export async function resumeServicesAction() {
     ).length
 
     return {
-        customers: clients.count ?? 0,
         accounts: accountsWithProfiles.error ? 0 : accountsCount,
         profiles: profiles.count ?? 0,
     }

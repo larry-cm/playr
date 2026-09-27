@@ -18,7 +18,7 @@ export default async function PageAdministrarBodega() {
 
     return (
         <section className="flex flex-col gap-4">
-            <PageHeader title="Bodega" description="Compra stock al proveedor con el saldo de su monedero; lo que llega se registra solo en el inventario." />
+            <PageHeader title="Bodega" description="Compra stock al proveedor con el saldo de su monedero." />
             <BodegaClient initialCatalogo={catalogo} simulacion={process.env.BODEGA_SIMULAR === "1"} />
         </section>
     )

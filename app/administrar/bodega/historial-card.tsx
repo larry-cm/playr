@@ -1,27 +1,23 @@
 "use client"
 
-import type { ReactNode } from "react"
-import { History, RotateCcw } from "lucide-react"
+import { History } from "lucide-react"
 import { SectionHeader } from "@ui/page-header"
-import { EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, TABLE_BODY_HEIGHT, TableFrame, Td, Th } from "@ui/data-frame"
+import { EmptyRow, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, TABLE_BODY_HEIGHT, TableFrame, Td, Th } from "@ui/data-frame"
 import { formatCOP } from "@lib/currency"
 import { capitalizar } from "@lib/text"
-import type { PedidoRegistro } from "@lib/bodega/tipos"
+import type { PedidoProveedor } from "@lib/bodega/tipos"
 
-// todas las columnas con el mismo color de letra; solo los avisos (anulado, sin registrar) llevan color propio
+// todas las columnas con el mismo color de letra; solo el aviso de pedido anulado lleva color propio
 const HEADER = ["Productos", "Total", "Fecha"]
 
-const fechaPedido = (p: PedidoRegistro) =>
+const fechaPedido = (p: PedidoProveedor) =>
     new Date(p.fecha).toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Bogota" })
 
 /** Sin columna de estado (casi todos quedan "Completado" al instante): solo se marca el pedido que no gastó saldo. */
 const anulado = (estado: string) => /fall|cancel|reembols/i.test(estado)
 
-const REGISTRAR_TITLE = "Volver a leer la entrega del pedido y registrarla en el inventario"
-
-/** Productos del pedido y, debajo, solo lo que pide atención: un pedido anulado en el sitio o una compra de Bodega sin registrar
- * (con su motivo y, en escritorio, el botón «Registrar» que llega como children). */
-function Productos({ p, children }: Readonly<{ p: PedidoRegistro; children?: ReactNode }>) {
+/** Productos del pedido y, debajo, solo si el pedido quedó anulado en el sitio. */
+function Productos({ p }: Readonly<{ p: PedidoProveedor }>) {
     return (
         <>
             {p.productos.length === 0 ? (
@@ -37,23 +33,13 @@ function Productos({ p, children }: Readonly<{ p: PedidoRegistro; children?: Rea
                 </ul>
             )}
             {anulado(p.estado) && <p className="mt-0.5 text-xs text-red-400">{p.estado}</p>}
-            {p.pendiente && (
-                <div className="mt-1 flex items-center gap-2">
-                    <p className="max-w-xs text-xs text-amber-400">
-                        Sin registrar en el inventario{p.pendiente.detalle && <span className="text-secondary"> · {p.pendiente.detalle}</span>}
-                    </p>
-                    {children}
-                </div>
-            )}
         </>
     )
 }
 
 interface HistorialCardProps {
     /** undefined = cargando · null = no se pudo leer */
-    pedidos: PedidoRegistro[] | null | undefined
-    registrandoId: number | null
-    onRegistrar: (compraId: number) => void
+    pedidos: PedidoProveedor[] | null | undefined
 }
 
 const heading = <SectionHeader icon={History} title="Registro de compras" description="Todos los pedidos de la cuenta del proveedor, leídos en vivo" />
@@ -63,10 +49,10 @@ const Barra = ({ w }: { w: string }) => <div className={`h-4 ${w} animate-pulse 
 
 /**
  * Registro global: todos los pedidos de la cuenta del proveedor, hechos desde Bodega o a mano en su sitio. Se vuelve a leer solo
- * al cargar la página y después de cada compra o registro (sin botón). El alto no depende de los datos (cargando, vacía o llena mide
+ * al cargar la página y después de cada compra (sin botón). El alto no depende de los datos (cargando, vacía o llena mide
  * lo mismo, así la tarjeta no "crece" cuando llegan): desde lg iguala el de la columna de saldo y resumen, debajo es fijo.
  */
-export default function HistorialCard({ pedidos, registrandoId, onRegistrar }: Readonly<HistorialCardProps>) {
+export default function HistorialCard({ pedidos }: Readonly<HistorialCardProps>) {
     const vacio = pedidos === null ? (
         "No pudimos leer los pedidos del proveedor. Recarga la página en un momento."
     ) : pedidos?.length === 0 ? (
@@ -98,18 +84,7 @@ export default function HistorialCard({ pedidos, registrandoId, onRegistrar }: R
                         pedidos.map((p) => (
                             <tr key={p.id} className={ROW_CLASS}>
                                 <Td>
-                                    <Productos p={p}>
-                                        {p.pendiente && (
-                                            <IconAction
-                                                icon={RotateCcw}
-                                                label="Registrar"
-                                                title={REGISTRAR_TITLE}
-                                                onClick={() => onRegistrar(p.pendiente!.compraId)}
-                                                disabled={registrandoId !== null}
-                                                spinning={registrandoId === p.pendiente.compraId}
-                                            />
-                                        )}
-                                    </Productos>
+                                    <Productos p={p} />
                                 </Td>
                                 <Td className="whitespace-nowrap tabular-nums">{formatCOP(p.total)}</Td>
                                 <Td className="whitespace-nowrap">{fechaPedido(p)}</Td>
@@ -133,18 +108,6 @@ export default function HistorialCard({ pedidos, registrandoId, onRegistrar }: R
                                 { label: "Total", value: formatCOP(p.total), className: "tabular-nums" },
                                 { label: "Fecha", value: fechaPedido(p) },
                             ]}
-                            actions={
-                                p.pendiente ? (
-                                    <MobileAction
-                                        icon={RotateCcw}
-                                        label={registrandoId === p.pendiente.compraId ? "Registrando..." : "Registrar"}
-                                        title={REGISTRAR_TITLE}
-                                        onClick={() => onRegistrar(p.pendiente!.compraId)}
-                                        disabled={registrandoId !== null}
-                                        spinning={registrandoId === p.pendiente.compraId}
-                                    />
-                                ) : undefined
-                            }
                         />
                     ))
                 )}

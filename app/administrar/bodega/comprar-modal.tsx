@@ -79,17 +79,6 @@ export default function ComprarModal({ producto, accesoLabel, saldo, pending, er
                 </dl>
 
                 {insuficiente && <p className="text-xs text-red-400">El saldo no alcanza para esta cantidad.</p>}
-                {producto.combo && (
-                    <p className="text-xs text-secondary">
-                        Este combo trae una credencial por plataforma: la entrega se separa y se registra una cuenta por cada una.
-                    </p>
-                )}
-                {!producto.combo && producto.access_type !== "pantalla" && (
-                    <p className="text-xs text-amber-400">
-                        Este tipo de producto no siempre entrega un perfil con PIN. Si la entrega no se reconoce, la compra se hace igual y la
-                        entrega queda pendiente de registro (se conserva en el proveedor).
-                    </p>
-                )}
                 <p className="text-xs text-secondary">
                     Se paga con el saldo del monedero del proveedor. Es dinero real y no se puede deshacer. Antes de pagar se verifica en vivo que el
                     precio y el stock sigan siendo estos.

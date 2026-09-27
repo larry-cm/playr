@@ -15,11 +15,11 @@ import ComprarModal from "@/app/administrar/bodega/comprar-modal"
 import FiltrosCatalogo, { pasaFiltro, SIN_FILTRO, type FiltroCatalogo } from "@/app/administrar/bodega/filtros-catalogo"
 import { getSaldoProveedorAction } from "@action/manager-and-admin/bodega/get-saldo-action"
 import { comprarBodegaAction } from "@action/manager-and-admin/bodega/comprar-action"
-import { getPedidosProveedorAction, reintentarRegistroAction } from "@action/manager-and-admin/bodega/compras-action"
+import { getPedidosProveedorAction } from "@action/manager-and-admin/bodega/compras-action"
 import { formatCOP } from "@lib/currency"
 import { capitalizar } from "@lib/text"
 import { duracionDe } from "@lib/bodega/duracion"
-import type { BodegaCatalogo, BodegaProducto, PedidoRegistro, ResultadoCompraUI, SaldoProveedor } from "@lib/bodega/tipos"
+import type { BodegaCatalogo, BodegaProducto, PedidoProveedor, ResultadoCompraUI, SaldoProveedor } from "@lib/bodega/tipos"
 
 interface BodegaClientProps {
     initialCatalogo: BodegaCatalogo | null
@@ -51,13 +51,12 @@ const nuevoId = () =>
 export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<BodegaClientProps>) {
     // undefined = cargando · null = error · objeto = leído
     const [saldo, setSaldo] = useState<SaldoProveedor | null | undefined>(undefined)
-    const [pedidos, setPedidos] = useState<PedidoRegistro[] | null | undefined>(undefined)
+    const [pedidos, setPedidos] = useState<PedidoProveedor[] | null | undefined>(undefined)
     const [alert, setAlert] = useState<{ variant: Variante; message: string } | null>(null)
 
     const [comprando, setComprando] = useState<BodegaProducto | null>(null)
     const [modalError, setModalError] = useState<string | null>(null)
     const [isPending, setIsPending] = useState(false)
-    const [registrandoId, setRegistrandoId] = useState<number | null>(null)
     const [filtro, setFiltro] = useState<FiltroCatalogo>(SIN_FILTRO)
 
     // Saldo y pedidos se leen en paralelo del sitio del proveedor (cada uno con su sesión): el saldo suele llegar antes.
@@ -74,7 +73,7 @@ export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<B
         }
     }, [])
 
-    // Tras una compra o un registro se vuelven a leer solos (no hay botones de actualizar). Se deja lo que había a la vista
+    // Tras una compra se vuelven a leer solos (no hay botones de actualizar). Se deja lo que había a la vista
     // mientras llega lo nuevo, así las tarjetas no parpadean; si la relectura falla se conserva lo último leído.
     const refrescarSaldo = () => getSaldoProveedorAction().then((s) => s && setSaldo(s))
     const refrescarPedidos = () => getPedidosProveedorAction().then((p) => p && setPedidos(p))
@@ -138,21 +137,6 @@ export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<B
         setAlert({ variant: varianteDe(r), message: r.mensaje })
     }
 
-    const registrar = async (id: number) => {
-        if (registrandoId !== null) return
-        setRegistrandoId(id)
-        setAlert(null)
-        let r: ResultadoCompraUI
-        try {
-            r = await reintentarRegistroAction(id)
-        } catch {
-            r = { ok: false, nivel: "error", mensaje: "No recibimos respuesta del servidor. Revisa el historial e inténtalo de nuevo." }
-        }
-        setRegistrandoId(null)
-        refrescarPedidos()
-        setAlert({ variant: varianteDe(r), message: r.mensaje })
-    }
-
     if (initialCatalogo === null) {
         return (
             <Card padding="px-4 py-12" className="flex flex-col items-center justify-center text-center">
@@ -191,7 +175,7 @@ export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<B
                 </div>
                 <div className="relative min-w-0 lg:col-span-2">
                     <div className="lg:absolute lg:inset-0">
-                        <HistorialCard pedidos={pedidos} registrandoId={registrandoId} onRegistrar={registrar} />
+                        <HistorialCard pedidos={pedidos} />
                     </div>
                 </div>
             </div>

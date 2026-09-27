@@ -7,15 +7,14 @@
 //   3. el carrito debe estar VACIO (si hay items ajenos no se toca ni se compra: el checkout los pagaria tambien)
 //   4. agregar; el checkout debe mostrar EXACTAMENTE ese item, esa cantidad, ese total, pago con monedero y saldo suficiente
 //   5. pagar (solo monedero). Rechazo explicito => 'fallida' (no se cobro). Respuesta dudosa => 'incierta' (NO reintentar)
-//   6. leer la entrega por numero de pedido y registrarla (atomico y sin duplicados); lo dudoso queda 'pendiente_registro'
+//   6. la compra queda 'pagada' con su numero de pedido; la entrega se consulta en el registro de compras (pedidos del proveedor)
 
-import { asignarEntrega, type GrupoRegistrable, type ListingCompra, type Plataforma } from "@lib/bodega/entrega"
 import {
-    agregarAlCarrito, buscarProducto, clave, conectar, leerCheckout, leerLicenciasDelPedido, leerSaldo, pagarConMonedero,
+    agregarAlCarrito, buscarProducto, clave, conectar, leerCheckout, leerSaldo, pagarConMonedero,
     ProveedorError, quitarDelCarrito,
     type CheckoutLeido, type ProveedorCfg, type Sesion,
 } from "@lib/bodega/proveedor"
-import { MAX_CANTIDAD, type EstadoCompra } from "@lib/bodega/tipos"
+import { MAX_CANTIDAD, type AccessType, type EstadoCompra } from "@lib/bodega/tipos"
 
 export type { EstadoCompra }
 
@@ -37,26 +36,20 @@ export interface CompraRow {
     created_at: string
 }
 
-export interface ListingRow extends ListingCompra {
+export interface ListingRow {
     id: number
-}
-
-export interface ResultadoRegistro {
-    registradas: number
-    duplicadas: number
-    productosCreados: number
+    nombre: string
+    platformId: number | null
+    accessType: AccessType
 }
 
 export interface BodegaDb {
     listing(id: number): Promise<ListingRow | null>
-    plataformas(): Promise<Plataforma[]>
-    compra(id: number): Promise<CompraRow | null>
     iniciarCompra(a: { requestId: string; listingId: number; cantidad: number; precioUnitario: number; saldo: number }): Promise<
         { nueva: boolean; compra: CompraRow } | { error: "en_curso" | string }
     >
     /** Devuelve un mensaje de error, o null si salio bien. */
     actualizarCompra(id: number, a: { estado: EstadoCompra; pedido?: number | null; saldoDespues?: number | null; detalle?: string }): Promise<string | null>
-    registrarLicencias(grupos: GrupoRegistrable[]): Promise<ResultadoRegistro | { error: string }>
 }
 
 export interface Aviso {
@@ -71,7 +64,6 @@ export interface CompraDeps {
     cfg: ProveedorCfg
     /** Deja un aviso en la campana. Nunca debe lanzar. */
     avisar: (a: Aviso) => Promise<void>
-    esperar?: (ms: number) => Promise<void>
     ahora?: () => number
     /**
      * Ensayo: ejecuta TODO igual (login, saldo, producto en vivo, carrito, checkout y sus guardas) y se detiene JUSTO antes de pagar:
@@ -81,7 +73,6 @@ export interface CompraDeps {
     simular?: boolean
 }
 
-const dormir = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 const cop = (n: number) => new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(n)
 
 export interface CompraInput {
@@ -96,7 +87,6 @@ export type ResultadoCompra =
     | {
           ok: true
           compra: CompraRow
-          registro: ResultadoRegistro & { pendientes: number }
           saldo: number | null
           mensaje: string
           advertencias: string[]
@@ -112,73 +102,6 @@ function mensajeDe(e: unknown, generico: string): string {
     if (e instanceof ProveedorError) return e.message
     console.error("bodega:", e)
     return generico
-}
-
-// ---- entrega -------------------------------------------------------------------------------------------------------
-
-export interface ResumenEntrega {
-    estado: "registrada" | "pendiente_registro"
-    detalle: string
-    registro: ResultadoRegistro & { pendientes: number }
-}
-
-/**
- * Lee las licencias del pedido y las registra en el inventario. Idempotente (business.registrar_licencias no duplica), asi que
- * sirve tanto justo despues de pagar como para reintentar un 'pendiente_registro'. No compra nada.
- */
-export async function registrarEntrega(
-    s: Sesion, deps: CompraDeps, compra: Pick<CompraRow, "pedido_proveedor" | "cantidad" | "precio_unitario">, listing: ListingRow,
-): Promise<ResumenEntrega> {
-    const { db, esperar = dormir } = deps
-    const pedidoId = compra.pedido_proveedor
-    if (pedidoId === null)
-        return { estado: "pendiente_registro", detalle: "La compra no tiene número de pedido.", registro: { registradas: 0, duplicadas: 0, productosCreados: 0, pendientes: compra.cantidad } }
-
-    // la generacion de la licencia puede tardar unos segundos: se reintenta antes de darla por ausente
-    let licencias: Awaited<ReturnType<typeof leerLicenciasDelPedido>> = []
-    let errorLectura: string | null = null
-    for (let intento = 0; intento < 4; intento++) {
-        try {
-            licencias = await leerLicenciasDelPedido(s, pedidoId)
-            errorLectura = null
-        } catch (e) {
-            errorLectura = mensajeDe(e, "No pude leer las licencias del proveedor.")
-        }
-        if (licencias.length >= compra.cantidad) break
-        await esperar(1500)
-    }
-
-    const plataformas = await db.plataformas().catch(() => [] as Plataforma[])
-    const asignacion = asignarEntrega(
-        listing, compra.precio_unitario, licencias.map((l) => ({ licenciaId: l.licenciaId, texto: l.texto, vence: l.vence })), plataformas,
-    )
-    const motivos = new Set(asignacion.pendientes.map((p) => p.motivo))
-
-    let registro: ResultadoRegistro = { registradas: 0, duplicadas: 0, productosCreados: 0 }
-    let pendientes = asignacion.pendientes.length
-    if (asignacion.registrables.length > 0) {
-        const r = await db.registrarLicencias(asignacion.registrables)
-        if ("error" in r) {
-            console.error("bodega: registrar_licencias:", r.error)
-            pendientes += asignacion.registrables.length
-            motivos.add("no se pudo escribir en el inventario (se puede reintentar)")
-        } else registro = r
-    }
-    const faltantes = Math.max(0, compra.cantidad - licencias.length)
-    if (faltantes > 0) {
-        pendientes += faltantes
-        motivos.add(errorLectura ?? "el proveedor aún no muestra todas las licencias del pedido")
-    }
-
-    const partes = [`Registradas ${registro.registradas}`]
-    if (registro.duplicadas) partes.push(`ya estaban ${registro.duplicadas}`)
-    if (registro.productosCreados) partes.push(`productos nuevos ${registro.productosCreados} (sin precio de venta)`)
-    if (pendientes) partes.push(`PENDIENTES ${pendientes}: ${[...motivos].slice(0, 3).join("; ")}`)
-    return {
-        estado: pendientes === 0 ? "registrada" : "pendiente_registro",
-        detalle: `Pedido #${pedidoId}. ${partes.join(" · ")}`,
-        registro: { ...registro, pendientes },
-    }
 }
 
 // ---- compra --------------------------------------------------------------------------------------------------------
@@ -282,7 +205,6 @@ export async function comprar(input: CompraInput, deps: CompraDeps): Promise<Res
         return {
             ok: true,
             compra: { ...compra, estado: "fallida", detalle },
-            registro: { registradas: 0, duplicadas: 0, productosCreados: 0, pendientes: 0 },
             saldo,
             mensaje: detalle,
             advertencias: limpio ? [] : ["El producto de la simulación pudo quedar en el carrito del proveedor: revísalo."],
@@ -304,69 +226,19 @@ export async function comprar(input: CompraInput, deps: CompraDeps): Promise<Res
         })
         return falla(`${mensaje} Verifica los pedidos y el saldo en el proveedor ANTES de reintentar.`, { estado: "incierta" })
     }
-    await cerrar("pagada", `Pedido #${pedidoId} pagado.`, { pedido: pedidoId })
+    // 6) ya se pago: nada de aqui en adelante puede presentarse como "no se pago"
+    const saldoDespues = await leerSaldo(s).catch(() => null)
+    const detalle = `Pedido #${pedidoId} pagado.`
+    await cerrar("pagada", detalle, { pedido: pedidoId, saldoDespues })
 
-    // 6) entrega -> inventario. Ya se pago: un error aqui NUNCA debe presentarse como "no se pago".
-    const pagada: CompraRow = { ...compra, estado: "pagada", pedido_proveedor: pedidoId }
-    try {
-        const entrega = await registrarEntrega(s, deps, pagada, listing)
-        const saldoDespues = await leerSaldo(s).catch(() => null)
-        await cerrar(entrega.estado, entrega.detalle, { pedido: pedidoId, saldoDespues })
-
-        const advertencias: string[] = []
-        if (saldoDespues !== null && Math.abs(saldo - total - saldoDespues) > 0.5)
-            advertencias.push(`El saldo esperado era ${cop(saldo - total)} pero el proveedor muestra ${cop(saldoDespues)}. Revisa los movimientos.`)
-        if (entrega.estado === "pendiente_registro") {
-            advertencias.push("Parte de la entrega no se pudo registrar sola: quedó en el proveedor. Usa «Registrar» en el historial para reintentar.")
-            await avisar({ origen: "plataforma", tipo: "advertencia", titulo: "Compra pagada con entrega sin registrar", mensaje: `${listing.nombre} ×${input.cantidad}. ${entrega.detalle}` })
-        }
-        return {
-            ok: true,
-            compra: { ...pagada, estado: entrega.estado, saldo_despues: saldoDespues, detalle: entrega.detalle },
-            registro: entrega.registro,
-            saldo: saldoDespues,
-            mensaje: entrega.detalle,
-            advertencias,
-        }
-    } catch (e) {
-        console.error("bodega: error despues de pagar:", e)
-        const detalle = `Pedido #${pedidoId} pagado, pero falló el registro de la entrega. Usa «Registrar» en el historial.`
-        await cerrar("pendiente_registro", detalle, { pedido: pedidoId })
-        await avisar({ origen: "plataforma", tipo: "advertencia", titulo: "Compra pagada con entrega sin registrar", mensaje: `${listing.nombre} ×${input.cantidad}. ${detalle}` })
-        return {
-            ok: true,
-            compra: { ...pagada, estado: "pendiente_registro", detalle },
-            registro: { registradas: 0, duplicadas: 0, productosCreados: 0, pendientes: input.cantidad },
-            saldo: null,
-            mensaje: detalle,
-            advertencias: [detalle],
-        }
+    const advertencias: string[] = []
+    if (saldoDespues !== null && Math.abs(saldo - total - saldoDespues) > 0.5)
+        advertencias.push(`El saldo esperado era ${cop(saldo - total)} pero el proveedor muestra ${cop(saldoDespues)}. Revisa los movimientos.`)
+    return {
+        ok: true,
+        compra: { ...compra, estado: "pagada", pedido_proveedor: pedidoId, saldo_despues: saldoDespues, detalle },
+        saldo: saldoDespues,
+        mensaje: detalle,
+        advertencias,
     }
-}
-
-/**
- * Reintenta registrar la entrega de una compra ya PAGADA que quedo 'pendiente_registro' (o 'pagada' si se corto justo despues
- * de pagar). No compra nada: solo lee las licencias del pedido y las registra (sin duplicar).
- */
-export async function reintentarRegistro(compraId: number, deps: CompraDeps): Promise<
-    { ok: true; estado: EstadoCompra; detalle: string } | { ok: false; error: string }
-> {
-    const { db, cfg } = deps
-    const compra = await db.compra(compraId)
-    if (!compra) return { ok: false, error: "No encontré esa compra." }
-    if (compra.estado !== "pendiente_registro" && compra.estado !== "pagada") return { ok: false, error: "Esta compra no tiene nada pendiente de registrar." }
-    if (compra.pedido_proveedor === null) return { ok: false, error: "La compra no tiene número de pedido." }
-    const listing = await db.listing(compra.listing_id)
-    if (!listing) return { ok: false, error: "No encontré el producto de esa compra." }
-
-    let s: Sesion
-    try {
-        s = await conectar(cfg)
-    } catch (e) {
-        return { ok: false, error: mensajeDe(e, "No pude conectar con el proveedor.") }
-    }
-    const entrega = await registrarEntrega(s, deps, compra, listing)
-    const err = await db.actualizarCompra(compra.id, { estado: entrega.estado, detalle: entrega.detalle })
-    if (err) return { ok: false, error: "Se registró la entrega pero no pude actualizar el estado de la compra." }
-    return { ok: true, estado: entrega.estado, detalle: entrega.detalle }
 }

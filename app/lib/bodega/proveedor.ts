@@ -447,10 +447,6 @@ export async function leerLicencias(s: Sesion): Promise<LicenciaProveedor[]> {
     return parseLicencias(html)
 }
 
-export async function leerLicenciasDelPedido(s: Sesion, pedidoId: number): Promise<LicenciaProveedor[]> {
-    return (await leerLicencias(s)).filter((l) => l.pedidoId === pedidoId)
-}
-
 
 // ---- registro de pedidos -------------------------------------------------------------------------------------------
 

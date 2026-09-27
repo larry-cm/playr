@@ -7,13 +7,8 @@ import Button from "@ui/button"
 import type { LicenciaDisponible } from "@action/manager-and-admin/productos/get-licencias-disponibles-action"
 import type { ProductoRow } from "@action/manager-and-admin/productos/get-all-productos-action"
 import { createProductoAction } from "@action/manager-and-admin/productos/create-producto-action"
+import { accessTypeLabel } from "@lib/access-type"
 import { formatCOP } from "@lib/currency"
-
-const accessTypeLabel: Record<LicenciaDisponible["access_type"], string> = {
-    completa: "Completa",
-    pantalla: "Pantalla",
-    otro: "Otro",
-}
 
 const ofertaKey = (platformId: number, accessType: string) => `${platformId}:${accessType}`
 

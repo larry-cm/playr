@@ -1,93 +1,74 @@
 "use client"
 
-import { Suspense, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import Card from "@ui/card"
 import Button from "@ui/button"
 import Input from "@ui/input"
 import CopyInput from "@ui/copy-input"
+import SelectDropdown from "@ui/select-dropdown"
 import Modal from "@ui/modal"
 import Alert from "@ui/alert"
-import { AlertCircle, Plus, Pencil, Trash2, Search } from "lucide-react"
-import type { ProductoRow } from "@action/manager-and-admin/productos/get-all-productos-action"
-import type { LicenciaDisponible } from "@action/manager-and-admin/productos/get-licencias-disponibles-action"
-import type { OfertaProveedorItem } from "@action/manager-and-admin/productos/get-oferta-proveedor-action"
-import CreateProductoForm, { CreateProductoFormSkeleton } from "@/app/administrar/productos/create-producto-form"
-import CreateComboForm from "@/app/administrar/productos/create-combo-form"
-import { editProductoPreciosAction } from "@action/manager-and-admin/productos/edit-producto-precios-action"
-import { deleteProductoAction } from "@action/manager-and-admin/productos/delete-producto-action"
+import { AlertCircle, Pencil, Trash2, Search } from "lucide-react"
+import type { PerfilRow } from "@action/manager-and-admin/perfiles/get-all-perfiles-action"
+import { editPerfilAction } from "@action/manager-and-admin/perfiles/edit-perfil-action"
+import { deletePerfilAction } from "@action/manager-and-admin/perfiles/delete-perfil-action"
 import { accessTypeLabel } from "@lib/access-type"
-import { formatCOP } from "@lib/currency"
+import { formatDateOnly } from "@lib/date"
 
-/** Qué lleva adentro un combo, en una línea: "2 × NETFLIX Pantalla + DISNEY Pantalla". */
-const contenidoDeCombo = (row: ProductoRow) =>
-    row.combo_items
-        .map((item) => `${item.cantidad > 1 ? `${item.cantidad} × ` : ""}${item.platform_nombre} ${accessTypeLabel[item.access_type]}`)
-        .join(" + ")
-
-const gananciaOf = (row: ProductoRow) =>
-    row.precio_venta === null || row.costo === null ? null : row.precio_venta - row.costo
-
-const gananciaColor = (ganancia: number | null) =>
-    ganancia === null || ganancia === 0
-        ? 'var(--color-foreground)'
-        : ganancia > 0
-            ? '#34d399'
-            : '#f87171'
-
-interface ProductosClientProps {
-    initialProductos: ProductoRow[] | null
-    /** Licencias ya compradas sin producto: la base del producto simple (escaneo lento del proveedor). */
-    licenciasPromise: Promise<LicenciaDisponible[] | null>
-    /** Lo que el proveedor vende hoy según el último escaneo del cron: la base de los combos. */
-    oferta: OfertaProveedorItem[]
+const estadoLabel: Record<PerfilRow["estado"], string> = {
+    disponible: "Disponible",
+    vendido: "Vendido",
+    suspendido: "Suspendido",
+    en_soporte: "En soporte",
 }
 
-export default function ProductosClient({ initialProductos, licenciasPromise, oferta }: ProductosClientProps) {
+const estadoColor: Record<PerfilRow["estado"], string> = {
+    disponible: "#34d399",
+    vendido: "var(--color-accent)",
+    suspendido: "#f87171",
+    en_soporte: "#fbbf24",
+}
+
+const estadoOptions = (Object.keys(estadoLabel) as PerfilRow["estado"][]).map((value) => ({
+    value,
+    label: estadoLabel[value],
+}))
+
+interface PerfilesClientProps {
+    initialPerfiles: PerfilRow[] | null
+}
+
+export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps) {
     const router = useRouter()
-    const [productos, setProductos] = useState<ProductoRow[] | null>(initialProductos)
+    const [perfiles, setPerfiles] = useState<PerfilRow[] | null>(initialPerfiles)
     const [alert, setAlert] = useState<{ variant: "success" | "error"; message: string } | null>(null)
     const [isPending, setIsPending] = useState(false)
 
-    const [createOpen, setCreateOpen] = useState(false)
-    const [createTipo, setCreateTipo] = useState<"simple" | "combo">("simple")
-
     const [editingId, setEditingId] = useState<number | null>(null)
-    const [editPrecioVenta, setEditPrecioVenta] = useState("")
+    const [editNombre, setEditNombre] = useState("")
+    const [editPin, setEditPin] = useState("")
+    const [editEstado, setEditEstado] = useState<PerfilRow["estado"]>("disponible")
 
     const [deletingId, setDeletingId] = useState<number | null>(null)
     const [search, setSearch] = useState("")
 
-    const filteredProductos = useMemo(() => {
+    const filteredPerfiles = useMemo(() => {
         const query = search.trim().toLowerCase()
-        if (!query) return productos ?? []
-        return (productos ?? []).filter((row) =>
-            // Un combo también se encuentra buscando cualquiera de las plataformas que incluye.
-            [row.titulo, row.categoria, accessTypeLabel[row.access_type], contenidoDeCombo(row)]
+        if (!query) return perfiles ?? []
+        return (perfiles ?? []).filter((row) =>
+            [row.platform_nombre, row.cuenta_email, row.nombre_perfil, estadoLabel[row.estado]]
                 .some((value) => value.toLowerCase().includes(query))
         )
-    }, [productos, search])
+    }, [perfiles, search])
 
-    const openCreate = () => {
-        setCreateTipo("simple")
-        setCreateOpen(true)
-    }
-    const closeCreate = () => setCreateOpen(false)
+    const editingRow = perfiles?.find((row) => row.id === editingId) ?? null
 
-    const handleCreated = (producto: ProductoRow) => {
-        setProductos((prev) => [...(prev ?? []), producto])
-        setAlert({ variant: "success", message: "Producto creado correctamente." })
-        closeCreate()
-        // Refresca server components: nueva data de productos y, sobre todo, un ofertaPromise nuevo
-        // para la próxima apertura del modal (la licencia recién usada ya no debe volver a ofrecerse).
-        router.refresh()
-    }
-
-    const editingRow = productos?.find((row) => row.id === editingId) ?? null
-
-    const openEdit = (row: ProductoRow) => {
+    const openEdit = (row: PerfilRow) => {
         setEditingId(row.id)
-        setEditPrecioVenta(row.precio_venta === null ? "" : String(row.precio_venta))
+        setEditNombre(row.nombre_perfil)
+        setEditPin(row.pin ?? "")
+        setEditEstado(row.estado)
     }
 
     const cancelEdit = () => setEditingId(null)
@@ -95,14 +76,15 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
     const saveEdit = async () => {
         if (editingId === null || isPending) return
         const id = editingId
-        if (editPrecioVenta === "") {
-            setAlert({ variant: "error", message: "El precio de venta es obligatorio." })
-            return
-        }
 
         setIsPending(true)
         setAlert(null)
-        const error = await editProductoPreciosAction({ id, precio_venta: editPrecioVenta })
+        const error = await editPerfilAction({
+            id,
+            nombre_perfil: editNombre,
+            pin: editPin,
+            estado: editEstado,
+        })
         setIsPending(false)
 
         if (error) {
@@ -110,13 +92,16 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
             return
         }
 
-        setProductos((prev) =>
+        setPerfiles((prev) =>
             (prev ?? []).map((row) =>
-                row.id === id ? { ...row, precio_venta: Number(editPrecioVenta) } : row
+                row.id === id
+                    ? { ...row, nombre_perfil: editNombre.trim(), pin: editPin.trim() === "" ? null : editPin.trim(), estado: editEstado }
+                    : row
             )
         )
-        setAlert({ variant: "success", message: "Producto actualizado correctamente." })
+        setAlert({ variant: "success", message: "Perfil actualizado correctamente." })
         setEditingId(null)
+        // El estado decide si el perfil sigue en la Tienda: refrescar los server components.
         router.refresh()
     }
 
@@ -124,7 +109,7 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
         if (deletingId === null || isPending) return
         setIsPending(true)
         setAlert(null)
-        const error = await deleteProductoAction({ id: deletingId })
+        const error = await deletePerfilAction({ id: deletingId })
         setIsPending(false)
 
         if (error) {
@@ -132,19 +117,19 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
             return
         }
 
-        setProductos((prev) => (prev ?? []).filter((row) => row.id !== deletingId))
-        setAlert({ variant: "success", message: "Producto eliminado correctamente." })
+        setPerfiles((prev) => (prev ?? []).filter((row) => row.id !== deletingId))
+        setAlert({ variant: "success", message: "Perfil eliminado correctamente." })
         setDeletingId(null)
         router.refresh()
     }
 
-    if (productos === null) {
+    if (perfiles === null) {
         return (
             <Card className="flex flex-col items-center justify-center py-12 px-4 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/10 text-red-400 mb-4 shadow-lg shadow-red-500/5">
                     <AlertCircle className="h-7 w-7" />
                 </div>
-                <h3 className="text-lg font-semibold text-white mb-1">Error al cargar los productos</h3>
+                <h3 className="text-lg font-semibold text-white mb-1">Error al cargar los perfiles</h3>
                 <p className="text-sm text-white/60 max-w-md">
                     Tuvimos un problema al obtener la información. Por favor intenta de nuevo más tarde o verifica la conexión.
                 </p>
@@ -181,17 +166,13 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                                     className="w-full rounded-xl border border-white/10 bg-white/3 py-2.5 pl-9 pr-3 text-sm text-white outline-none transition focus:border-accent/40 focus:ring-1 focus:ring-accent/20"
                                 />
                             </div>
-
-                            <Button variant="primary" leftIcon={<Plus className="h-4 w-4" />} onClick={openCreate}>
-                                Agregar producto
-                            </Button>
                         </div>
 
                         <div className="h-[480px] overflow-y-auto">
                             <table className="w-full border-collapse text-left text-sm" style={{ color: 'var(--color-foreground)' }}>
                                 <thead>
                                     <tr>
-                                        {["Producto", "Categoría", "Tipo de acceso", "Costo (proveedor)", "Precio de venta", "Ganancia"].map((column) => (
+                                        {["Plataforma", "Perfil", "PIN", "Cuenta", "Estado", "Vencimiento"].map((column) => (
                                             <th key={column} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--color-secondary)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                                                 {column}
                                             </th>
@@ -203,33 +184,24 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                                 </thead>
 
                                 <tbody>
-                                    {filteredProductos.length === 0 ? (
+                                    {filteredPerfiles.length === 0 ? (
                                         <tr>
                                             <td colSpan={7} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--color-secondary)' }}>
-                                                No hay productos configurados todavía.
+                                                No hay perfiles comprados todavía.
                                             </td>
                                         </tr>
                                     ) : (
-                                        filteredProductos.map((row) => (
+                                        filteredPerfiles.map((row) => (
                                             <tr key={row.id} className="group transition-colors hover:bg-white/3">
-                                                <td className="px-4 py-4 align-middle font-semibold" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                    {row.titulo}
-                                                    {row.combo_items.length > 0 && (
-                                                        <span className="block text-xs font-normal" style={{ color: 'var(--color-secondary)' }}>
-                                                            {contenidoDeCombo(row)}
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.categoria}</td>
-                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{accessTypeLabel[row.access_type]}</td>
-                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                    {row.costo === null ? "--" : formatCOP(row.costo)}
+                                                <td className="px-4 py-4 align-middle font-semibold" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.platform_nombre}</td>
+                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.nombre_perfil}</td>
+                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.pin ?? "--"}</td>
+                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.cuenta_email}</td>
+                                                <td className="px-4 py-4 align-middle font-medium" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: estadoColor[row.estado] }}>
+                                                    {estadoLabel[row.estado]}
                                                 </td>
                                                 <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                    {row.precio_venta === null ? "--" : formatCOP(row.precio_venta)}
-                                                </td>
-                                                <td className="px-4 py-4 align-middle font-medium" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: gananciaColor(gananciaOf(row)) }}>
-                                                    {gananciaOf(row) === null ? "--" : formatCOP(gananciaOf(row)!)}
+                                                    {formatDateOnly(row.fecha_vencimiento)}
                                                 </td>
                                                 <td className="px-4 py-4 align-middle text-right" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                                     <div className="inline-flex items-center gap-2 *:cursor-pointer">
@@ -276,25 +248,21 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                             className="w-full rounded-xl border border-white/10 bg-white/3 py-2.5 pl-9 pr-3 text-sm text-white outline-none transition focus:border-accent/40 focus:ring-1 focus:ring-accent/20"
                         />
                     </div>
-                    <Button size="sm" variant="primary" onClick={openCreate} leftIcon={<Plus className="h-4 w-4" />}>
-                        Agregar producto
-                    </Button>
                 </div>
 
                 <div className="h-[480px] overflow-y-auto flex flex-col gap-3">
-                    {filteredProductos.length === 0 ? (
-                        <div className="px-4 py-6 text-center text-sm" style={{ color: 'var(--color-secondary)' }}>No hay productos configurados todavía.</div>
+                    {filteredPerfiles.length === 0 ? (
+                        <div className="px-4 py-6 text-center text-sm" style={{ color: 'var(--color-secondary)' }}>No hay perfiles comprados todavía.</div>
                     ) : (
-                        filteredProductos.map((row) => (
+                        filteredPerfiles.map((row) => (
                             <div key={row.id} className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 6px 16px rgba(2,6,23,0.25)' }}>
                                 <div className="p-4">
                                     {[
-                                        ["Producto", row.titulo],
-                                        ...(row.combo_items.length > 0 ? [["Incluye", contenidoDeCombo(row)]] : []),
-                                        ["Categoría", row.categoria],
-                                        ["Tipo de acceso", accessTypeLabel[row.access_type]],
-                                        ["Costo (proveedor)", row.costo === null ? "--" : formatCOP(row.costo)],
-                                        ["Precio de venta", row.precio_venta === null ? "--" : formatCOP(row.precio_venta)],
+                                        ["Plataforma", row.platform_nombre],
+                                        ["Perfil", row.nombre_perfil],
+                                        ["PIN", row.pin ?? "--"],
+                                        ["Cuenta", row.cuenta_email],
+                                        ["Vencimiento", formatDateOnly(row.fecha_vencimiento)],
                                     ].map(([label, value]) => (
                                         <div key={label} className="flex items-start justify-between gap-3 py-2">
                                             <div className="text-xs font-medium" style={{ color: 'var(--color-secondary)' }}>{label}</div>
@@ -302,9 +270,9 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                                         </div>
                                     ))}
                                     <div className="flex items-start justify-between gap-3 py-2">
-                                        <div className="text-xs font-medium" style={{ color: 'var(--color-secondary)' }}>Ganancia</div>
-                                        <div className="text-sm font-medium" style={{ color: gananciaColor(gananciaOf(row)) }}>
-                                            {gananciaOf(row) === null ? "--" : formatCOP(gananciaOf(row)!)}
+                                        <div className="text-xs font-medium" style={{ color: 'var(--color-secondary)' }}>Estado</div>
+                                        <div className="text-sm font-medium" style={{ color: estadoColor[row.estado] }}>
+                                            {estadoLabel[row.estado]}
                                         </div>
                                     </div>
                                     <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3 *:cursor-pointer">
@@ -330,86 +298,45 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
                 </div>
             </div>
 
-            <Modal isOpen={createOpen} title="Agregar producto" onClose={closeCreate}>
-                {/* Los dos caminos son distintos de raíz: el simple parte de una licencia ya comprada
-                    (una plataforma), el combo se arma eligiendo varias del catálogo del proveedor. */}
-                <div className="mb-4 inline-flex rounded-xl border border-white/10 bg-white/3 p-1">
-                    {([["simple", "Producto simple"], ["combo", "Combo"]] as const).map(([value, label]) => (
-                        <button
-                            key={value}
-                            type="button"
-                            onClick={() => setCreateTipo(value)}
-                            className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-200 ${createTipo === value
-                                ? "bg-accent/10 text-accent"
-                                : "text-secondary hover:text-white"
-                                }`}
-                        >
-                            {label}
-                        </button>
-                    ))}
-                </div>
-
-                {createTipo === "simple" ? (
-                    <Suspense fallback={<CreateProductoFormSkeleton onCancel={closeCreate} />}>
-                        <CreateProductoForm
-                            ofertaPromise={licenciasPromise}
-                            isPending={isPending}
-                            onPendingChange={setIsPending}
-                            onSuccess={handleCreated}
-                            onError={(message) => setAlert({ variant: "error", message })}
-                            onCancel={closeCreate}
-                        />
-                    </Suspense>
-                ) : (
-                    <CreateComboForm
-                        oferta={oferta}
-                        isPending={isPending}
-                        onPendingChange={setIsPending}
-                        onSuccess={handleCreated}
-                        onError={(message) => setAlert({ variant: "error", message })}
-                        onCancel={closeCreate}
-                    />
-                )}
-            </Modal>
-
-            <Modal isOpen={editingId !== null} title="Editar producto" onClose={cancelEdit}>
+            <Modal isOpen={editingId !== null} title="Editar perfil" onClose={cancelEdit}>
                 {editingRow && (
                     <div className="flex flex-col gap-3">
                         <div className="flex flex-col gap-1">
+                            <label className="text-xs text-secondary font-medium">Plataforma</label>
+                            <CopyInput value={`${editingRow.platform_nombre} · ${accessTypeLabel[editingRow.access_type]}`} readOnly copyLabel="Copiar" successLabel="Copiado" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-xs text-secondary font-medium">Cuenta</label>
+                            <CopyInput value={editingRow.cuenta_email} readOnly copyLabel="Copiar" successLabel="Copiado" />
+                            <p className="text-xs text-secondary">El vencimiento y el costo se editan en Cuentas.</p>
+                        </div>
+                        <div className="flex flex-col gap-1">
                             <label className="text-xs text-secondary font-medium">
-                                {editingRow.access_type === "combo" ? "Nombre del combo" : "Plataforma"}
+                                Nombre del perfil<span className="text-accent ml-0.5">*</span>
                             </label>
-                            <CopyInput value={editingRow.titulo} readOnly copyLabel="Copiar" successLabel="Copiado" />
-                        </div>
-                        {editingRow.combo_items.length > 0 && (
-                            <div className="flex flex-col gap-1">
-                                <label className="text-xs text-secondary font-medium">Incluye</label>
-                                <CopyInput value={contenidoDeCombo(editingRow)} readOnly copyLabel="Copiar" successLabel="Copiado" />
-                                {/* La receta de un combo es su identidad: cambiarla es armar otro combo. */}
-                                <p className="text-xs text-secondary">Para cambiar el contenido, crea un combo nuevo y elimina este.</p>
-                            </div>
-                        )}
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">Categoría</label>
-                            <CopyInput value={editingRow.categoria} readOnly copyLabel="Copiar" successLabel="Copiado" />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">Tipo de acceso</label>
-                            <CopyInput value={accessTypeLabel[editingRow.access_type]} readOnly copyLabel="Copiar" successLabel="Copiado" />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">Costo (proveedor)</label>
-                            <CopyInput value={editingRow.costo === null ? "--" : formatCOP(editingRow.costo)} readOnly copyLabel="Copiar" successLabel="Copiado" />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">Precio de venta</label>
                             <Input
                                 className="bg-white/3"
-                                type="number"
-                                min="0"
-                                value={editPrecioVenta}
-                                onChange={(e) => setEditPrecioVenta(e.target.value)}
+                                value={editNombre}
+                                onChange={(e) => setEditNombre(e.target.value)}
+                                required
                             />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-xs text-secondary font-medium">PIN</label>
+                            <Input
+                                className="bg-white/3"
+                                value={editPin}
+                                onChange={(e) => setEditPin(e.target.value)}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-xs text-secondary font-medium">Estado</label>
+                            <SelectDropdown
+                                value={editEstado}
+                                onChange={(value) => setEditEstado(value as PerfilRow["estado"])}
+                                options={estadoOptions}
+                            />
+                            <p className="text-xs text-secondary">Solo los perfiles disponibles se muestran en la Tienda.</p>
                         </div>
 
                         <div className="flex items-center justify-end gap-2 mt-2">
@@ -423,7 +350,7 @@ export default function ProductosClient({ initialProductos, licenciasPromise, of
             </Modal>
 
             <Modal isOpen={deletingId !== null} title="Confirmar eliminación" onClose={() => setDeletingId(null)}>
-                <div className="text-sm text-white/90">¿Eliminar este producto? Dejará de estar disponible para la venta.</div>
+                <div className="text-sm text-white/90">¿Eliminar este perfil? Dejará de estar disponible para la venta.</div>
                 <div className="flex items-center justify-end gap-2 mt-4">
                     <Button variant="ghost" onClick={() => setDeletingId(null)} disabled={isPending}>Cancelar</Button>
                     <Button variant="primary" onClick={confirmDelete} disabled={isPending}>

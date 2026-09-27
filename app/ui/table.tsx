@@ -8,7 +8,8 @@ import Modal from "@ui/modal"
 import CopyInput from "@ui/copy-input"
 import PhoneInput from "@ui/phone-input"
 import Alert from "@ui/alert"
-import { Eye, Edit, Trash2, Search, Plus } from "lucide-react"
+import { Eye, Edit, Trash2, Plus } from "lucide-react"
+import { ActionsCell, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, TableFrame, Td, Th } from "@ui/data-frame"
 import { validateEmail, validatePassword, validateUsername, validatePhoneValue } from "@lib/validation"
 import { splitPhoneNumber } from "@lib/phone"
 
@@ -255,7 +256,7 @@ export default function Table<T extends Record<string, unknown>>({
 
         return rows.filter((row) =>
             header.some((column) => {
-                const value = (row as any)[column]
+                const value = row[column]
                 if (value === null || value === undefined) return false
                 const text = formatCellValue(value).toLowerCase()
                 return text.includes(query)
@@ -428,10 +429,21 @@ export default function Table<T extends Record<string, unknown>>({
         )
     }
 
+    const toolbar = (mobile: boolean) => (
+        <>
+            <SearchInput value={search} onChange={setSearch} className={mobile ? "w-full" : undefined} />
+            {!hideCreate && (
+                <Button onClick={openCreate} variant="primary" leftIcon={<Plus className="h-4 w-4" />}>
+                    Agregar
+                </Button>
+            )}
+        </>
+    )
+
     return (
         <div className={`w-full ${className}`} style={{ color: 'var(--color-foreground)' }}>
             {alert && (
-                <div className="mb-3">
+                <div className="mb-4">
                     <Alert
                         variant={alert.variant}
                         message={alert.message}
@@ -440,241 +452,88 @@ export default function Table<T extends Record<string, unknown>>({
                 </div>
             )}
 
-            {/* Desktop / wide: standard polished table frame */}
-            <div className="hidden md:block relative">
-                <div
-                    className="overflow-hidden rounded-2xl"
-                    style={{
-                        background: 'linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.012))',
-                        border: '1px solid rgba(255,255,255,0.08)',
-                        boxShadow: '0 8px 24px rgba(2,6,23,0.28), inset 0 1px 0 rgba(255,255,255,0.04)',
-                        backdropFilter: 'blur(10px)'
-                    }}
-                >
-                    <div className="p-4">
-                        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="relative w-full sm:max-w-sm">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--color-secondary)' }} />
-                                <input
-                                    type="search"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    placeholder="Buscar"
-                                    className="w-full rounded-xl border border-white/10 bg-white/3 py-2.5 pl-9 pr-3 text-sm text-white outline-none transition focus:border-accent/40 focus:ring-1 focus:ring-accent/20"
-                                />
-                            </div>
+            {/* Marco, densidad y alto compartidos con el resto de tablas del panel (app/ui/data-frame.tsx). */}
+            <TableFrame toolbar={toolbar(false)}>
+                <thead>
+                    <tr>
+                        {header.map((column) => <Th key={column}>{column}</Th>)}
+                        {showActions && <Th align="right">Acciones</Th>}
+                    </tr>
+                </thead>
 
-                            {!hideCreate && (
-                                <Button
-                                    onClick={openCreate}
-                                    variant="primary"
-                                    leftIcon={<Plus className="h-4 w-4" />}>
-                                    Agregar
-                                </Button>
-                            )}
-                        </div>
-
-                        {/* ponytail: altura fija calibrada a mano; ajústala si el diseño cambia */}
-                        <div className="h-[480px] overflow-y-auto">
-                        <table className="w-full border-collapse text-left text-sm" style={{ color: 'var(--color-foreground)' }}>
-                            <thead>
-                                <tr>
-                                    {header.map((column) => (
-                                        <th key={column} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--color-secondary)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                                            {column}
-                                        </th>
-                                    ))}
-                                    {showActions && (
-                                        <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--color-secondary)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                                            Acciones
-                                        </th>
-                                    )}
-                                </tr>
-                            </thead>
-
-                            <tbody>
-                                {loading ? (
-                                    Array.from({ length: 4 }, (_, i) => (
-                                        <tr key={`skeleton-${i}`}>
-                                            {header.map((column) => (
-                                                <td key={column} className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                    <div className="h-5 w-full animate-pulse rounded-md bg-white/5" />
-                                                </td>
-                                            ))}
-                                            {showActions && (
-                                                <td className="px-4 py-4 align-middle text-right" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                    <div className="inline-flex items-center gap-2">
-                                                        {Array.from({ length: actionCount }, (_, button) => (
-                                                            <div key={button} className="h-9 w-9 animate-pulse rounded-xl bg-white/5" />
-                                                        ))}
-                                                    </div>
-                                                </td>
-                                            )}
-                                        </tr>
-                                    ))
-                                ) : filteredRows.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={header.length + (showActions ? 1 : 0)} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--color-secondary)' }}>
-                                            No hay datos disponibles.
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    filteredRows.map((row, rowIndex) => (
-                                        <tr key={rowIndex} tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') openView(row) }} className="group transition-colors hover:bg-white/3 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/25">
-                                            {header.map((column, colIndex) => (
-                                                <td key={`${rowIndex}-${column}`} className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                    <div
-                                                        style={{
-                                                            color: 'var(--color-foreground)',
-                                                            fontWeight: colIndex === 0 ? 600 : 400
-                                                        }}>
-                                                        {formatCellValue((row as any)[column])}</div>
-                                                </td>
-                                            ))}
-
-                                            {showActions && (
-                                                <td className="px-4 py-4 align-middle text-right" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                    <div className="inline-flex items-center gap-2 *:cursor-pointer">
-                                                        {builtinActions.includes("view") && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => openView(row)}
-                                                            aria-label="Ver"
-                                                            title="Ver"
-                                                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent) focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/25"
-                                                        >
-                                                            <Eye className="h-4 w-4" />
-                                                        </button>
-                                                        )}
-                                                        {builtinActions.includes("edit") && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => openEdit(row, rowIndex)}
-                                                            aria-label="Editar"
-                                                            title="Editar"
-                                                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent) focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/25"
-                                                        >
-                                                            <Edit className="h-4 w-4" />
-                                                        </button>
-                                                        )}
-                                                        {builtinActions.includes("delete") && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => confirmDelete(row, rowIndex)}
-                                                            aria-label="Eliminar"
-                                                            title="Eliminar"
-                                                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-red-400/20 bg-red-500/10 text-red-400 transition-all duration-200 hover:border-red-400/30 hover:bg-red-500/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/25"
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </button>
-                                                        )}
-                                                        {extraActions?.(row, "desktop")}
-                                                    </div>
-                                                </td>
-                                            )}
-                                        </tr>
-                                    ))
+                <tbody>
+                    {loading ? (
+                        Array.from({ length: 4 }, (_, i) => (
+                            <tr key={`skeleton-${i}`}>
+                                {header.map((column) => (
+                                    <Td key={column}>
+                                        <div className="h-5 w-full animate-pulse rounded-md bg-white/5" />
+                                    </Td>
+                                ))}
+                                {showActions && (
+                                    <ActionsCell>
+                                        {Array.from({ length: actionCount }, (_, button) => (
+                                            <div key={button} className="h-9 w-9 animate-pulse rounded-xl bg-white/5" />
+                                        ))}
+                                    </ActionsCell>
                                 )}
-                            </tbody>
-                        </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                            </tr>
+                        ))
+                    ) : filteredRows.length === 0 ? (
+                        <EmptyRow colSpan={header.length + (showActions ? 1 : 0)}>No hay datos disponibles.</EmptyRow>
+                    ) : (
+                        filteredRows.map((row, rowIndex) => (
+                            <tr key={rowIndex} tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') openView(row) }} className={`${ROW_CLASS} focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/25`}>
+                                {header.map((column, colIndex) => (
+                                    <Td key={`${rowIndex}-${column}`} className={colIndex === 0 ? "font-semibold" : ""}>
+                                        {formatCellValue(row[column])}
+                                    </Td>
+                                ))}
 
-            {/* Mobile: polished card frame */}
-            <div className="md:hidden flex flex-col gap-3">
-                <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/3 p-3">
-                    <div className="relative">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--color-secondary)' }} />
-                        <input
-                            type="search"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Buscar"
-                            className="w-full rounded-xl border border-white/10 bg-white/3 py-2.5 pl-9 pr-3 text-sm text-white outline-none transition focus:border-accent/40 focus:ring-1 focus:ring-accent/20"
-                        />
-                    </div>
-                    {!hideCreate && (
-                        <Button size="sm" variant="primary" onClick={openCreate} leftIcon={<Plus className="h-4 w-4" />}>
-                            Agregar
-                        </Button>
+                                {showActions && (
+                                    <ActionsCell>
+                                        {builtinActions.includes("view") && <IconAction icon={Eye} label="Ver" onClick={() => openView(row)} />}
+                                        {builtinActions.includes("edit") && <IconAction icon={Edit} label="Editar" onClick={() => openEdit(row, rowIndex)} />}
+                                        {builtinActions.includes("delete") && <IconAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => confirmDelete(row, rowIndex)} />}
+                                        {extraActions?.(row, "desktop")}
+                                    </ActionsCell>
+                                )}
+                            </tr>
+                        ))
                     )}
-                </div>
+                </tbody>
+            </TableFrame>
 
-                <div className="h-[480px] overflow-y-auto flex flex-col gap-3">
+            <MobileFrame toolbar={toolbar(true)}>
                 {loading ? (
                     Array.from({ length: 3 }, (_, i) => (
-                        <div key={`skeleton-${i}`} className="rounded-2xl overflow-hidden shrink-0" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))', border: '1px solid rgba(255,255,255,0.08)' }}>
-                            <div className="p-4">
-                                {header.map((column) => (
-                                    <div key={column} className="flex items-start justify-between gap-3 py-2">
-                                        <div className="h-4 w-16 animate-pulse rounded bg-white/5" />
-                                        <div className="h-4 w-24 animate-pulse rounded bg-white/5" />
-                                    </div>
-                                ))}
-                                {showActions && (
-                                    <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3">
-                                        {Array.from({ length: actionCount }, (_, button) => (
-                                            <div key={button} className="h-9 w-20 animate-pulse rounded-xl bg-white/5" />
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
+                        <MobileCard
+                            key={`skeleton-${i}`}
+                            fields={header.map((column) => ({ label: column, value: <span className="inline-block h-4 w-24 animate-pulse rounded bg-white/5 align-middle" /> }))}
+                            actions={showActions ? Array.from({ length: actionCount }, (_, button) => (
+                                <div key={button} className="h-9 w-20 animate-pulse rounded-xl bg-white/5" />
+                            )) : undefined}
+                        />
                     ))
                 ) : filteredRows.length === 0 ? (
-                    <div className="px-4 py-6 text-center text-sm" style={{ color: 'var(--color-secondary)' }}>No hay datos disponibles.</div>
+                    <MobileEmpty>No hay datos disponibles.</MobileEmpty>
                 ) : (
                     filteredRows.map((row, rowIndex) => (
-                        // shrink-0: sin esto, con más filas que el alto fijo las tarjetas se comprimen y ocultan sus campos y acciones
-                        <div key={rowIndex} className="rounded-2xl overflow-hidden shrink-0" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 6px 16px rgba(2,6,23,0.25)' }}>
-                            <div className="p-4">
-                                {header.map((column) => (
-                                    <div key={`${rowIndex}-${column}`} className="flex items-start justify-between gap-3 py-2">
-                                        <div className="text-xs font-medium" style={{ color: 'var(--color-secondary)' }}>{column}</div>
-                                        <div className="text-sm" style={{ color: 'var(--color-foreground)' }}>{formatCellValue((row as any)[column])}</div>
-                                    </div>
-                                ))}
-
-                                {showActions && (
-                                    <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3 *:cursor-pointer">
-                                        {builtinActions.includes("view") && (
-                                            <button
-                                                type="button"
-                                                onClick={() => openView(row)}
-                                                className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 px-3 text-sm text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent)"
-                                            >
-                                                <Eye className="mr-2 h-4 w-4" />Ver
-                                            </button>
-                                        )}
-                                        {builtinActions.includes("edit") && (
-                                            <button
-                                                type="button"
-                                                onClick={() => openEdit(row, rowIndex)}
-                                                className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 px-3 text-sm text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent)"
-                                            >
-                                                <Edit className="mr-2 h-4 w-4" />Editar
-                                            </button>
-                                        )}
-                                        {builtinActions.includes("delete") && (
-                                            <button
-                                                type="button"
-                                                onClick={() => confirmDelete(row, rowIndex)}
-                                                className="inline-flex h-9 items-center justify-center rounded-xl border border-red-400/20 bg-red-500/10 px-3 text-sm text-red-400 transition-all duration-200 hover:border-red-400/30 hover:bg-red-500/15"
-                                            >
-                                                <Trash2 className="mr-2 h-4 w-4" />Eliminar
-                                            </button>
-                                        )}
-                                        {extraActions?.(row, "mobile")}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
+                        <MobileCard
+                            key={rowIndex}
+                            fields={header.map((column) => ({ label: column, value: formatCellValue(row[column]) }))}
+                            actions={showActions ? (
+                                <>
+                                    {builtinActions.includes("view") && <MobileAction icon={Eye} label="Ver" onClick={() => openView(row)} />}
+                                    {builtinActions.includes("edit") && <MobileAction icon={Edit} label="Editar" onClick={() => openEdit(row, rowIndex)} />}
+                                    {builtinActions.includes("delete") && <MobileAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => confirmDelete(row, rowIndex)} />}
+                                    {extraActions?.(row, "mobile")}
+                                </>
+                            ) : undefined}
+                        />
                     ))
                 )}
-                </div>
-            </div>
+            </MobileFrame>
 
             {/* Create Modal */}
             <Modal isOpen={viewCreate} title="Crear registro" onClose={closeCreate}>

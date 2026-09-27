@@ -1,7 +1,8 @@
 "use client"
 
-import Card from "@ui/card"
-import { RotateCcw } from "lucide-react"
+import { History, RotateCcw } from "lucide-react"
+import { SectionHeader } from "@ui/page-header"
+import { EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, TABLE_BODY_MAX_HEIGHT, TableFrame, Td, Th } from "@ui/data-frame"
 import { formatCOP } from "@lib/currency"
 import type { CompraHistorial, EstadoCompra } from "@lib/bodega/tipos"
 
@@ -19,6 +20,12 @@ const estadoDe = (c: CompraHistorial) =>
 
 const puedeRegistrar = (c: CompraHistorial) => c.estado === "pendiente_registro" || c.estado === "pagada"
 
+const HEADER = ["Fecha", "Producto", "Cant.", "Total", "Estado", "Pedido"]
+
+const fechaCompra = (c: CompraHistorial) => new Date(c.created_at).toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" })
+
+const REGISTRAR_TITLE = "Volver a leer la entrega del pedido y registrarla en el inventario"
+
 interface HistorialCardProps {
     /** null = no se pudo leer */
     compras: CompraHistorial[] | null
@@ -28,67 +35,98 @@ interface HistorialCardProps {
 
 export default function HistorialCard({ compras, registrandoId, onRegistrar }: Readonly<HistorialCardProps>) {
     return (
-        <Card className="overflow-x-auto">
-            <h2 className="text-lg font-semibold mb-4">Últimas compras</h2>
-            <table className="w-full min-w-[44rem] text-left text-sm">
+        <section className="flex flex-col gap-3">
+            <SectionHeader icon={History} title="Últimas compras" />
+
+            {/* Mismo marco que el catálogo de arriba; el historial suele ser corto, así que su alto es un tope y no fijo. */}
+            <TableFrame bodyHeight={TABLE_BODY_MAX_HEIGHT}>
                 <thead>
-                    <tr className="text-xs text-secondary uppercase tracking-wide">
-                        <th className="pb-3 pr-4">Fecha</th>
-                        <th className="pb-3 pr-4">Producto</th>
-                        <th className="pb-3 pr-4">Cant.</th>
-                        <th className="pb-3 pr-4">Total</th>
-                        <th className="pb-3 pr-4">Estado</th>
-                        <th className="pb-3 pr-4">Pedido</th>
-                        <th className="pb-3 pr-4 text-right">Acciones</th>
+                    <tr>
+                        {HEADER.map((column) => <Th key={column}>{column}</Th>)}
                     </tr>
                 </thead>
                 <tbody>
                     {compras === null ? (
-                        <tr>
-                            <td className="py-8 text-center text-red-400" colSpan={7}>No pudimos cargar el historial de compras.</td>
-                        </tr>
+                        <EmptyRow colSpan={HEADER.length} className="text-red-400">No pudimos cargar el historial de compras.</EmptyRow>
                     ) : compras.length === 0 ? (
-                        <tr>
-                            <td className="py-8 text-center text-secondary" colSpan={7}>Todavía no hay compras hechas desde la bodega.</td>
-                        </tr>
+                        <EmptyRow colSpan={HEADER.length}>Todavía no hay compras hechas desde la bodega.</EmptyRow>
                     ) : (
                         compras.map((c) => {
                             const estado = estadoDe(c)
                             return (
-                                <tr key={c.id} className="border-t border-white/6 align-top">
-                                    <td className="py-3 pr-4 text-secondary whitespace-nowrap">
-                                        {new Date(c.created_at).toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" })}
-                                    </td>
-                                    <td className="py-3 pr-4 font-medium">{c.producto}</td>
-                                    <td className="py-3 pr-4 text-secondary">{c.cantidad}</td>
-                                    <td className="py-3 pr-4 tabular-nums">{formatCOP(c.total)}</td>
-                                    <td className="py-3 pr-4">
-                                        <span className={estado.className}>{estado.label}</span>
-                                        {c.detalle && c.estado !== "registrada" && <p className="text-xs text-secondary mt-0.5 max-w-xs">{c.detalle}</p>}
-                                    </td>
-                                    <td className="py-3 pr-4 text-secondary">{c.pedido_proveedor === null ? "--" : `#${c.pedido_proveedor}`}</td>
-                                    <td className="py-3 pr-4">
-                                        <div className="flex items-center justify-end">
+                                <tr key={c.id} className={ROW_CLASS}>
+                                    <Td className="whitespace-nowrap text-secondary">{fechaCompra(c)}</Td>
+                                    <Td className="font-semibold">{c.producto}</Td>
+                                    <Td className="text-secondary">{c.cantidad}</Td>
+                                    <Td className="whitespace-nowrap tabular-nums">{formatCOP(c.total)}</Td>
+                                    <Td>
+                                        <div className="flex items-center gap-2">
+                                            <span className={estado.className}>{estado.label}</span>
                                             {puedeRegistrar(c) && (
-                                                <button
-                                                    type="button"
+                                                <IconAction
+                                                    icon={RotateCcw}
+                                                    label="Registrar"
+                                                    title={REGISTRAR_TITLE}
                                                     onClick={() => onRegistrar(c.id)}
                                                     disabled={registrandoId !== null}
-                                                    title="Volver a leer la entrega del pedido y registrarla en el inventario"
-                                                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-white/3 px-2.5 text-xs hover:border-accent/30 hover:bg-accent/10 hover:text-accent disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
-                                                >
-                                                    <RotateCcw className={`h-3.5 w-3.5 ${registrandoId === c.id ? "animate-spin" : ""}`} />
-                                                    {registrandoId === c.id ? "Registrando..." : "Registrar"}
-                                                </button>
+                                                    spinning={registrandoId === c.id}
+                                                />
                                             )}
                                         </div>
-                                    </td>
+                                        {c.detalle && c.estado !== "registrada" && <p className="mt-0.5 max-w-xs text-xs text-secondary">{c.detalle}</p>}
+                                    </Td>
+                                    <Td className="text-secondary">{c.pedido_proveedor === null ? "--" : `#${c.pedido_proveedor}`}</Td>
                                 </tr>
                             )
                         })
                     )}
                 </tbody>
-            </table>
-        </Card>
+            </TableFrame>
+
+            <MobileFrame bodyHeight={TABLE_BODY_MAX_HEIGHT}>
+                {compras === null ? (
+                    <MobileEmpty className="text-red-400">No pudimos cargar el historial de compras.</MobileEmpty>
+                ) : compras.length === 0 ? (
+                    <MobileEmpty>Todavía no hay compras hechas desde la bodega.</MobileEmpty>
+                ) : (
+                    compras.map((c) => {
+                        const estado = estadoDe(c)
+                        return (
+                            <MobileCard
+                                key={c.id}
+                                fields={[
+                                    { label: "Fecha", value: fechaCompra(c) },
+                                    { label: "Producto", value: c.producto, className: "font-semibold" },
+                                    { label: "Cant.", value: c.cantidad },
+                                    { label: "Total", value: formatCOP(c.total), className: "tabular-nums" },
+                                    {
+                                        label: "Estado",
+                                        value: (
+                                            <>
+                                                <span className={estado.className}>{estado.label}</span>
+                                                {c.detalle && c.estado !== "registrada" && <p className="mt-0.5 text-xs text-secondary">{c.detalle}</p>}
+                                            </>
+                                        ),
+                                    },
+                                    { label: "Pedido", value: c.pedido_proveedor === null ? "--" : `#${c.pedido_proveedor}` },
+                                ]}
+                                actions={
+                                    puedeRegistrar(c) ? (
+                                        <MobileAction
+                                            icon={RotateCcw}
+                                            label={registrandoId === c.id ? "Registrando..." : "Registrar"}
+                                            title={REGISTRAR_TITLE}
+                                            onClick={() => onRegistrar(c.id)}
+                                            disabled={registrandoId !== null}
+                                            spinning={registrandoId === c.id}
+                                        />
+                                    ) : undefined
+                                }
+                            />
+                        )
+                    })
+                )}
+            </MobileFrame>
+        </section>
     )
 }

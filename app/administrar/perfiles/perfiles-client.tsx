@@ -324,6 +324,10 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
                                 <CopyInput className="bg-white/3" value={value} placeholder="--" readOnly copyLabel="Copiar" successLabel="Copiado" />
                             </div>
                         ))}
+
+                        <div className="flex items-center justify-end gap-2 mt-2">
+                            <Button variant="ghost" onClick={() => setViewingId(null)}>Cerrar</Button>
+                        </div>
                     </div>
                 )}
             </Modal>

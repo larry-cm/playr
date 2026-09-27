@@ -60,20 +60,31 @@ interface FrameProps {
     toolbar?: ReactNode
     /** TABLE_BODY_HEIGHT (por defecto) o TABLE_BODY_MAX_HEIGHT. */
     bodyHeight?: string
+    /** Encabezado de la sección (SectionHeader) DENTRO del marco, con la línea divisoria de las tarjetas del panel. */
+    heading?: ReactNode
+    /** Desde lg ocupa el alto de su contenedor (el área con scroll se estira) en vez de usar bodyHeight; debajo de lg, bodyHeight. */
+    fill?: boolean
     children: ReactNode
 }
 
 /** Marco de escritorio (md+): barra arriba y tabla con encabezado fijo dentro de un área de alto constante. */
-export function TableFrame({ toolbar, bodyHeight = TABLE_BODY_HEIGHT, children }: Readonly<FrameProps>) {
+export function TableFrame({ toolbar, bodyHeight = TABLE_BODY_HEIGHT, heading, fill, children }: Readonly<FrameProps>) {
     return (
-        <div className="hidden md:block overflow-hidden rounded-2xl" style={FRAME_STYLE}>
-            <div className="p-4">
+        <div className={`hidden md:block overflow-hidden rounded-2xl ${fill ? "lg:flex lg:h-full lg:flex-col" : ""}`} style={FRAME_STYLE}>
+            {/* mismo p-6 y línea que Card + SectionHeader (p. ej. "Resumen de Servicios") */}
+            {heading && (
+                <div className="px-6 pt-6">
+                    {heading}
+                    <div className="mt-6 border-t border-white/6" />
+                </div>
+            )}
+            <div className={`${heading ? "px-4 pb-4 pt-6" : "p-4"} ${fill ? "lg:flex lg:min-h-0 lg:flex-1 lg:flex-col" : ""}`}>
                 {toolbar && (
                     <div className="mb-4 flex min-h-[42px] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         {toolbar}
                     </div>
                 )}
-                <div className={`${bodyHeight} overflow-y-auto overscroll-contain`}>
+                <div className={`${bodyHeight} overflow-y-auto overscroll-contain ${fill ? "lg:h-auto lg:max-h-none lg:min-h-0 lg:flex-1" : ""}`}>
                     <table className="w-full border-collapse text-left text-sm text-foreground">{children}</table>
                 </div>
             </div>
@@ -82,10 +93,15 @@ export function TableFrame({ toolbar, bodyHeight = TABLE_BODY_HEIGHT, children }
 }
 
 /** Versión móvil (< md) del mismo marco: barra en su propio bloque y una tarjeta por fila. */
-export function MobileFrame({ toolbar, bodyHeight = TABLE_BODY_HEIGHT, children }: Readonly<FrameProps>) {
+export function MobileFrame({ toolbar, bodyHeight = TABLE_BODY_HEIGHT, heading, children }: Readonly<FrameProps>) {
     return (
         <div className="md:hidden flex flex-col gap-3">
-            {toolbar && <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/3 p-3">{toolbar}</div>}
+            {(heading || toolbar) && (
+                <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/3 p-3">
+                    {heading && <div className="p-1">{heading}</div>}
+                    {toolbar}
+                </div>
+            )}
             <div className={`${bodyHeight} overflow-y-auto overscroll-contain flex flex-col gap-3`}>{children}</div>
         </div>
     )

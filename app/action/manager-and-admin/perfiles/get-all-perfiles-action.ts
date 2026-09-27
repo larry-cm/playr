@@ -7,6 +7,7 @@ export interface PerfilRow {
     account_id: number
     platform_nombre: string
     access_type: SimpleAccessType
+    /** Correo efectivo: el propio del perfil si se editó, si no el de su cuenta. */
     cuenta_email: string
     nombre_perfil: string
     pin: string | null
@@ -38,7 +39,7 @@ export async function getAllPerfilesAction(): Promise<PerfilRow[] | null> {
         const { data, error } = await supabase
             .schema("business")
             .from("profile")
-            .select("id,account_id,nombre_perfil,pin,estado,account:account_id!inner(id,email,access_type,fecha_vencimiento,exist,platform:platform_id(nombre))")
+            .select("id,account_id,nombre_perfil,pin,estado,email,account:account_id!inner(id,email,access_type,fecha_vencimiento,exist,platform:platform_id(nombre))")
             .eq("exist", true)
             .eq("account.exist", true)
             .order("account_id", { ascending: true })
@@ -53,7 +54,7 @@ export async function getAllPerfilesAction(): Promise<PerfilRow[] | null> {
                 account_id: row.account_id,
                 platform_nombre: account?.platform?.nombre ?? "--",
                 access_type: account?.access_type ?? "pantalla",
-                cuenta_email: account?.email ?? "--",
+                cuenta_email: row.email ?? account?.email ?? "--",
                 nombre_perfil: row.nombre_perfil,
                 pin: row.pin,
                 estado: row.estado,

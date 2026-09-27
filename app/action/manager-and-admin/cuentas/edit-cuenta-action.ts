@@ -1,18 +1,17 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { getRoleUser } from "@action/get-role-action"
 import { editCuentaSchema, firstErrorOfCuenta } from "@lib/cuenta-schema"
 
 /**
- * Plataforma, correo y contraseña son la identidad de la cuenta real del proveedor: no se editan.
- * El estado de venta tampoco vive acá — es de cada perfil (ver /administrar/perfiles).
+ * Solo el correo se edita. Plataforma, vencimiento, costo y cupo de perfiles vienen de la compra; la contraseña se lee
+ * en vivo del proveedor por correo, así que el correo debe coincidir con el de "Mis licencias".
+ * El estado de venta no vive acá — es de cada perfil (ver /administrar/perfiles).
  */
-export async function editCuentaAction(formData: {
-    id: number
-    fecha_vencimiento?: string
-    costo?: number | string
-    perfil_max: number | string
-}): Promise<string | null> {
+export async function editCuentaAction(formData: { id: number; email: string }): Promise<string | null> {
+    const role = await getRoleUser()
+    if (role !== "admin" && role !== "manager") return "No tienes permiso para editar cuentas."
     if (!formData.id) return "Id no encontrado"
 
     const data = editCuentaSchema.safeParse(formData)
@@ -24,15 +23,12 @@ export async function editCuentaAction(formData: {
     const { error } = await supabase
         .schema("business")
         .from("account")
-        .update({
-            fecha_vencimiento: data.data.fecha_vencimiento,
-            costo: data.data.costo,
-            perfil_max: data.data.perfil_max,
-        })
+        .update({ email: data.data.email })
         .eq("id", formData.id)
 
-    if (error) return "Error al actualizar la cuenta."
+    if (error) return error.code === "23505" ? "Ya existe otra cuenta con ese correo en esta plataforma." : "Error al actualizar la cuenta."
 
     revalidatePath("/administrar/cuentas")
+    revalidatePath("/administrar/perfiles")
     return null
 }

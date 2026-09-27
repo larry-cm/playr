@@ -12,15 +12,17 @@ import SaldoCard from "@/app/administrar/bodega/saldo-card"
 import ResumenBodegaCard from "@/app/administrar/bodega/resumen-card"
 import HistorialCard from "@/app/administrar/bodega/historial-card"
 import ComprarModal from "@/app/administrar/bodega/comprar-modal"
+import FiltrosCatalogo, { pasaFiltro, SIN_FILTRO, type FiltroCatalogo } from "@/app/administrar/bodega/filtros-catalogo"
 import { getSaldoProveedorAction } from "@action/manager-and-admin/bodega/get-saldo-action"
 import { comprarBodegaAction } from "@action/manager-and-admin/bodega/comprar-action"
-import { getComprasBodegaAction, reintentarRegistroAction } from "@action/manager-and-admin/bodega/compras-action"
+import { getPedidosProveedorAction } from "@action/manager-and-admin/bodega/compras-action"
 import { formatCOP } from "@lib/currency"
-import type { BodegaCatalogo, BodegaProducto, CompraHistorial, ResultadoCompraUI, SaldoProveedor } from "@lib/bodega/tipos"
+import { capitalizar } from "@lib/text"
+import { duracionDe } from "@lib/bodega/duracion"
+import type { BodegaCatalogo, BodegaProducto, PedidoProveedor, ResultadoCompraUI, SaldoProveedor } from "@lib/bodega/tipos"
 
 interface BodegaClientProps {
     initialCatalogo: BodegaCatalogo | null
-    initialCompras: CompraHistorial[] | null
     /** BODEGA_SIMULAR=1 en el servidor: todo se verifica contra el proveedor, pero no se paga. */
     simulacion: boolean
 }
@@ -29,7 +31,7 @@ type Fila = {
     id: number
     Producto: string
     Plataforma: string
-    Acceso: string
+    Duración: string
     Precio: string
     producto: BodegaProducto
 }
@@ -46,45 +48,50 @@ const fechaCorta = (iso: string) => iso.split("-").reverse().join("/")
 const nuevoId = () =>
     globalThis.crypto?.randomUUID?.() ?? "xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx".replace(/x/g, () => Math.floor(Math.random() * 16).toString(16))
 
-export default function BodegaClient({ initialCatalogo, initialCompras, simulacion }: Readonly<BodegaClientProps>) {
+export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<BodegaClientProps>) {
     // undefined = cargando · null = error · objeto = leído
     const [saldo, setSaldo] = useState<SaldoProveedor | null | undefined>(undefined)
-    const [compras, setCompras] = useState<CompraHistorial[] | null>(initialCompras)
+    const [pedidos, setPedidos] = useState<PedidoProveedor[] | null | undefined>(undefined)
     const [alert, setAlert] = useState<{ variant: Variante; message: string } | null>(null)
 
     const [comprando, setComprando] = useState<BodegaProducto | null>(null)
     const [modalError, setModalError] = useState<string | null>(null)
     const [isPending, setIsPending] = useState(false)
-    const [registrandoId, setRegistrandoId] = useState<number | null>(null)
+    const [filtro, setFiltro] = useState<FiltroCatalogo>(SIN_FILTRO)
 
+    // Saldo y pedidos se leen en paralelo del sitio del proveedor (cada uno con su sesión): el saldo suele llegar antes.
     useEffect(() => {
         let active = true
         getSaldoProveedorAction().then((s) => {
             if (active) setSaldo(s)
+        })
+        getPedidosProveedorAction().then((p) => {
+            if (active) setPedidos(p)
         })
         return () => {
             active = false
         }
     }, [])
 
-    const refrescarSaldo = () => {
-        setSaldo(undefined)
-        getSaldoProveedorAction().then(setSaldo)
-    }
-    const refrescarCompras = () => getComprasBodegaAction().then((c) => c && setCompras(c))
+    // Tras una compra se vuelven a leer solos (no hay botones de actualizar). Se deja lo que había a la vista
+    // mientras llega lo nuevo, así las tarjetas no parpadean; si la relectura falla se conserva lo último leído.
+    const refrescarSaldo = () => getSaldoProveedorAction().then((s) => s && setSaldo(s))
+    const refrescarPedidos = () => getPedidosProveedorAction().then((p) => p && setPedidos(p))
 
     const filas = useMemo<Fila[]>(
         () =>
             (initialCatalogo?.productos ?? []).map((p) => ({
                 id: p.listing_id,
-                Producto: p.nombre,
-                Plataforma: p.platform_nombre ?? "Combo",
-                Acceso: accesoLabel(p),
+                Producto: capitalizar(p.nombre),
+                Plataforma: p.platform_nombre ? capitalizar(p.platform_nombre) : "Combo",
+                Duración: duracionDe(p.nombre),
                 Precio: formatCOP(p.precio),
                 producto: p,
             })),
         [initialCatalogo],
     )
+    const items = useMemo(() => filas.map((f) => ({ plataforma: f.Plataforma, precio: f.producto.precio, duracion: f.Duración })), [filas])
+    const filasVisibles = useMemo(() => filas.filter((_, i) => pasaFiltro(items[i], filtro)), [filas, items, filtro])
 
     const abrirCompra = (p: BodegaProducto) => {
         setModalError(null)
@@ -114,7 +121,7 @@ export default function BodegaClient({ initialCatalogo, initialCompras, simulaci
 
         if (typeof r.saldo === "number") setSaldo({ saldo: r.saldo, leidoEn: new Date().toISOString() })
         else if (r.ok || r.estado === "incierta") refrescarSaldo()
-        if (r.ok || r.estado) refrescarCompras()
+        if (r.ok || r.estado) refrescarPedidos()
 
         if (!r.ok && r.precioActual !== undefined) {
             // el precio cambió en el proveedor: se muestra el nuevo para que el manager lo vuelva a confirmar
@@ -127,21 +134,6 @@ export default function BodegaClient({ initialCatalogo, initialCompras, simulaci
             return
         }
         setComprando(null)
-        setAlert({ variant: varianteDe(r), message: r.mensaje })
-    }
-
-    const registrar = async (id: number) => {
-        if (registrandoId !== null) return
-        setRegistrandoId(id)
-        setAlert(null)
-        let r: ResultadoCompraUI
-        try {
-            r = await reintentarRegistroAction(id)
-        } catch {
-            r = { ok: false, nivel: "error", mensaje: "No recibimos respuesta del servidor. Revisa el historial e inténtalo de nuevo." }
-        }
-        setRegistrandoId(null)
-        refrescarCompras()
         setAlert({ variant: varianteDe(r), message: r.mensaje })
     }
 
@@ -169,37 +161,50 @@ export default function BodegaClient({ initialCatalogo, initialCompras, simulaci
             )}
             {alert && <Alert variant={alert.variant} message={alert.message} onDismiss={() => setAlert(null)} />}
 
-            <div className="grid gap-4 md:grid-cols-2">
-                <SaldoCard saldo={saldo} onRefresh={refrescarSaldo} />
-                <ResumenBodegaCard productosEnStock={initialCatalogo.productos.length} />
+            {/* Arriba lo que se consulta primero: saldo y resumen a la izquierda, el registro global de pedidos a lo ancho del resto.
+                Desde lg el registro va en absoluto: la fila la mide la columna izquierda (con su alto natural) y el registro la llena
+                con scroll, así ni el resumen queda estirado con aire de sobra ni el registro sobresale. */}
+            <div className="grid gap-4 lg:grid-cols-3">
+                <div className="flex flex-col gap-4 md:flex-row lg:flex-col">
+                    <div className="md:flex-1 lg:flex-none">
+                        <SaldoCard saldo={saldo} />
+                    </div>
+                    <div className="md:flex-1">
+                        <ResumenBodegaCard productosEnStock={initialCatalogo.productos.length} pedidos={pedidos} />
+                    </div>
+                </div>
+                <div className="relative min-w-0 lg:col-span-2">
+                    <div className="lg:absolute lg:inset-0">
+                        <HistorialCard pedidos={pedidos} />
+                    </div>
+                </div>
             </div>
 
-            <section className="flex flex-col gap-3">
-                <SectionHeader
-                    icon={Package}
-                    title="Catálogo disponible"
-                    description={
-                        <>
-                            Stock del último escaneo al proveedor{initialCatalogo.escaneo && ` · ${fechaCorta(initialCatalogo.escaneo)}`}. Al
-                            comprar se verifica en vivo — fija el precio de venta en{" "}
-                            <Link href="/administrar/productos" className="text-accent hover:underline">Productos</Link>.
-                        </>
-                    }
-                />
-                {/* Tabla genérica (app/ui/table.tsx) en solo lectura, con "Comprar" como acción de la fila. */}
-                <Table
-                    header={["Producto", "Plataforma", "Acceso", "Precio"]}
-                    data={filas}
-                    hideCreate
-                    builtinActions={[]}
-                    extraActions={(row, layout) => {
-                        const Action = layout === "desktop" ? IconAction : MobileAction
-                        return <Action icon={ShoppingCart} label="Comprar" title={`Comprar ${row.Producto}`} tone="accent" onClick={() => abrirCompra(row.producto)} />
-                    }}
-                />
-            </section>
-
-            <HistorialCard compras={compras} registrandoId={registrandoId} onRegistrar={registrar} />
+            {/* Tabla genérica (app/ui/table.tsx) en solo lectura, con el encabezado dentro del marco y "Comprar" como acción de la fila. */}
+            <Table
+                header={["Producto", "Plataforma", "Duración", "Precio"]}
+                data={filasVisibles}
+                hideCreate
+                builtinActions={[]}
+                extraActions={(row, layout) => {
+                    const Action = layout === "desktop" ? IconAction : MobileAction
+                    return <Action icon={ShoppingCart} label="Comprar" title={`Comprar ${row.Producto}`} tone="accent" onClick={() => abrirCompra(row.producto)} />
+                }}
+                filters={(layout) => <FiltrosCatalogo items={items} value={filtro} onChange={setFiltro} mobile={layout === "mobile"} />}
+                heading={
+                    <SectionHeader
+                        icon={Package}
+                        title="Catálogo disponible"
+                        description={
+                            <>
+                                Stock del último escaneo al proveedor{initialCatalogo.escaneo && ` · ${fechaCorta(initialCatalogo.escaneo)}`}. Al
+                                comprar se verifica en vivo — fija el precio de venta en{" "}
+                                <Link href="/administrar/productos" className="text-accent hover:underline">Productos</Link>.
+                            </>
+                        }
+                    />
+                }
+            />
 
             {comprando && (
                 <ComprarModal

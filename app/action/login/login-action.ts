@@ -5,9 +5,15 @@ import { createSupabase } from "@lib/supabase/server"
 import { redirect } from "next/navigation"
 import { translateAuthError } from "@lib/supabase/auth-errors"
 
+// Al iniciar sesión solo se exige que haya datos: las reglas de complejidad son
+// para crear o cambiar la contraseña, no para comprobar una que ya existe.
 const schema = z.object({
     email: z
         .string({
+            message: "Ingresa un correo electrónico.",
+        })
+        .trim()
+        .min(1, {
             message: "Ingresa un correo electrónico.",
         })
         .email({
@@ -18,22 +24,9 @@ const schema = z.object({
         .string({
             message: "Ingresa una contraseña.",
         })
-        .min(6, {
-            message: "La contraseña debe tener al menos 6 caracteres.",
-        })
-        .max(20, {
-            message: "La contraseña no puede superar los 20 caracteres.",
-        })
-        .regex(/(?=.*[a-z])/, {
-            message: "Incluye al menos una letra minúscula.",
-        })
-        .regex(/(?=.*[A-Z])/, {
-            message: "Incluye al menos una letra mayúscula.",
-        })
-        .regex(/(?=.*[@$!%*?&])/, {
-            message: "Incluye al menos un carácter especial (@$!%*?&).",
+        .min(1, {
+            message: "Ingresa una contraseña.",
         }),
-    remember: z.boolean().optional(),
 })
 
 export type LoginState = {
@@ -45,8 +38,7 @@ export type LoginState = {
 export const loginAction = async (initialState: LoginState, formData: FormData) => {
     const data = schema.safeParse({
         email: formData.get('email'),
-        password: formData.get('contraseña'),
-        remember: formData.get('recordar') ?? false,
+        password: formData.get('password'),
     })
 
     if (!data.success) {

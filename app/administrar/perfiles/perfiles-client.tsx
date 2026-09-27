@@ -9,7 +9,7 @@ import CopyInput from "@ui/copy-input"
 import SelectDropdown from "@ui/select-dropdown"
 import Modal from "@ui/modal"
 import Alert from "@ui/alert"
-import { AlertCircle, Pencil, Trash2, Search } from "lucide-react"
+import { AlertCircle, Eye, Pencil, Trash2, Search } from "lucide-react"
 import type { PerfilRow } from "@action/manager-and-admin/perfiles/get-all-perfiles-action"
 import { editPerfilAction } from "@action/manager-and-admin/perfiles/edit-perfil-action"
 import { deletePerfilAction } from "@action/manager-and-admin/perfiles/delete-perfil-action"
@@ -46,10 +46,9 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
     const [isPending, setIsPending] = useState(false)
 
     const [editingId, setEditingId] = useState<number | null>(null)
-    const [editNombre, setEditNombre] = useState("")
-    const [editPin, setEditPin] = useState("")
     const [editEstado, setEditEstado] = useState<PerfilRow["estado"]>("disponible")
 
+    const [viewingId, setViewingId] = useState<number | null>(null)
     const [deletingId, setDeletingId] = useState<number | null>(null)
     const [search, setSearch] = useState("")
 
@@ -63,11 +62,10 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
     }, [perfiles, search])
 
     const editingRow = perfiles?.find((row) => row.id === editingId) ?? null
+    const viewingRow = perfiles?.find((row) => row.id === viewingId) ?? null
 
     const openEdit = (row: PerfilRow) => {
         setEditingId(row.id)
-        setEditNombre(row.nombre_perfil)
-        setEditPin(row.pin ?? "")
         setEditEstado(row.estado)
     }
 
@@ -79,12 +77,7 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
 
         setIsPending(true)
         setAlert(null)
-        const error = await editPerfilAction({
-            id,
-            nombre_perfil: editNombre,
-            pin: editPin,
-            estado: editEstado,
-        })
+        const error = await editPerfilAction({ id, estado: editEstado })
         setIsPending(false)
 
         if (error) {
@@ -95,7 +88,7 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
         setPerfiles((prev) =>
             (prev ?? []).map((row) =>
                 row.id === id
-                    ? { ...row, nombre_perfil: editNombre.trim(), pin: editPin.trim() === "" ? null : editPin.trim(), estado: editEstado }
+                    ? { ...row, estado: editEstado }
                     : row
             )
         )
@@ -173,11 +166,11 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
                                 <thead>
                                     <tr>
                                         {["Plataforma", "Perfil", "PIN", "Cuenta", "Estado", "Vencimiento"].map((column) => (
-                                            <th key={column} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--color-secondary)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                                            <th key={column} className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--color-secondary)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                                                 {column}
                                             </th>
                                         ))}
-                                        <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--color-secondary)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                                        <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--color-secondary)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                                             Acciones
                                         </th>
                                     </tr>
@@ -193,18 +186,28 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
                                     ) : (
                                         filteredPerfiles.map((row) => (
                                             <tr key={row.id} className="group transition-colors hover:bg-white/3">
-                                                <td className="px-4 py-4 align-middle font-semibold" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.platform_nombre}</td>
-                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.nombre_perfil}</td>
-                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.pin ?? "--"}</td>
-                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.cuenta_email}</td>
-                                                <td className="px-4 py-4 align-middle font-medium" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: estadoColor[row.estado] }}>
+                                                <td className="px-3 py-3 align-middle font-semibold whitespace-nowrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.platform_nombre}</td>
+                                                <td className="px-3 py-3 align-middle whitespace-nowrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.nombre_perfil}</td>
+                                                <td className="px-3 py-3 align-middle whitespace-nowrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.pin ?? "--"}</td>
+                                                {/* El correo es lo más largo: parte línea para que la tabla no scrollee en x. */}
+                                                <td className="px-3 py-3 align-middle break-all" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.cuenta_email}</td>
+                                                <td className="px-3 py-3 align-middle font-medium whitespace-nowrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: estadoColor[row.estado] }}>
                                                     {estadoLabel[row.estado]}
                                                 </td>
-                                                <td className="px-4 py-4 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                <td className="px-3 py-3 align-middle whitespace-nowrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                                     {formatDateOnly(row.fecha_vencimiento)}
                                                 </td>
-                                                <td className="px-4 py-4 align-middle text-right" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                    <div className="inline-flex items-center gap-2 *:cursor-pointer">
+                                                <td className="px-3 py-3 align-middle text-left whitespace-nowrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                    <div className="inline-flex items-center gap-1.5 *:cursor-pointer">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setViewingId(row.id)}
+                                                            aria-label="Ver"
+                                                            title="Ver"
+                                                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent) focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/25"
+                                                        >
+                                                            <Eye className="h-4 w-4" />
+                                                        </button>
                                                         <button
                                                             type="button"
                                                             onClick={() => openEdit(row)}
@@ -266,7 +269,7 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
                                     ].map(([label, value]) => (
                                         <div key={label} className="flex items-start justify-between gap-3 py-2">
                                             <div className="text-xs font-medium" style={{ color: 'var(--color-secondary)' }}>{label}</div>
-                                            <div className="text-sm" style={{ color: 'var(--color-foreground)' }}>{value}</div>
+                                            <div className="min-w-0 break-all text-right text-sm" style={{ color: 'var(--color-foreground)' }}>{value}</div>
                                         </div>
                                     ))}
                                     <div className="flex items-start justify-between gap-3 py-2">
@@ -276,6 +279,13 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
                                         </div>
                                     </div>
                                     <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3 *:cursor-pointer">
+                                        <button
+                                            type="button"
+                                            onClick={() => setViewingId(row.id)}
+                                            className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/3 px-3 text-sm text-(--color-foreground) transition-all duration-200 hover:border-accent/30 hover:bg-accent/10 hover:text-(--color-accent)"
+                                        >
+                                            <Eye className="mr-2 h-4 w-4" />Ver
+                                        </button>
                                         <button
                                             type="button"
                                             onClick={() => openEdit(row)}
@@ -298,37 +308,41 @@ export default function PerfilesClient({ initialPerfiles }: PerfilesClientProps)
                 </div>
             </div>
 
+            <Modal isOpen={viewingId !== null} title="Ver perfil" onClose={() => setViewingId(null)}>
+                {viewingRow && (
+                    <div className="flex flex-col gap-3">
+                        {[
+                            ["Plataforma", `${viewingRow.platform_nombre} · ${accessTypeLabel[viewingRow.access_type]}`],
+                            ["Perfil", viewingRow.nombre_perfil],
+                            ["PIN", viewingRow.pin ?? ""],
+                            ["Cuenta", viewingRow.cuenta_email],
+                            ["Estado", estadoLabel[viewingRow.estado]],
+                            ["Vencimiento", formatDateOnly(viewingRow.fecha_vencimiento)],
+                        ].map(([label, value]) => (
+                            <div key={label} className="flex flex-col gap-1">
+                                <label className="text-xs text-secondary font-medium">{label}</label>
+                                <CopyInput className="bg-white/3" value={value} placeholder="--" readOnly copyLabel="Copiar" successLabel="Copiado" />
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </Modal>
+
             <Modal isOpen={editingId !== null} title="Editar perfil" onClose={cancelEdit}>
                 {editingRow && (
                     <div className="flex flex-col gap-3">
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">Plataforma</label>
-                            <CopyInput value={`${editingRow.platform_nombre} · ${accessTypeLabel[editingRow.access_type]}`} readOnly copyLabel="Copiar" successLabel="Copiado" />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">Cuenta</label>
-                            <CopyInput value={editingRow.cuenta_email} readOnly copyLabel="Copiar" successLabel="Copiado" />
-                            <p className="text-xs text-secondary">El vencimiento y el costo se editan en Cuentas.</p>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">
-                                Nombre del perfil<span className="text-accent ml-0.5">*</span>
-                            </label>
-                            <Input
-                                className="bg-white/3"
-                                value={editNombre}
-                                onChange={(e) => setEditNombre(e.target.value)}
-                                required
-                            />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">PIN</label>
-                            <Input
-                                className="bg-white/3"
-                                value={editPin}
-                                onChange={(e) => setEditPin(e.target.value)}
-                            />
-                        </div>
+                        {/* Solo el estado se edita: el resto viene del proveedor y se muestra deshabilitado. */}
+                        {[
+                            ["Plataforma", `${editingRow.platform_nombre} · ${accessTypeLabel[editingRow.access_type]}`],
+                            ["Cuenta", editingRow.cuenta_email],
+                            ["Nombre del perfil", editingRow.nombre_perfil],
+                            ["PIN", editingRow.pin ?? ""],
+                        ].map(([label, value]) => (
+                            <div key={label} className="flex flex-col gap-1">
+                                <label className="text-xs text-secondary font-medium">{label}</label>
+                                <Input className="bg-white/3 cursor-not-allowed opacity-60" value={value} placeholder="--" disabled />
+                            </div>
+                        ))}
                         <div className="flex flex-col gap-1">
                             <label className="text-xs text-secondary font-medium">Estado</label>
                             <SelectDropdown

@@ -9,7 +9,7 @@ import CopyInput from "@ui/copy-input"
 import Modal from "@ui/modal"
 import Alert from "@ui/alert"
 import { AlertCircle, Pencil, Trash2 } from "lucide-react"
-import { ActionsCell, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, TableFrame, Td, Th } from "@ui/data-frame"
+import { ActionsCell, ActionsTh, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, TableFrame, Td, Th } from "@ui/data-frame"
 import type { CuentaRow } from "@action/manager-and-admin/cuentas/get-all-cuentas-action"
 import { editCuentaAction } from "@action/manager-and-admin/cuentas/edit-cuenta-action"
 import { deleteCuentaAction } from "@action/manager-and-admin/cuentas/delete-cuenta-action"
@@ -142,7 +142,7 @@ export default function CuentasClient({ initialCuentas }: CuentasClientProps) {
                         {["Plataforma", "Tipo de acceso", "Correo", "Perfiles libres", "Vencimiento", "Costo"].map((column) => (
                             <Th key={column}>{column}</Th>
                         ))}
-                        <Th align="right">Acciones</Th>
+                        <ActionsTh />
                     </tr>
                 </thead>
 

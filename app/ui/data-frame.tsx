@@ -92,10 +92,10 @@ export function MobileFrame({ toolbar, bodyHeight = TABLE_BODY_HEIGHT, children 
 }
 
 /** Encabezado de columna. Queda fijo al hacer scroll; el borde va como sombra porque el de la celda se pierde al fijarla. */
-export function Th({ children, align = "left" }: Readonly<{ children: ReactNode; align?: "left" | "right" }>) {
+export function Th({ children, className = "" }: Readonly<{ children: ReactNode; className?: string }>) {
     return (
         <th
-            className={`sticky top-0 z-10 bg-[#101015] px-4 py-3 text-xs font-semibold uppercase tracking-[0.08em] text-secondary shadow-[inset_0_-1px_0_rgba(255,255,255,0.08)] ${align === "right" ? "text-right" : "text-left"}`}
+            className={`sticky top-0 z-10 bg-[#101015] px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em] text-secondary shadow-[inset_0_-1px_0_rgba(255,255,255,0.08)] ${className}`}
         >
             {children}
         </th>
@@ -129,10 +129,15 @@ export function EmptyRow({ colSpan, children, className = "text-secondary" }: Re
     )
 }
 
-/** Última columna: botones alineados a la derecha. */
+/** Encabezado de la columna de acciones: a la izquierda y ajustado al ancho de los botones, igual que su celda. */
+export function ActionsTh() {
+    return <Th className="w-px whitespace-nowrap">Acciones</Th>
+}
+
+/** Última columna: botones alineados a la izquierda, bajo su encabezado. w-px la ajusta al ancho de los botones. */
 export function ActionsCell({ children }: Readonly<{ children: ReactNode }>) {
     return (
-        <Td className="text-right whitespace-nowrap">
+        <Td className="w-px whitespace-nowrap text-left">
             <div className="inline-flex items-center gap-2">{children}</div>
         </Td>
     )

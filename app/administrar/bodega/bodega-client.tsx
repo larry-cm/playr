@@ -90,7 +90,7 @@ export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<B
             })),
         [initialCatalogo],
     )
-    const items = useMemo(() => filas.map((f) => ({ plataforma: f.Plataforma, precio: f.producto.precio })), [filas])
+    const items = useMemo(() => filas.map((f) => ({ plataforma: f.Plataforma, precio: f.producto.precio, duracion: f.Duración })), [filas])
     const filasVisibles = useMemo(() => filas.filter((_, i) => pasaFiltro(items[i], filtro)), [filas, items, filtro])
 
     const abrirCompra = (p: BodegaProducto) => {

@@ -2,7 +2,7 @@
 import { type ButtonHTMLAttributes, type ReactNode } from "react"
 import { LoaderCircle } from "lucide-react"
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "outline";
+type ButtonVariant = "primary" | "secondary" | "ghost" | "outline" | "danger";
 type ButtonSize = "sm" | "md" | "lg";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -15,13 +15,16 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    "bg-gradient-to-r from-accent to-[#7c3aed] text-white hover:from-accent-hover hover:to-accent hover:shadow-[0_0_20px_rgba(139,92,246,0.3)] active:scale-[0.98] disabled:active:scale-100 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:shadow-none",
+    "bg-gradient-to-r from-accent to-[#7c3aed] text-white hover:from-accent-hover hover:to-accent hover:shadow-[0_0_20px_rgba(139,92,246,0.3)] active:scale-[0.98] disabled:active:scale-100 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:shadow-none focus-visible:ring-accent/50",
   secondary:
-    "bg-white/[0.05] border border-white/[0.1] text-white hover:bg-white/[0.08] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed",
+    "bg-white/[0.05] border border-white/[0.1] text-white hover:bg-white/[0.08] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed focus-visible:ring-accent/40",
   ghost:
-    "text-secondary hover:text-white hover:bg-white/5 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed",
+    "text-secondary hover:text-white hover:bg-white/5 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed focus-visible:ring-accent/40",
   outline:
-    "border border-white/[0.1] text-white bg-transparent hover:bg-white/5 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed",
+    "border border-white/[0.1] text-white bg-transparent hover:bg-white/5 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed focus-visible:ring-accent/40",
+  // Acciones destructivas (eliminar): rojo sólido para que no se confunda con la acción principal.
+  danger:
+    "bg-red-600 text-white hover:bg-red-500 active:scale-[0.98] disabled:active:scale-100 disabled:opacity-60 disabled:cursor-not-allowed focus-visible:ring-red-400/60",
 }
 
 const sizeStyles: Record<ButtonSize, string> = {
@@ -39,21 +42,24 @@ export default function Button({
   children,
   className = "",
   disabled,
+  type = "button",
   ...rest
 }: ButtonProps) {
   return (
     <button
+      type={type}
       disabled={disabled || isLoading}
-      className={`relative inline-flex items-center justify-center font-medium transition-all duration-200 ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
+      aria-busy={isLoading || undefined}
+      className={`relative inline-flex items-center justify-center font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
       {...rest}
     >
       {isLoading ? (
-        <LoaderCircle className="animate-spin w-5 h-5" />
+        <LoaderCircle className="animate-spin w-5 h-5" aria-hidden="true" />
       ) : leftIcon ? (
-        <span className="shrink-0">{leftIcon}</span>
+        <span className="shrink-0" aria-hidden="true">{leftIcon}</span>
       ) : null}
       {isLoading ? <span>{children}</span> : children}
-      {!isLoading && rightIcon && <span className="shrink-0">{rightIcon}</span>}
+      {!isLoading && rightIcon && <span className="shrink-0" aria-hidden="true">{rightIcon}</span>}
     </button>
   )
 }

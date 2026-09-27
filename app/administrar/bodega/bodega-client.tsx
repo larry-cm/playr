@@ -5,8 +5,9 @@ import Link from "next/link"
 import Card from "@ui/card"
 import Alert from "@ui/alert"
 import Table from "@ui/table"
-import { AlertCircle, ShoppingCart } from "lucide-react"
+import { AlertCircle, Package, ShoppingCart } from "lucide-react"
 import SaldoCard from "@/app/administrar/bodega/saldo-card"
+import ResumenBodegaCard from "@/app/administrar/bodega/resumen-card"
 import HistorialCard from "@/app/administrar/bodega/historial-card"
 import ComprarModal from "@/app/administrar/bodega/comprar-modal"
 import { getSaldoProveedorAction } from "@action/manager-and-admin/bodega/get-saldo-action"
@@ -166,14 +167,25 @@ export default function BodegaClient({ initialCatalogo, initialCompras, simulaci
             )}
             {alert && <Alert variant={alert.variant} message={alert.message} onDismiss={() => setAlert(null)} />}
 
-            <SaldoCard saldo={saldo} onRefresh={refrescarSaldo} />
+            <div className="grid gap-4 md:grid-cols-2">
+                <SaldoCard saldo={saldo} onRefresh={refrescarSaldo} />
+                <ResumenBodegaCard productosEnStock={initialCatalogo.productos.length} />
+            </div>
 
-            <div className="flex flex-col gap-2">
-                <p className="text-sm text-secondary">
-                    Productos que el proveedor tenía en stock en su último escaneo
-                    {initialCatalogo.escaneo && ` (${fechaCorta(initialCatalogo.escaneo)})`}. Al comprar se vuelve a verificar en vivo. Lo
-                    comprado queda en el inventario; fija su precio de venta en <Link href="/administrar/productos" className="text-accent hover:underline">Productos</Link>.
-                </p>
+            <div className="flex flex-col gap-3">
+                <div className="flex items-start gap-3 px-1">
+                    <div className="p-2.5 rounded-xl bg-accent/10 shrink-0">
+                        <Package className="w-5 h-5 text-accent" />
+                    </div>
+                    <div>
+                        <h2 className="text-lg font-semibold">Catálogo disponible</h2>
+                        <p className="mt-0.5 text-xs text-secondary">
+                            Stock del último escaneo al proveedor{initialCatalogo.escaneo && ` · ${fechaCorta(initialCatalogo.escaneo)}`}. Al
+                            comprar se verifica en vivo — fija el precio de venta en{" "}
+                            <Link href="/administrar/productos" className="text-accent hover:underline">Productos</Link>.
+                        </p>
+                    </div>
+                </div>
                 {/* Tabla genérica (app/ui/table.tsx) en solo lectura, con "Comprar" como acción de la fila. */}
                 <Table
                     header={["Producto", "Plataforma", "Acceso", "Precio"]}

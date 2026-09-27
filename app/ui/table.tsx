@@ -474,8 +474,9 @@ export default function Table<T extends Record<string, unknown>>({
                             )}
                         </div>
 
-                        {/* ponytail: altura fija calibrada a mano; ajústala si el diseño cambia */}
-                        <div className="h-[480px] overflow-y-auto">
+                        {/* ponytail: altura fija calibrada a mano; ajústala si el diseño cambia.
+                            Barra delgada y oscura: la nativa de Windows es clara, de 15px, y parece un borde. */}
+                        <div className="h-[480px] overflow-y-auto overscroll-contain [scrollbar-width:thin] [scrollbar-gutter:stable] [scrollbar-color:rgb(255_255_255/0.2)_transparent]">
                         <table className="w-full border-collapse text-left text-sm" style={{ color: 'var(--color-foreground)' }}>
                             <thead>
                                 <tr>
@@ -602,7 +603,7 @@ export default function Table<T extends Record<string, unknown>>({
                     )}
                 </div>
 
-                <div className="h-[480px] overflow-y-auto flex flex-col gap-3">
+                <div className="h-[480px] overflow-y-auto overscroll-contain flex flex-col gap-3 [scrollbar-width:thin] [scrollbar-gutter:stable] [scrollbar-color:rgb(255_255_255/0.2)_transparent]">
                 {loading ? (
                     Array.from({ length: 3 }, (_, i) => (
                         <div key={`skeleton-${i}`} className="rounded-2xl overflow-hidden shrink-0" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))', border: '1px solid rgba(255,255,255,0.08)' }}>

@@ -36,13 +36,35 @@ export default function DashboardClient({
     const notifs = useNotificaciones(canNotify)
     const bell = canNotify && <NotificacionesBell count={notifs.sinVer} onClick={notifs.open} />
 
-    // Al abrir el menú móvil el foco entra en él y ESC lo cierra; al cerrarlo vuelve al botón que lo abrió.
+    // Menú móvil abierto: lo de atrás (header y main) queda inerte y el foco no sale del menú.
+    const behindInert = isMobile && sidebarOpen
+
+    // Al abrir el menú móvil el foco entra en él, Tab da la vuelta dentro y ESC lo cierra; al cerrarlo vuelve al botón que lo abrió.
     useEffect(() => {
         if (sidebarOpen) {
             wasOpen.current = true
             asideRef.current?.querySelector<HTMLElement>("nav a")?.focus()
             const onKey = (e: KeyboardEvent) => {
-                if (e.key === "Escape") setSidebarOpen(false)
+                if (e.key === "Escape") {
+                    setSidebarOpen(false)
+                    return
+                }
+                const aside = asideRef.current
+                if (e.key !== "Tab" || !aside || !window.matchMedia(mobileQuery).matches) return
+                const focusables = Array.from(
+                    aside.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'),
+                ).filter((el) => el.getClientRects().length > 0)
+                if (focusables.length === 0) return
+                const first = focusables[0]
+                const last = focusables[focusables.length - 1]
+                const active = document.activeElement
+                if (e.shiftKey && (active === first || !aside.contains(active))) {
+                    e.preventDefault()
+                    last.focus()
+                } else if (!e.shiftKey && (active === last || !aside.contains(active))) {
+                    e.preventDefault()
+                    first.focus()
+                }
             }
             document.addEventListener("keydown", onKey)
             return () => document.removeEventListener("keydown", onKey)
@@ -56,7 +78,7 @@ export default function DashboardClient({
     return (
         <>
             {/* Mobile header */}
-            <header className="lg:hidden fixed top-0 left-0 right-0 z-30 flex items-center justify-between px-4 h-14 bg-background/80 backdrop-blur-xl border-b border-white/6">
+            <header inert={behindInert} className="lg:hidden fixed top-0 left-0 right-0 z-30 flex items-center justify-between px-4 h-14 bg-background/80 backdrop-blur-xl border-b border-white/6">
                 <button
                     ref={menuButtonRef}
                     onClick={() => setSidebarOpen(true)}
@@ -93,7 +115,7 @@ export default function DashboardClient({
 
                 {/* Main content */}
                 {/* Barra nativa: oscura por color-scheme: dark (globals.css), igual que la del html. */}
-                <main className="flex-1 min-w-0 overflow-y-auto p-4 pt-18 sm:p-6 sm:pt-20 lg:p-8 [scrollbar-gutter:stable]">
+                <main inert={behindInert} className="flex-1 min-w-0 overflow-y-auto p-4 pt-18 sm:p-6 sm:pt-20 lg:p-8 [scrollbar-gutter:stable]">
                     <div className="animate-[fadeIn_0.6s_ease-out] motion-reduce:animate-none">
                         <RolContext value={role}>{children}</RolContext>
                     </div>

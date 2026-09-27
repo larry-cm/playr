@@ -13,7 +13,7 @@ const LINK_CLASS =
  * Inicio del cliente. Aún no hay de dónde leer los perfiles que compró (ni sus problemas o cambios), así que en vez de
  * contadores en cero se le muestra qué puede hacer: pedir en la Tienda o escribir a soporte.
  */
-export default function ViewClientPage() {
+export default function ViewClientPage({ telefonoAsesor }: Readonly<{ /** Ver SoporteCard: "" = no configurado · undefined = aún carga. */ telefonoAsesor?: string }>) {
     return (
         <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="sm:col-span-2">
@@ -43,7 +43,7 @@ export default function ViewClientPage() {
                 </Card>
             </div>
 
-            <SoporteCard />
+            <SoporteCard telefonoAsesor={telefonoAsesor} />
         </section>
     )
 }

@@ -3,12 +3,12 @@ import ViewUser from "@/app/administrar/view-user"
 import PageHeader from "@ui/page-header"
 
 /** Inicio del panel según el rol. Lo comparten la página y su esqueleto (loading.tsx), así ambos miden lo mismo. */
-export default function Inicio({ role, resumen }: Readonly<{ role: string; resumen: ReactNode }>) {
+export default function Inicio({ role, resumen, telefonoAsesor }: Readonly<{ role: string; resumen: ReactNode; /** Solo cliente (Soporte). undefined en el esqueleto. */ telefonoAsesor?: string }>) {
     if (role === "user") {
         return (
             <article className="flex flex-col gap-4">
                 <PageHeader title="Administrar" description="Compra perfiles en la Tienda y contacta a soporte si algo falla." />
-                <ViewUser />
+                <ViewUser telefonoAsesor={telefonoAsesor} />
             </article>
         )
     }

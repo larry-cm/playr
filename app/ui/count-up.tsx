@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 
 // Duración fija compartida: todos los contadores llegan a su meta al mismo tiempo.
 const COUNT_DURATION_MS = 900
@@ -33,13 +33,22 @@ function easeOutExpo(p: number) {
     return p === 1 ? 1 : 1 - Math.pow(2, -10 * p)
 }
 
+// Sin valor todavía (fallback de Suspense) se muestra un guion neutro, no un "0" que parezca dato real.
+const PLACEHOLDER = "—"
+
 export default function CountUp({ value }: { value?: number }) {
     const ref = useRef<HTMLSpanElement>(null)
+    // Texto inicial fijo por instancia: después lo escribe solo el efecto (React no vuelve a tocar el nodo).
+    const [initialText] = useState(value === undefined ? PLACEHOLDER : "0")
 
     useEffect(() => {
         const node = ref.current
         if (!node) return
-        if (!value) {
+        if (value === undefined) {
+            node.textContent = PLACEHOLDER
+            return
+        }
+        if (value === 0) {
             node.textContent = "0"
             return
         }
@@ -62,7 +71,7 @@ export default function CountUp({ value }: { value?: number }) {
             aria-live="off"
             className="tabular-nums inline-block min-w-[2ch]"
         >
-            0
+            {initialText}
         </span>
     )
 }

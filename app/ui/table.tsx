@@ -383,12 +383,14 @@ export default function Table<T extends Row>({
             /\b(?:date|fecha|time|hora)\b/i.test(column)
         )
         const isCopyable = !isBool && !Array.isArray(val) && typeof val !== "object" && !isDateField
-        const { error: rawError, validation: rawValidation, message } = !readOnly
+        const { error: rawError, validation: rawValidation, message: hint } = !readOnly
             ? getFieldValidation(column, val)
             : { error: null, validation: "idle" as ValidationState, message: "" }
         const touched = !readOnly && Boolean(touchedFields[column])
         const error = touched ? rawError : null
         const validation = touched ? rawValidation : "idle" as ValidationState
+        // La pista ("Ingresa…") es ayuda neutral: con el campo ya válido se oculta, para no pintarla en verde como un éxito.
+        const message = validation === "valid" ? undefined : hint
 
         const updateField = (value: unknown) => {
             if (readOnly) return

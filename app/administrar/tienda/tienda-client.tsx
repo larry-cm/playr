@@ -10,12 +10,15 @@ import { AlertCircle, MessageCircle, RefreshCw } from "lucide-react"
 import ProductGrid from "@/app/administrar/tienda/product-grid"
 import type { CatalogoDisponibleItem } from "@action/tienda/get-catalogo-disponible-action"
 import { formatCOP } from "@lib/currency"
-import { whatsappAdvisorNumber } from "@lib/const"
 
-// Número del asesor sin signos (wa.me solo acepta dígitos). Vacío = no configurado: no se puede pedir por WhatsApp.
-const telefonoAsesor = (whatsappAdvisorNumber ?? "").replace(/\D/g, "")
+interface TiendaClientProps {
+    /** undefined = la página aún carga (loading.tsx) · null = error */
+    initialCatalogo: CatalogoDisponibleItem[] | null | undefined
+    /** Número del asesor solo en dígitos (lo configura el admin en Ajustes). "" = no configurado · undefined = aún carga. */
+    telefonoAsesor: string | undefined
+}
 
-export default function TiendaClient({ initialCatalogo }: { /** undefined = la página aún carga (loading.tsx) · null = error */ initialCatalogo: CatalogoDisponibleItem[] | null | undefined }) {
+export default function TiendaClient({ initialCatalogo, telefonoAsesor }: TiendaClientProps) {
     const router = useRouter()
     const [reintentando, startReintento] = useTransition()
     // Sin copia en estado: tras "Reintentar" (router.refresh) llega el catálogo nuevo por props.
@@ -58,7 +61,7 @@ export default function TiendaClient({ initialCatalogo }: { /** undefined = la p
         })
     }
 
-    const hayAsesor = telefonoAsesor.length > 0
+    const hayAsesor = !!telefonoAsesor
     const puedeEnviar = selectedItems.length > 0 && hayAsesor
 
     const lineasSeleccion = selectedItems
@@ -117,7 +120,7 @@ export default function TiendaClient({ initialCatalogo }: { /** undefined = la p
                     <p aria-live="polite">
                         {selectedItems.length} seleccionados · Total: <span className="text-white font-semibold">{formatCOP(total)}</span>
                     </p>
-                    {!hayAsesor && (
+                    {telefonoAsesor === "" && (
                         <p className="mt-1 text-xs text-amber-400">
                             Los pedidos por WhatsApp no están disponibles en este momento. Contacta a soporte desde el inicio.
                         </p>
@@ -126,7 +129,7 @@ export default function TiendaClient({ initialCatalogo }: { /** undefined = la p
                 <Button
                     variant="primary"
                     disabled={!puedeEnviar}
-                    title={hayAsesor ? undefined : "No hay un número de asesor configurado"}
+                    title={telefonoAsesor === "" ? "No hay un número de asesor configurado" : undefined}
                     leftIcon={<MessageCircle className="w-4 h-4" />}
                     onClick={() => {
                         if (puedeEnviar) {

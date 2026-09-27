@@ -45,6 +45,7 @@ NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 SUPABASE_SECRET_KEY            # solo servidor: crear usuarios, asignar roles, avisos (app/lib/supabase/admin.ts)
 NEXT_PUBLIC_SITE_URL           # URL pública; la usa el enlace de recuperar contraseña
+NEXT_PUBLIC_WHATSAPP_ADVISOR_NUMBER  # solo respaldo: el número del asesor lo edita el admin en /administrar/ajustes (business.ajuste, clave whatsapp_asesor; getWhatsappAsesor() en app/lib/ajustes.ts)
 ```
 
 Si faltan, la app no podrá conectarse a Supabase.

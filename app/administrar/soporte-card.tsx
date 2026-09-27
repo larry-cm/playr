@@ -6,15 +6,15 @@ import { SectionHeader } from "@ui/page-header"
 import Button from "@ui/button"
 import { MessageCircle, CircleCheck } from "lucide-react"
 import { supabase } from "@lib/supabase/client"
-import { whatsappAdvisorNumber } from "@lib/const"
-
-// Número del asesor sin signos (wa.me solo acepta dígitos). Vacío = no configurado.
-const telefonoAsesor = (whatsappAdvisorNumber ?? "").replace(/\D/g, "")
 
 /** Ancla de la tarjeta: el inicio del cliente enlaza aquí. */
 export const SOPORTE_ID = "soporte"
 
-export default function SoporteCard() {
+/**
+ * `telefonoAsesor`: número del asesor solo en dígitos (lo configura el admin en Ajustes; wa.me no acepta signos).
+ * "" = no configurado · undefined = la página aún carga (sin aviso de "no disponible" que luego desaparece).
+ */
+export default function SoporteCard({ telefonoAsesor }: Readonly<{ telefonoAsesor: string | undefined }>) {
     const [razon, setRazon] = useState("")
     const [correo, setCorreo] = useState<string | null>(null)
 
@@ -23,7 +23,7 @@ export default function SoporteCard() {
         supabase.auth.getUser().then(({ data }) => setCorreo(data.user?.email ?? null))
     }, [])
 
-    const hayAsesor = telefonoAsesor.length > 0
+    const hayAsesor = !!telefonoAsesor
     const mensaje = `Hola, necesito ayuda con mi cuenta de Playr.\n\nMotivo: ${razon.trim()}${correo ? `\n\nCorreo de mi cuenta: ${correo}` : ""}`
     const whatsappUrl = `https://wa.me/${telefonoAsesor}?text=${encodeURIComponent(mensaje)}`
     const puedeEnviar = hayAsesor && razon.trim().length > 0
@@ -67,7 +67,7 @@ export default function SoporteCard() {
                     />
                 </div>
 
-                {!hayAsesor && (
+                {telefonoAsesor === "" && (
                     <p className="text-xs text-amber-400">
                         El contacto por WhatsApp no está disponible en este momento. Inténtalo más tarde.
                     </p>

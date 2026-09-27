@@ -235,7 +235,7 @@ export default function ProductosClient({ initialProductos, licenciasPromise = S
                     {productos === undefined ? (
                         <SkeletonRows columns={COLUMNAS.length} actions={3} />
                     ) : filteredProductos.length === 0 ? (
-                        <EmptyRow colSpan={6}>No hay productos configurados todavía.</EmptyRow>
+                        <EmptyRow colSpan={6}>{productos?.length ? "Ningún producto coincide con la búsqueda." : "No hay productos configurados todavía."}</EmptyRow>
                     ) : (
                         filteredProductos.map((row) => (
                             <tr key={row.id} className={ROW_CLASS}>
@@ -252,9 +252,9 @@ export default function ProductosClient({ initialProductos, licenciasPromise = S
                                     {gananciaOf(row) === null ? "--" : formatCOP(gananciaOf(row)!)}
                                 </Td>
                                 <ActionsCell>
-                                    <IconAction icon={Eye} label="Ver" onClick={() => setViewingId(row.id)} />
-                                    <IconAction icon={Pencil} label="Editar" onClick={() => openEdit(row)} />
-                                    <IconAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => openDelete(row.id)} />
+                                    <IconAction icon={Eye} label={`Ver ${row.titulo}`} title="Ver" onClick={() => setViewingId(row.id)} />
+                                    <IconAction icon={Pencil} label={`Editar ${row.titulo}`} title="Editar" onClick={() => openEdit(row)} />
+                                    <IconAction icon={Trash2} label={`Eliminar ${row.titulo}`} title="Eliminar" tone="danger" onClick={() => openDelete(row.id)} />
                                 </ActionsCell>
                             </tr>
                         ))
@@ -266,7 +266,7 @@ export default function ProductosClient({ initialProductos, licenciasPromise = S
                 {productos === undefined ? (
                     <SkeletonCards labels={COLUMNAS} actions={3} />
                 ) : filteredProductos.length === 0 ? (
-                    <MobileEmpty>No hay productos configurados todavía.</MobileEmpty>
+                    <MobileEmpty>{productos?.length ? "Ningún producto coincide con la búsqueda." : "No hay productos configurados todavía."}</MobileEmpty>
                 ) : (
                     filteredProductos.map((row) => (
                         <MobileCard

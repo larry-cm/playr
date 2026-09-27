@@ -250,9 +250,9 @@ export default function PerfilesClient({ initialPerfiles, initialCuentaId = null
                                 </Td>
                                 <Td className="whitespace-nowrap">{formatDateOnly(row.fecha_vencimiento)}</Td>
                                 <ActionsCell>
-                                    <IconAction icon={Eye} label="Ver" onClick={() => openView(row)} />
-                                    <IconAction icon={Pencil} label="Editar" onClick={() => openEdit(row)} />
-                                    <IconAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => openDelete(row.id)} />
+                                    <IconAction icon={Eye} label={`Ver perfil ${capitalizar(row.nombre_perfil)} de ${capitalizar(row.platform_nombre)}`} title="Ver" onClick={() => openView(row)} />
+                                    <IconAction icon={Pencil} label={`Editar perfil ${capitalizar(row.nombre_perfil)} de ${capitalizar(row.platform_nombre)}`} title="Editar" onClick={() => openEdit(row)} />
+                                    <IconAction icon={Trash2} label={`Eliminar perfil ${capitalizar(row.nombre_perfil)} de ${capitalizar(row.platform_nombre)}`} title="Eliminar" tone="danger" onClick={() => openDelete(row.id)} />
                                 </ActionsCell>
                             </tr>
                         ))

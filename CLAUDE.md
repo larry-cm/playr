@@ -294,3 +294,5 @@ Bandeja de avisos **importantes** para admin/manager: fallas y advertencias del 
 ## 20) Bodega (compras al proveedor con el saldo de su monedero)
 
 Detalle completo en `app/lib/bodega/CLAUDE.md` (se carga solo al trabajar en esa carpeta): alcance solo-compra, el sitio del proveedor, guardas de `comprar()`, DB, registro de compras, `BODEGA_SIMULAR` y verificación sin gastar.
+
+- Job nocturno del registro de compras: `jobs/historial-proveedor/` (servicio cron de Railway, `0 5 * * *` UTC = 00:00 Colombia; Node puro empaquetado con esbuild, sin Next). Variables y pasos de alta en su `README.md`. `jobs/**/dist/` está ignorado por git y por eslint.

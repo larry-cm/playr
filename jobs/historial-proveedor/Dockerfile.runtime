@@ -1,0 +1,6 @@
+# Imagen que sube deploy.sh: el bundle ya viene hecho (esbuild local), asi que no hay etapa de build ni npm install.
+FROM node:24-alpine
+WORKDIR /app
+COPY sync.mjs ./
+USER node
+CMD ["node", "sync.mjs"]

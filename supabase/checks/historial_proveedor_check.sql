@@ -1,4 +1,4 @@
--- Check del registro de compras guardado (migracion 20261003120001): permisos, fusion por id (gana lo que llega, se conserva
+-- Check del registro de compras guardado (migraciones 20261003120001 y 20261003130001): permisos (staff y service_role), fusion por id (gana lo que llega, se conserva
 -- lo que no viene), orden fecha desc, origen plataforma/proveedor y sello de sincronizacion. Autolimpiante: todo corre en una
 -- transaccion que termina en ROLLBACK, no deja filas. Falla con ERROR (y la razon) si algo no se cumple; si todo pasa
 -- devuelve una fila 'historial_proveedor_check: OK' (sin esa fila no corrio completo).
@@ -121,6 +121,30 @@ begin
   set local role authenticated;
   select count(*) into n from business.historial_proveedor;
   assert n = 0, format('cliente no debe ver el historial y ve %s filas', n);
+  reset role;
+
+  -- 8) el job nocturno (clave secreta = service_role, sin usuario) sincroniza (migracion 20261003130001). auth.role() lee
+  -- request.jwt.claim.role o, si no esta, request.jwt.claims->>'role' (segun la version): se fijan los dos.
+  perform set_config('request.jwt.claim.sub', '', true);
+  perform set_config('request.jwt.claim.role', 'service_role', true);
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  set local role service_role;
+  r := business.historial_fusionar(v_cuenta, '__check__.host', jsonb_build_array(
+    jsonb_build_object('id', 990000005, 'fecha', '2026-10-03T23:00:00-05:00', 'estado', 'Completado', 'total', 300, 'articulos', 1, 'productos', '[]'::jsonb)
+  ), true);
+  assert jsonb_array_length(r->'pedidos') = 5 and (r->'pedidos'->0->>'id')::bigint = 990000005, format('service_role debe fusionar: %s', r);
+  assert (r->>'sincronizado_en')::timestamptz <> v_sinc, 'la sincronizacion del job debe sellar sincronizado_en';
+  reset role;
+  -- con rol authenticated y claim de otro rol (un cliente) sigue rechazado
+  perform set_config('request.jwt.claim.sub', v_cliente::text, true);
+  perform set_config('request.jwt.claim.role', 'authenticated', true);
+  perform set_config('request.jwt.claims', '{"role": "authenticated"}', true);
+  set local role authenticated;
+  begin
+    perform business.historial_fusionar(v_cuenta, '__check__.host', '[]'::jsonb, true);
+    assert false, 'cliente con claim authenticated no debe poder fusionar el historial';
+  exception when insufficient_privilege then null;
+  end;
   reset role;
 end
 $$;

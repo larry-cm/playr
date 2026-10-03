@@ -16,17 +16,19 @@ import ComprarModal from "@/app/administrar/bodega/comprar-modal"
 import FiltrosCatalogo, { pasaFiltro, SIN_FILTRO, type FiltroCatalogo } from "@/app/administrar/bodega/filtros-catalogo"
 import { getSaldoProveedorAction } from "@action/manager-and-admin/bodega/get-saldo-action"
 import { comprarBodegaAction } from "@action/manager-and-admin/bodega/comprar-action"
-import { getPedidosProveedorAction } from "@action/manager-and-admin/bodega/compras-action"
+import { getHistorialAction, sincronizarHistorialAction } from "@action/manager-and-admin/bodega/historial-action"
 import { consultarProductoBodegaAction } from "@action/manager-and-admin/bodega/consultar-producto-action"
 import { formatCOP } from "@lib/currency"
 import { formatColombianDateTime, formatDateOnly } from "@lib/date"
 import { capitalizar } from "@lib/text"
 import { duracionDe } from "@lib/bodega/duracion"
-import type { BodegaCatalogo, BodegaProducto, ConsultaEnVivo, PedidoProveedor, ResultadoCompraUI, SaldoProveedor } from "@lib/bodega/tipos"
+import type { BodegaCatalogo, BodegaProducto, ConsultaEnVivo, HistorialProveedor, ResultadoCompraUI, SaldoProveedor } from "@lib/bodega/tipos"
 
 interface BodegaClientProps {
     /** undefined = la página aún carga (loading.tsx): esqueleto y nada se lee del proveedor · null = error */
     initialCatalogo: BodegaCatalogo | null | undefined
+    /** Registro de compras guardado en la base (llega con la página) · undefined = cargando · null = no se pudo leer */
+    initialHistorial: HistorialProveedor | null | undefined
     /** BODEGA_SIMULAR=1 en el servidor: todo se verifica contra el proveedor, pero no se paga. */
     simulacion: boolean
 }
@@ -56,7 +58,7 @@ interface CompraIncierta {
     listingId: number
     nombre: string
     mensaje: string
-    /** El registro de pedidos se volvió a leer DESPUÉS de la compra dudosa. */
+    /** El registro de pedidos se sincronizó con el proveedor DESPUÉS de la compra dudosa. */
     registroLeido: boolean
 }
 
@@ -68,71 +70,95 @@ const varianteDe = (r: ResultadoCompraUI): Variante => (!r.ok ? "error" : r.nive
 /** "dd/mm/aaaa, hh:mm" (hora de Colombia) si se conoce la hora del escaneo; solo la fecha en las corridas viejas, que no la guardaron. */
 const textoEscaneo = (c: BodegaCatalogo) => (c.escaneoEn ? formatColombianDateTime(c.escaneoEn) : c.escaneo ? formatDateOnly(c.escaneo) : null)
 
+/** El registro guardado se sincroniza solo si la última sincronización tiene más de esto (o nunca se hizo). */
+const SYNC_CADA_MS = 24 * 60 * 60 * 1000
+const desactualizado = (h: HistorialProveedor | null) => !h?.sincronizadoEn || Date.now() - Date.parse(h.sincronizadoEn) > SYNC_CADA_MS
+
 /** Solo garantiza unicidad (es la llave de idempotencia de la compra), no secreto: por eso vale el respaldo sin crypto. */
 const nuevoId = () =>
     globalThis.crypto?.randomUUID?.() ?? "xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx".replace(/x/g, () => Math.floor(Math.random() * 16).toString(16))
 
-export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<BodegaClientProps>) {
+export default function BodegaClient({ initialCatalogo, initialHistorial, simulacion }: Readonly<BodegaClientProps>) {
     // undefined = cargando · null = error · objeto = leído
     const [saldo, setSaldo] = useState<SaldoProveedor | null | undefined>(undefined)
-    const [pedidos, setPedidos] = useState<PedidoProveedor[] | null | undefined>(undefined)
+    const [historial, setHistorial] = useState<HistorialProveedor | null | undefined>(initialHistorial)
+    const [sincronizando, setSincronizando] = useState(false)
+    const [errorSync, setErrorSync] = useState(false)
     const [alert, setAlert] = useState<{ variant: Variante; message: string } | null>(null)
 
     const [intencion, setIntencion] = useState<Intencion | null>(null)
     const [incierta, setIncierta] = useState<CompraIncierta | null>(null)
     const [modalError, setModalError] = useState<string | null>(null)
     const [isPending, setIsPending] = useState(false)
-    const [releyendo, setReleyendo] = useState(false)
     const [filtro, setFiltro] = useState<FiltroCatalogo>(SIN_FILTRO)
 
     const cargando = initialCatalogo === undefined
 
-    // Saldo y pedidos se leen en paralelo del sitio del proveedor (cada uno con su sesión): el saldo suele llegar antes.
+    /**
+     * Lee todos los pedidos del sitio del proveedor y los fusiona con lo guardado (lento). Mientras tanto se siguen viendo los pedidos
+     * guardados; si falla se conservan y solo se marca el error. Devuelve si salió bien. Si ya hay una en curso (la automática, el
+     * botón o la de una compra dudosa) se espera esa en vez de leer el sitio dos veces.
+     */
+    const syncEnCurso = useRef<Promise<boolean> | null>(null)
+    const sincronizar = () =>
+        (syncEnCurso.current ??= (async () => {
+            setSincronizando(true)
+            const h = await sincronizarHistorialAction().catch(() => null)
+            syncEnCurso.current = null
+            setSincronizando(false)
+            setErrorSync(h === null)
+            if (h) setHistorial(h)
+            return h !== null
+        })())
+
+    // El registro llega guardado con la página. El saldo siempre se lee del proveedor; recién después (las server actions de un
+    // mismo cliente corren una tras otra) se sincroniza el registro, solo si la última sincronización tiene más de un día.
     useEffect(() => {
         if (cargando) return
         let active = true
-        getSaldoProveedorAction().then((s) => {
-            if (active) setSaldo(s)
-        })
-        getPedidosProveedorAction().then((p) => {
-            if (active) setPedidos(p)
-        })
+        getSaldoProveedorAction()
+            .catch(() => null)
+            .then((s) => {
+                if (!active) return
+                setSaldo(s)
+                if (desactualizado(initialHistorial ?? null)) void sincronizar()
+            })
         return () => {
             active = false
         }
+        // solo al montar: initialHistorial es el de la carga de la página
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [cargando])
 
-    // Tras una compra se vuelven a leer solos. Se deja lo que había a la vista mientras llega lo nuevo, así las tarjetas no
-    // parpadean; si la relectura falla se conserva lo último leído. Devuelven si la lectura salió bien.
+    // Tras una compra se vuelve a leer el saldo. Se deja lo que había a la vista mientras llega lo nuevo, así la tarjeta no
+    // parpadea; si la relectura falla se conserva lo último leído.
     const refrescarSaldo = async () => {
         const s = await getSaldoProveedorAction().catch(() => null)
         if (s) setSaldo(s)
-        return s !== null
     }
-    const refrescarPedidos = async () => {
-        const p = await getPedidosProveedorAction().catch(() => null)
-        if (p) setPedidos(p)
-        return p !== null
+    /** Relee el registro guardado (rápido): la compra pagada ya agregó su pedido en el servidor. */
+    const refrescarHistorial = async () => {
+        const h = await getHistorialAction().catch(() => null)
+        if (h) setHistorial(h)
     }
 
-    /** "Reintentar" de las tarjetas en error: aquí sí se muestra el esqueleto mientras se vuelve a leer. */
+    /** "Reintentar" del saldo en error: aquí sí se muestra el esqueleto mientras se vuelve a leer. */
     const reintentarSaldo = () => {
         setSaldo(undefined)
         getSaldoProveedorAction().then(setSaldo, () => setSaldo(null))
     }
-    const reintentarPedidos = () => {
-        setPedidos(undefined)
-        getPedidosProveedorAction().then(setPedidos, () => setPedidos(null))
-    }
 
-    /** Relee el registro tras una compra dudosa; recién entonces se puede confirmar que se revisó. */
+    /** Sincroniza tras una compra dudosa; recién entonces se puede confirmar que se revisó. */
     const releerRegistro = async () => {
-        setReleyendo(true)
-        const ok = await refrescarPedidos()
-        setReleyendo(false)
+        const ok = await sincronizar()
         if (ok) setIncierta((prev) => (prev ? { ...prev, registroLeido: true } : prev))
         document.getElementById(HISTORIAL_ID)?.scrollIntoView({ behavior: "smooth", block: "start" })
     }
+
+    // Primera sincronización de una cuenta sin nada guardado: esqueleto en vez de "no tiene pedidos" (y error si falla).
+    const primeraVez = historial?.sincronizadoEn === null && historial.pedidos.length === 0
+    const pedidos =
+        historial === undefined || (primeraVez && sincronizando) ? undefined : historial === null || (primeraVez && errorSync) ? null : historial.pedidos
 
     const filas = useMemo<Fila[]>(
         () =>
@@ -210,12 +236,12 @@ export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<B
             // Puede haberse pagado: aviso fijo (no un error que se descarta) y ese producto queda bloqueado hasta revisar el registro.
             cerrarCompra()
             setIncierta({ listingId: producto.listing_id, nombre: capitalizar(producto.nombre), mensaje: r.mensaje, registroLeido: false })
-            void refrescarPedidos().then((ok) => {
+            void sincronizar().then((ok) => {
                 if (ok) setIncierta((prev) => (prev && prev.listingId === producto.listing_id ? { ...prev, registroLeido: true } : prev))
             })
             return
         }
-        if (r.ok || r.estado) void refrescarPedidos()
+        if (r.ok && !r.simulado) void refrescarHistorial()
 
         if (!r.ok) {
             const precioActual = r.precioActual
@@ -271,18 +297,18 @@ export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<B
                         <p className="font-medium text-amber-200">No sabemos si la compra de {incierta.nombre} se pagó.</p>
                         <p className="mt-0.5">
                             {incierta.mensaje} Mientras tanto no se puede volver a comprar este producto.
-                            {!incierta.registroLeido && " Primero vuelve a leer el registro de compras."}
+                            {!incierta.registroLeido && " Primero sincroniza el registro de compras con el proveedor."}
                         </p>
                     </div>
                     <div className="flex shrink-0 flex-wrap gap-2">
-                        <Button variant="secondary" size="sm" onClick={releerRegistro} isLoading={releyendo} leftIcon={<RefreshCw className="h-4 w-4" />}>
+                        <Button variant="secondary" size="sm" onClick={releerRegistro} isLoading={sincronizando} leftIcon={<RefreshCw className="h-4 w-4" />}>
                             Ver registro de compras
                         </Button>
                         <Button
                             variant="outline"
                             size="sm"
                             disabled={!incierta.registroLeido}
-                            title={incierta.registroLeido ? undefined : "Disponible cuando el registro de compras se haya vuelto a leer"}
+                            title={incierta.registroLeido ? undefined : "Disponible cuando el registro de compras se haya sincronizado con el proveedor"}
                             onClick={() => setIncierta(null)}
                         >
                             Ya lo revisé
@@ -313,7 +339,13 @@ export default function BodegaClient({ initialCatalogo, simulacion }: Readonly<B
                 </div>
                 <div className="relative min-w-0 lg:col-span-2">
                     <div className="lg:absolute lg:inset-0">
-                        <HistorialCard pedidos={pedidos} onRetry={reintentarPedidos} />
+                        <HistorialCard
+                            pedidos={pedidos}
+                            sincronizadoEn={historial?.sincronizadoEn ?? null}
+                            sincronizando={sincronizando}
+                            errorSync={errorSync}
+                            onSync={() => void sincronizar()}
+                        />
                     </div>
                 </div>
             </div>

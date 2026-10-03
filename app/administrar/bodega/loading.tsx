@@ -3,5 +3,5 @@
 import BodegaClient from "@/app/administrar/bodega/bodega-client"
 
 export default function Loading() {
-    return <BodegaClient initialCatalogo={undefined} simulacion={process.env.BODEGA_SIMULAR === "1"} />
+    return <BodegaClient initialCatalogo={undefined} initialHistorial={undefined} simulacion={process.env.BODEGA_SIMULAR === "1"} />
 }

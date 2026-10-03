@@ -45,6 +45,15 @@ export interface PedidoProveedor {
     articulos: number
     /** Productos del pedido (de "Mis licencias"), sin repetir. Vacío si el pedido no tiene licencias. */
     productos: { nombre: string; cantidad: number }[]
+    /** Lo calcula la base al guardarlo: "plataforma" = compra hecha desde Bodega · "proveedor" = hecho a mano en el sitio. */
+    origen?: "plataforma" | "proveedor"
+}
+
+/** Registro de compras guardado en la base para la cuenta del proveedor configurada. */
+export interface HistorialProveedor {
+    pedidos: PedidoProveedor[]
+    /** ISO de la última sincronización completa con el sitio; null = nunca se sincronizó. */
+    sincronizadoEn: string | null
 }
 
 export interface SaldoProveedor {

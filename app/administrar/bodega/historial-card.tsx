@@ -3,8 +3,9 @@
 import { History, RefreshCw } from "lucide-react"
 import Button from "@ui/button"
 import { SectionHeader } from "@ui/page-header"
-import { EmptyRow, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SkeletonCards, SkeletonRows, TABLE_BODY_HEIGHT, TableFrame, Td, Th } from "@ui/data-frame"
+import { EmptyRow, IconAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SkeletonCards, SkeletonRows, TABLE_BODY_HEIGHT, TableFrame, Td, Th } from "@ui/data-frame"
 import { formatCOP } from "@lib/currency"
+import { formatColombianDateTime } from "@lib/date"
 import { capitalizar } from "@lib/text"
 import type { PedidoProveedor } from "@lib/bodega/tipos"
 
@@ -17,7 +18,7 @@ const fechaPedido = (p: PedidoProveedor) =>
 /** Sin columna de estado (casi todos quedan "Completado" al instante): solo se marca el pedido que no gastó saldo. */
 const anulado = (estado: string) => /fall|cancel|reembols/i.test(estado)
 
-/** Productos del pedido y, debajo, solo si el pedido quedó anulado en el sitio. */
+/** Productos del pedido; debajo, si se hizo a mano en el sitio (no desde Bodega) y si quedó anulado. */
 function Productos({ p }: Readonly<{ p: PedidoProveedor }>) {
     return (
         <>
@@ -33,6 +34,14 @@ function Productos({ p }: Readonly<{ p: PedidoProveedor }>) {
                     ))}
                 </ul>
             )}
+            {p.origen === "proveedor" && (
+                <span
+                    className="mt-1 inline-block rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent"
+                    title="Pedido hecho directamente en el sitio del proveedor, no desde Bodega"
+                >
+                    En el sitio
+                </span>
+            )}
             {anulado(p.estado) && <p className="mt-0.5 text-xs text-red-400">{p.estado}</p>}
         </>
     )
@@ -41,26 +50,46 @@ function Productos({ p }: Readonly<{ p: PedidoProveedor }>) {
 interface HistorialCardProps {
     /** undefined = cargando · null = no se pudo leer */
     pedidos: PedidoProveedor[] | null | undefined
-    /** Vuelve a leer los pedidos (botón "Reintentar" del estado de error). */
-    onRetry: () => void
+    /** ISO de la última sincronización con el sitio del proveedor; null = nunca. */
+    sincronizadoEn: string | null
+    /** Hay una sincronización en curso (se siguen mostrando los pedidos guardados). */
+    sincronizando: boolean
+    /** La última sincronización falló (lo guardado sigue a la vista). */
+    errorSync: boolean
+    /** Sincroniza con el sitio del proveedor (botón del encabezado y "Reintentar" del estado de error). */
+    onSync: () => void
 }
 
 /** Ancla del registro: el aviso de compra dudosa lleva hasta aquí. */
 export const HISTORIAL_ID = "registro-de-compras"
 
-const heading = <SectionHeader icon={History} title="Registro de compras" description="Todos los pedidos de la cuenta del proveedor, leídos en vivo" />
-
+function descripcion({ pedidos, sincronizadoEn, sincronizando, errorSync }: Omit<HistorialCardProps, "onSync">) {
+    if (pedidos === undefined && !sincronizando) return "Guardado en la plataforma"
+    const estado = sincronizando
+        ? "sincronizando con el proveedor…"
+        : sincronizadoEn
+          ? `sincronizado ${formatColombianDateTime(sincronizadoEn)}`
+          : "aún sin sincronizar con el proveedor"
+    return (
+        <>
+            Guardado en la plataforma · {estado}
+            {errorSync && !sincronizando && <span className="text-red-400"> · no se pudo sincronizar</span>}
+        </>
+    )
+}
 
 /**
- * Registro global: todos los pedidos de la cuenta del proveedor, hechos desde Bodega o a mano en su sitio. Se vuelve a leer solo
- * al cargar la página y después de cada compra ("Reintentar" si falla). El alto no depende de los datos (cargando, vacía o llena mide
- * lo mismo, así la tarjeta no "crece" cuando llegan): desde lg iguala el de la columna de saldo y resumen, debajo es fijo.
+ * Registro global: todos los pedidos de la cuenta del proveedor, hechos desde Bodega o a mano en su sitio, guardados en la base
+ * (llegan con la página). Se sincroniza con el sitio solo una vez al día, con el botón del encabezado o tras una compra dudosa. El
+ * alto no depende de los datos (cargando, vacía o llena mide lo mismo, así la tarjeta no "crece" cuando llegan): desde lg iguala el
+ * de la columna de saldo y resumen, debajo es fijo.
  */
-export default function HistorialCard({ pedidos, onRetry }: Readonly<HistorialCardProps>) {
+export default function HistorialCard(props: Readonly<HistorialCardProps>) {
+    const { pedidos, sincronizando, onSync } = props
     const vacio = pedidos === null ? (
         <span className="inline-flex flex-col items-center gap-3">
             No pudimos leer los pedidos del proveedor.
-            <Button variant="secondary" size="sm" onClick={onRetry} leftIcon={<RefreshCw className="h-4 w-4" />}>
+            <Button variant="secondary" size="sm" onClick={onSync} isLoading={sincronizando} leftIcon={<RefreshCw className="h-4 w-4" />}>
                 Reintentar
             </Button>
         </span>
@@ -68,6 +97,23 @@ export default function HistorialCard({ pedidos, onRetry }: Readonly<HistorialCa
         "La cuenta del proveedor todavía no tiene pedidos."
     ) : null
     const vacioClass = pedidos === null ? "text-red-400" : undefined
+
+    const heading = (
+        <SectionHeader
+            icon={History}
+            title="Registro de compras"
+            description={descripcion(props)}
+            action={
+                <IconAction
+                    icon={RefreshCw}
+                    label="Sincronizar con el proveedor"
+                    onClick={onSync}
+                    disabled={pedidos === undefined || sincronizando}
+                    spinning={sincronizando}
+                />
+            }
+        />
+    )
 
     return (
         <div id={HISTORIAL_ID} className="scroll-mt-4 lg:h-full">

@@ -30,6 +30,8 @@ User request 2026-10-03: Bodega module too slow; cache history in DB keyed by pr
 - [x] T2 — Server: account id, cached read, sync and append actions; comprar-action appends on `pagada`. Route: delegated (same writer). Risk: medium.
 - [x] T3 — UI: page passes cached history; client syncs lazily, "Sincronizar" button, last-sync label, origen badge; docs (app/lib/bodega/CLAUDE.md). Route: delegated (same writer). Risk: medium.
 
+- [ ] T4 — Nightly sync job for Railway (user request 2026-10-03: app not deployed; minimal Railway cron service, once a day at 00:00 Bogota = `0 5 * * *` UTC). Migration lets service_role call `historial_fusionar`; `jobs/historial-proveedor/` entry script reusing `proveedor.ts`/`historial.ts`, bundled with esbuild into a tiny multi-stage Docker image, `railway.json` with cronSchedule + restartPolicy NEVER; docs. Route: delegated (writer, 2+ files). Risk: medium.
+
 ## Acceptance criteria
 1. `pnpm lint`, `pnpm exec tsc --noEmit`, `pnpm build` pass.
 2. Bodega first render shows the cached history with no provider request when cache is < 24 h old.

@@ -123,7 +123,7 @@ export default function DashboardClient({
             </div>
 
             {canNotify && (
-                <NotificacionesDrawer open={notifs.isOpen} items={notifs.items} onClose={notifs.close} onDelete={notifs.remove} onRefresh={notifs.refresh} />
+                <NotificacionesDrawer open={notifs.isOpen} items={notifs.items} onClose={notifs.close} onDelete={notifs.remove} onClear={notifs.clear} onRefresh={notifs.refresh} />
             )}
         </>
     )

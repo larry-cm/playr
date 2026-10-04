@@ -1,9 +1,11 @@
 // Reglas compartidas (cliente y servidor) de los pedidos pagados por Bre-B. Las mismas que aplica la base
 // (business.crear_pedido y el bucket 'comprobantes'): acá solo se adelantan para dar el error sin ir al servidor.
 
-export type EstadoPedido = "pendiente" | "aprobado" | "rechazado"
+/** 'esperando_comprobante' = pago por QR: el pedido existe (perfiles reservados) y el comprobante llega por el chat. */
+export type EstadoPedido = "esperando_comprobante" | "pendiente" | "aprobado" | "rechazado"
 
 export const ESTADO_PEDIDO: Record<EstadoPedido, { label: string; clase: string }> = {
+    esperando_comprobante: { label: "Esperando comprobante", clase: "border-amber-500/30 bg-amber-500/10 text-amber-300" },
     pendiente: { label: "Por verificar", clase: "border-amber-500/30 bg-amber-500/10 text-amber-300" },
     aprobado: { label: "Aprobado", clase: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" },
     rechazado: { label: "Rechazado", clase: "border-red-500/30 bg-red-500/10 text-red-300" },

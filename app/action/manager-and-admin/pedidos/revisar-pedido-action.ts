@@ -9,7 +9,7 @@ export type RevisarPedidoResult = { ok: true } | { ok: false; error: string }
 
 /**
  * Aprueba (perfiles a vendido; el cliente ve sus accesos) o rechaza (perfiles de vuelta a la Tienda) un pedido
- * pendiente. Solo admin/manager; business.aprobar_pedido/rechazar_pedido lo vuelven a exigir y fallan si el pedido
+ * pendiente (uno que espera el comprobante del pago por QR solo se puede rechazar). Solo admin/manager; business.aprobar_pedido/rechazar_pedido lo vuelven a exigir y fallan si el pedido
  * ya fue revisado (p. ej. desde Telegram).
  */
 export async function revisarPedidoAction(pedidoId: number, decision: "aprobar" | "rechazar", motivo = ""): Promise<RevisarPedidoResult> {

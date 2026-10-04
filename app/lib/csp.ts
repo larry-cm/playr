@@ -31,6 +31,10 @@ export function cspHeader(nonce: string): string {
     `media-src 'self' blob: ${supabaseOrigin}`.trim(),
     // blob:: la forma de onda de la nota de voz se lee con fetch, también la de la vista previa antes de enviarla.
     `connect-src 'self' blob: ${supabaseOrigin} ${supabaseWs}`.trim(),
+    // Service worker (public/sw.js) y manifiesto de la PWA: sin worker-src, el worker caería en script-src, donde
+    // 'strict-dynamic' ignora 'self'.
+    "worker-src 'self'",
+    "manifest-src 'self'",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

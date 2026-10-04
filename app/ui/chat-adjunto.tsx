@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Pause, Play } from "lucide-react"
+import { Download, ExternalLink, FileText, Pause, Play } from "lucide-react"
 import type { TipoAdjunto } from "@lib/chat-adjunto"
 
 const reloj = (s: number) => {
@@ -187,15 +187,54 @@ export function NotaVoz({ url, duracion, className = "" }: Readonly<{ url: strin
     )
 }
 
-/** Imagen o nota de voz dentro de una burbuja del chat. url null = no se pudo abrir (enlace sin firmar). */
-export default function ChatAdjunto({ tipo, url }: Readonly<{ tipo: TipoAdjunto; url: string | null }>) {
-    if (!url) return <span className="block text-xs italic text-white/60">{tipo === "imagen" ? "Imagen no disponible" : "Nota de voz no disponible"}</span>
-    if (tipo === "audio") return <NotaVoz url={url} />
+const NO_DISPONIBLE: Record<TipoAdjunto, string> = { imagen: "Imagen no disponible", audio: "Nota de voz no disponible", documento: "Documento no disponible" }
+
+const enlace =
+    "inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-white hover:bg-white/10"
+
+/** Archivo que no se muestra en la burbuja (PDF, o una imagen que el navegador no sabe mostrar como HEIC): se abre aparte. */
+function Archivo({ url, nombre }: Readonly<{ url: string; nombre: string }>) {
     return (
-        <a href={url} target="_blank" rel="noopener noreferrer" className="-mx-1 -mt-0.5 block overflow-hidden rounded-xl" aria-label="Abrir la imagen">
-            {/* Caja fija (miniatura cuadrada): la burbuja ya tiene su tamaño antes de que la imagen cargue, así el chat no salta. */}
-            {/* eslint-disable-next-line @next/next/no-img-element -- URL firmada y temporal de Supabase Storage */}
-            <img src={url} alt="Imagen enviada en el chat" loading="lazy" className="h-56 w-56 max-w-full bg-white/5 object-cover transition-opacity hover:opacity-90" />
-        </a>
+        <span className="flex w-64 max-w-full items-center gap-3 whitespace-normal rounded-xl border border-white/10 bg-black/20 p-2.5">
+            <FileText className="h-8 w-8 shrink-0 text-white/70" aria-hidden="true" />
+            <span className="min-w-0 flex-1 truncate text-sm text-white">{nombre}</span>
+            <a href={url} target="_blank" rel="noopener noreferrer" className={enlace}>
+                Abrir <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+            </a>
+        </span>
+    )
+}
+
+/**
+ * Imagen, nota de voz o PDF dentro de una burbuja del chat. url null = no se pudo abrir (enlace sin firmar o archivo
+ * borrado). `guardarQr`: es el QR del mensaje automático del pago por QR (URL pública): se ofrece guardarlo.
+ */
+export default function ChatAdjunto({ tipo, url, guardarQr = false }: Readonly<{ tipo: TipoAdjunto; url: string | null; guardarQr?: boolean }>) {
+    // La imagen no cargó (formato que el navegador no muestra, o el QR se cambió y ya no existe): se ofrece abrirla.
+    const [rota, setRota] = useState(false)
+    if (!url) return <span className="block text-xs italic text-white/60">{NO_DISPONIBLE[tipo]}</span>
+    if (tipo === "audio") return <NotaVoz url={url} />
+    if (tipo === "documento") return <Archivo url={url} nombre="Documento PDF" />
+    if (rota) return <Archivo url={url} nombre={guardarQr ? "QR de pago" : "Imagen"} />
+    return (
+        <span className="flex flex-col items-start gap-2">
+            <a href={url} target="_blank" rel="noopener noreferrer" className="-mx-1 -mt-0.5 block overflow-hidden rounded-xl" aria-label={guardarQr ? "Abrir el QR" : "Abrir la imagen"}>
+                {/* Caja fija (miniatura cuadrada): la burbuja ya tiene su tamaño antes de que la imagen cargue, así el chat no salta. */}
+                {/* eslint-disable-next-line @next/next/no-img-element -- URL de Supabase Storage */}
+                <img
+                    src={url}
+                    alt={guardarQr ? "QR Bre-B para pagar" : "Imagen enviada en el chat"}
+                    loading="lazy"
+                    onError={() => setRota(true)}
+                    className={`h-56 w-56 max-w-full transition-opacity hover:opacity-90 ${guardarQr ? "bg-white object-contain p-2" : "bg-white/5 object-cover"}`}
+                />
+            </a>
+            {guardarQr && (
+                <a href={`${url}?download=${encodeURIComponent(`QR Bre-B.${url.split("?")[0].split(".").pop()}`)}`} className={enlace}>
+                    <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                    Guardar QR
+                </a>
+            )}
+        </span>
     )
 }

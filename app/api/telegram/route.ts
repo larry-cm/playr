@@ -10,7 +10,7 @@ import { revalidatePath } from "next/cache"
 import { precalentarLicencias } from "@lib/claves"
 import { createSupabaseAdmin } from "@lib/supabase/admin"
 import { descargarTelegram, html, telegram, telegramCfg, type TelegramCfg } from "@lib/telegram"
-import { ADJUNTO_MAX_BYTES, mimeAdjunto, rutaAdjunto, type TipoAdjunto } from "@lib/chat-adjunto"
+import { ADJUNTO_MAX_BYTES, mimeAdjunto, rutaAdjunto, tipoAdjunto, type TipoAdjunto } from "@lib/chat-adjunto"
 
 interface Usuario { id: number; username?: string; first_name?: string }
 
@@ -158,16 +158,16 @@ async function atender(cfg: TelegramCfg, cq: CallbackQuery) {
 }
 
 /**
- * Archivo del mensaje que se le puede mandar al cliente: foto (la más grande), nota de voz, audio, o una imagen/audio
- * enviada como archivo. null = solo texto; "no" = otro contenido (sticker, video, documento…).
+ * Archivo del mensaje que se le puede mandar al cliente: foto (la más grande), nota de voz, audio, PDF, o una
+ * imagen/audio enviada como archivo. null = solo texto; "no" = otro contenido (sticker, video, otro documento…).
  */
 function adjuntoDe(m: Mensaje): (ArchivoTg & { mime: string; tipo: TipoAdjunto }) | null | "no" {
     if (m.photo?.length) return { ...m.photo[m.photo.length - 1], mime: "image/jpeg", tipo: "imagen" }
     const a = m.voice ?? m.audio ?? m.document
     if (!a) return m.sticker || m.video || m.video_note || m.animation ? "no" : null
     const mime = mimeAdjunto(a.mime_type ?? (m.voice ? "audio/ogg" : ""))
-    if (!mime) return "no"
-    return { ...a, mime, tipo: mime.startsWith("image/") ? "imagen" : "audio" }
+    const tipo = tipoAdjunto(mime)
+    return tipo ? { ...a, mime, tipo } : "no"
 }
 
 /** Mensaje del asesor para un cliente: escrito en el tema del cliente o, sin Temas, respondiendo su mensaje. */
@@ -199,11 +199,11 @@ async function atenderMensaje(cfg: TelegramCfg, m: Mensaje) {
     const texto = (m.text ?? m.caption ?? "").trim()
     if (texto.startsWith("/")) return
 
-    // Foto, nota de voz o audio: se copia al bucket del chat, en la carpeta del cliente.
+    // Foto, nota de voz, audio o PDF: se copia al bucket del chat, en la carpeta del cliente.
     let adjunto: { path: string; tipo: TipoAdjunto } | null = null
     const archivo = adjuntoDe(m)
     if (archivo === "no") {
-        await decir("Al cliente le llegan textos, fotos y notas de voz. Este tipo de mensaje no se le envió.")
+        await decir("Al cliente le llegan textos, fotos, PDF y notas de voz. Este tipo de mensaje no se le envió.")
         return
     }
     if (archivo) {

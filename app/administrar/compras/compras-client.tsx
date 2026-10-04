@@ -3,7 +3,7 @@
 import { useCallback, useId, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { AlertCircle, ChevronDown, KeyRound, MessageCircle, RefreshCw, ShoppingBag } from "lucide-react"
+import { AlertCircle, ChevronDown, FileUp, KeyRound, MessageCircle, RefreshCw, ShoppingBag } from "lucide-react"
 import Card from "@ui/card"
 import Button from "@ui/button"
 import Alert from "@ui/alert"
@@ -16,6 +16,7 @@ import { accessTypeLabel, type AccessType } from "@lib/access-type"
 import type { MiPedido } from "@action/tienda/get-mis-pedidos-action"
 import { getAccesosPedidoAction, type AccesoPerfil } from "@action/tienda/get-accesos-pedido-action"
 import ChatAsesor from "@/app/administrar/compras/chat-asesor"
+import Compartido from "@/app/administrar/compras/compartido"
 import AutoRefresh from "@ui/auto-refresh"
 
 export function EstadoPedidoBadge({ estado }: Readonly<{ estado: MiPedido["estado"] }>) {
@@ -91,13 +92,23 @@ function PedidoCard({ pedido, onChat }: Readonly<{ pedido: MiPedido; onChat: (pe
                 ))}
             </ul>
 
+            {pedido.estado === "esperando_comprobante" && (
+                <>
+                    <p className="text-xs text-amber-300/90">
+                        Paga {formatCOP(pedido.total)} con el QR que te enviamos al chat y envíanos ahí el comprobante. Tus perfiles quedan apartados mientras tanto.
+                    </p>
+                    <Button size="sm" onClick={() => onChat(pedido.id)} leftIcon={<FileUp className="h-4 w-4" />} className="self-start">
+                        Enviar comprobante
+                    </Button>
+                </>
+            )}
             {pedido.estado === "pendiente" && (
                 <p className="text-xs text-amber-300/90">Estamos verificando tu pago. Cuando lo aprobemos verás aquí tus datos de acceso.</p>
             )}
             {pedido.estado === "rechazado" && (
                 <Alert variant="error" message={`No pudimos verificar este pago${pedido.motivo_rechazo ? `: ${pedido.motivo_rechazo}` : "."} Si ya pagaste, escríbele al asesor.`} />
             )}
-            {pedido.estado !== "aprobado" && (
+            {(pedido.estado === "pendiente" || pedido.estado === "rechazado") && (
                 <Button variant="secondary" size="sm" onClick={() => onChat(pedido.id)} leftIcon={<MessageCircle className="h-4 w-4" />} className="self-start">
                     Escribir al asesor sobre este pedido
                 </Button>
@@ -140,11 +151,23 @@ function BarraAsesor({ noLeidos, onAbrir }: Readonly<{ noLeidos: number; onAbrir
     )
 }
 
-/** undefined = cargando · null = error. */
-export default function ComprasClient({ pedidos, noLeidos: noLeidosInicial = 0 }: Readonly<{ pedidos: MiPedido[] | null | undefined; noLeidos?: number }>) {
+/**
+ * undefined = cargando · null = error. `chatInicial`: pedido con el que se abre el chat al llegar (?chat=<id>, p. ej.
+ * después de "Pagar por QR" en la Tienda). `compartido`: llega un archivo compartido desde otra app (ver compartido.tsx).
+ */
+export default function ComprasClient({
+    pedidos,
+    noLeidos: noLeidosInicial = 0,
+    chatInicial = null,
+    compartido = false,
+}: Readonly<{ pedidos: MiPedido[] | null | undefined; noLeidos?: number; chatInicial?: number | null; compartido?: boolean }>) {
     const router = useRouter()
     const [reintentando, startReintento] = useTransition()
-    const [chat, setChat] = useState<{ abierto: boolean; pedidoId: number | null }>({ abierto: false, pedidoId: null })
+    const [chat, setChat] = useState<{ abierto: boolean; pedidoId: number | null }>({ abierto: chatInicial !== null, pedidoId: chatInicial })
+    // Se fija al llegar: la URL pierde ?compartido=1 enseguida y las recargas del servidor ya no lo traen.
+    const [hayCompartido] = useState(compartido)
+    // Pedido cuyo comprobante se entregó desde aquí: deja de esperarlo sin aguardar a que el servidor recargue.
+    const [entregado, setEntregado] = useState<number | null>(null)
     const [noLeidos, setNoLeidos] = useState(noLeidosInicial)
     // La recarga automática trae un conteo nuevo del servidor: manda sobre el local.
     const [conteoServidor, setConteoServidor] = useState(noLeidosInicial)
@@ -155,13 +178,21 @@ export default function ComprasClient({ pedidos, noLeidos: noLeidosInicial = 0 }
     const onLeidos = useCallback(() => setNoLeidos(0), [])
     const abrirChat = (pedidoId: number | null) => setChat({ abierto: true, pedidoId })
 
+    const esperando = pedidos?.find((p) => p.estado === "esperando_comprobante" && p.id !== entregado) ?? null
+
     const chatAsesor = (
         <ChatAsesor
             isOpen={chat.abierto}
-            onClose={() => setChat((c) => ({ ...c, abierto: false }))}
+            onClose={() => {
+                setChat((c) => ({ ...c, abierto: false }))
+                // Que recargar la página no vuelva a abrir el chat.
+                if (chatInicial !== null) router.replace("/administrar/compras", { scroll: false })
+            }}
             pedidoId={chat.pedidoId}
             onQuitarPedido={() => setChat((c) => ({ ...c, pedidoId: null }))}
             onLeidos={onLeidos}
+            esperando={esperando && { id: esperando.id, total: esperando.total }}
+            onComprobante={() => router.refresh()}
         />
     )
 
@@ -195,6 +226,16 @@ export default function ComprasClient({ pedidos, noLeidos: noLeidosInicial = 0 }
         <div className="flex flex-col gap-4">
             {/* Un pago aprobado o rechazado (también desde Telegram) y las respuestas nuevas se ven sin recargar. */}
             <AutoRefresh cadaMs={pedidos.some((p) => p.estado === "pendiente") ? 8_000 : 30_000} />
+            {hayCompartido && (
+                <Compartido
+                    pedidos={pedidos}
+                    onAbrirChat={abrirChat}
+                    onEnviado={(id) => {
+                        setEntregado(id)
+                        router.refresh()
+                    }}
+                />
+            )}
             <BarraAsesor noLeidos={noLeidos} onAbrir={() => abrirChat(null)} />
             {pedidos.length === 0 ? (
                 <Card padding="px-4 py-12" className="flex flex-col items-center justify-center text-center">

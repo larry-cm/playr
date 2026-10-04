@@ -1,7 +1,10 @@
 // Reglas compartidas (cliente y servidor) de los adjuntos del chat con el asesor: las mismas del bucket 'chat'
-// (migración 20261004200001_chat_adjuntos.sql). Acá solo se adelantan para dar el error sin subir el archivo.
+// (migraciones 20261004200001_chat_adjuntos.sql y 20261006100002_pedido_qr_chat.sql). Acá solo se adelantan para dar
+// el error sin subir el archivo.
 
-export type TipoAdjunto = "imagen" | "audio"
+export type TipoAdjunto = "imagen" | "audio" | "documento"
+/** De qué bucket es el adjunto: 'chat' (lo subido en la conversación), 'llaves-qr' (QR del mensaje automático, público) o 'comprobantes'. */
+export type BucketAdjunto = "chat" | "llaves-qr" | "comprobantes"
 
 export const ADJUNTO_MAX_BYTES = 10 * 1024 * 1024
 /** Una nota de voz se corta sola a los 3 minutos. */
@@ -17,10 +20,11 @@ const EXTENSION: Record<string, { ext: string; tipo: TipoAdjunto }> = {
     "audio/mp4": { ext: "m4a", tipo: "audio" },
     "audio/mpeg": { ext: "mp3", tipo: "audio" },
     "audio/aac": { ext: "aac", tipo: "audio" },
+    "application/pdf": { ext: "pdf", tipo: "documento" },
 }
 
-/** Las imágenes que se pueden adjuntar (las que muestran el navegador y Telegram). */
-export const IMAGEN_ACCEPT = Object.keys(EXTENSION).filter((t) => EXTENSION[t].tipo === "imagen").join(",")
+/** Lo que se adjunta con el botón: las imágenes que muestran el navegador y Telegram, y PDF. */
+export const ARCHIVO_ACCEPT = Object.keys(EXTENSION).filter((t) => EXTENSION[t].tipo !== "audio").join(",")
 
 /**
  * Formatos para grabar notas de voz, en orden de preferencia: los que Telegram muestra como nota de voz (OGG/Opus,
@@ -34,14 +38,18 @@ export function mimeAdjunto(tipo: string): string {
     return base in EXTENSION ? base : ""
 }
 
+/** Tipo de adjunto de un formato aceptado; null si no se acepta. */
+export function tipoAdjunto(mime: string): TipoAdjunto | null {
+    return EXTENSION[mimeAdjunto(mime)]?.tipo ?? null
+}
+
 /** Error del adjunto, o null si sirve. */
 export function validarAdjunto(archivo: Blob, tipo: TipoAdjunto): string | null {
-    const mime = mimeAdjunto(archivo.type)
-    if (!mime || EXTENSION[mime].tipo !== tipo) {
-        return tipo === "imagen" ? "La imagen debe ser JPG, PNG, WEBP o GIF." : "Tu navegador grabó el audio en un formato que no podemos enviar."
+    if (tipoAdjunto(archivo.type) !== tipo) {
+        return tipo === "audio" ? "Tu navegador grabó el audio en un formato que no podemos enviar." : "Adjunta una imagen (JPG, PNG, WEBP o GIF) o un PDF."
     }
     if (archivo.size === 0) return "El archivo está vacío."
-    if (archivo.size > ADJUNTO_MAX_BYTES) return tipo === "imagen" ? "La imagen pesa más de 10 MB." : "La nota de voz es muy larga."
+    if (archivo.size > ADJUNTO_MAX_BYTES) return tipo === "audio" ? "La nota de voz es muy larga." : "El archivo pesa más de 10 MB."
     return null
 }
 
@@ -50,10 +58,13 @@ export function rutaAdjunto(clienteId: string, mime: string, prefijo = ""): stri
     return `${clienteId}/${prefijo}${Date.now()}-${crypto.randomUUID()}.${EXTENSION[mimeAdjunto(mime)]?.ext ?? "bin"}`
 }
 
+const RESUMEN: Record<TipoAdjunto, [icono: string, nombre: string]> = { imagen: ["📷", "Imagen"], audio: ["🎤", "Nota de voz"], documento: ["📄", "Documento"] }
+
 /** Texto para la vista previa de un mensaje (lista de chats). */
 export function resumenMensaje(m: { texto: string; adjunto_tipo: TipoAdjunto | null }): string {
-    if (m.texto) return m.adjunto_tipo === "imagen" ? `📷 ${m.texto}` : m.adjunto_tipo === "audio" ? `🎤 ${m.texto}` : m.texto
-    return m.adjunto_tipo === "imagen" ? "📷 Imagen" : m.adjunto_tipo === "audio" ? "🎤 Nota de voz" : ""
+    if (!m.adjunto_tipo) return m.texto
+    const [icono, nombre] = RESUMEN[m.adjunto_tipo]
+    return `${icono} ${m.texto || nombre}`
 }
 
 /**

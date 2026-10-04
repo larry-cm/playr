@@ -3,7 +3,7 @@
 import { after } from "next/server"
 import { reenviarMensajeAsesor } from "@lib/telegram"
 import { firmarAdjuntos } from "@lib/chat-firmar"
-import type { TipoAdjunto } from "@lib/chat-adjunto"
+import type { BucketAdjunto, TipoAdjunto } from "@lib/chat-adjunto"
 
 export interface MensajeChat {
     id: number
@@ -13,7 +13,8 @@ export interface MensajeChat {
     leido: boolean
     created_at: string
     adjunto_tipo: TipoAdjunto | null
-    /** Enlace temporal a la imagen o nota de voz (null = sin adjunto o no se pudo abrir). */
+    adjunto_bucket: BucketAdjunto
+    /** Enlace a la imagen, nota de voz o PDF (null = sin adjunto o no se pudo abrir). */
     adjunto_url: string | null
 }
 
@@ -37,7 +38,7 @@ export async function getMensajesAction(): Promise<ChatResult> {
     const { data, error } = await supabase
         .schema("business")
         .from("mensaje_asesor")
-        .select("id,autor,texto,pedido_id,leido,created_at,adjunto_path,adjunto_tipo")
+        .select("id,autor,texto,pedido_id,leido,created_at,adjunto_bucket,adjunto_path,adjunto_tipo")
         .eq("cliente_id", user.id)
         .order("id", { ascending: false })
         .limit(200)
@@ -81,7 +82,7 @@ export async function enviarMensajeAction(
     adjunto: AdjuntoSubido | null = null,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
     if (typeof texto !== "string" || (!texto.trim() && !adjunto)) return { ok: false, error: "Escribe un mensaje." }
-    if (adjunto && (typeof adjunto.path !== "string" || (adjunto.tipo !== "imagen" && adjunto.tipo !== "audio"))) return { ok: false, error: "El archivo adjunto no es válido." }
+    if (adjunto && (typeof adjunto.path !== "string" || !["imagen", "audio", "documento"].includes(adjunto.tipo))) return { ok: false, error: "El archivo adjunto no es válido." }
     if (pedidoId !== null && !Number.isInteger(pedidoId)) return { ok: false, error: "Pedido no encontrado." }
 
     const { createSupabase } = await import("@lib/supabase/server")

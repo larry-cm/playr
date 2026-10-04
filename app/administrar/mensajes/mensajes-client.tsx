@@ -34,6 +34,7 @@ function firma(via: string | null): string {
     if (!via) return "Asesor"
     if (via.startsWith("telegram:")) return `${via.slice(9)} (Telegram)`
     if (via.startsWith("panel:")) return via.slice(6)
+    if (via === "automatico") return "Mensaje automático"
     return via
 }
 
@@ -179,7 +180,7 @@ function ChatCliente({ clienteId, onVolver }: Readonly<{ clienteId: string; onVo
                             <div key={m.id} className={`flex max-w-[85%] flex-col gap-0.5 ${delAsesor ? "self-end items-end" : "self-start items-start"}`}>
                                 <div className={`whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-sm text-white ${delAsesor ? "rounded-br-md bg-accent/25" : "rounded-bl-md bg-white/8"}`}>
                                     {m.pedido_id !== null && <span className="mb-0.5 block text-[11px] font-medium text-white/60">Pedido #{m.pedido_id}</span>}
-                                    {m.adjunto_tipo && <ChatAdjunto tipo={m.adjunto_tipo} url={m.adjunto_url} />}
+                                    {m.adjunto_tipo && <ChatAdjunto tipo={m.adjunto_tipo} url={m.adjunto_url} guardarQr={m.adjunto_bucket === "llaves-qr"} />}
                                     {m.texto && <span className={m.adjunto_tipo ? "mt-1 block" : undefined}>{m.texto}</span>}
                                 </div>
                                 <span className="px-1 text-[11px] text-secondary">

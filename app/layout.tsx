@@ -3,6 +3,7 @@ import { connection } from "next/server"
 import { Outfit } from "next/font/google"
 import "./globals.css"
 import SesionFetch from "@/app/sesion-fetch"
+import SwRegister from "@/app/sw-register"
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -39,6 +40,7 @@ export default async function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <SesionFetch />
+        <SwRegister />
         {children}
       </body>
     </html>

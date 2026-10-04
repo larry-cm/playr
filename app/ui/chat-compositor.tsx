@@ -1,11 +1,11 @@
 "use client"
 
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react"
-import { ArrowUp, ImagePlus, LoaderCircle, Mic, Pause, Trash2, X } from "lucide-react"
+import { ArrowUp, FileText, LoaderCircle, Mic, Paperclip, Pause, Trash2, X } from "lucide-react"
 import Alert from "@ui/alert"
 import { NotaVoz } from "@ui/chat-adjunto"
 import { supabaseTabListo } from "@lib/supabase/client"
-import { GRABACION_TIPOS, IMAGEN_ACCEPT, NOTA_VOZ_MAX_MS, mimeAdjunto, rutaAdjunto, validarAdjunto, type TipoAdjunto } from "@lib/chat-adjunto"
+import { ARCHIVO_ACCEPT, GRABACION_TIPOS, NOTA_VOZ_MAX_MS, mimeAdjunto, rutaAdjunto, tipoAdjunto, validarAdjunto, type TipoAdjunto } from "@lib/chat-adjunto"
 import type { AdjuntoSubido } from "@action/tienda/chat-asesor-action"
 
 const MAX = 1000
@@ -17,7 +17,7 @@ const ALTO_MAX = 160
 const BARRAS = 36
 const SIN_SESION = "Tu sesión expiró. Vuelve a iniciar sesión."
 
-type Borrador = { archivo: Blob; tipo: TipoAdjunto; url: string; duracion?: number }
+type Borrador = { archivo: Blob; tipo: TipoAdjunto; url: string; duracion?: number; nombre?: string }
 /** Qué hacer al terminar de grabar: descartar, escucharla antes de enviar, o enviarla ya. */
 type FinGrabacion = "cancelar" | "revisar" | "enviar"
 
@@ -37,6 +37,36 @@ interface ChatCompositorProps {
     encabezado?: ReactNode
     /** Guarda el mensaje; devuelve el error a mostrar o null si se envió. */
     onEnviar: (texto: string, adjunto: AdjuntoSubido | null) => Promise<string | null>
+    /**
+     * Si está, la imagen o el PDF que se elige (botón, pegar o arrastrar) no queda como adjunto del mensaje: se entrega
+     * acá (p. ej. como comprobante del pedido que lo espera). `accept`: lo que ofrece el botón.
+     */
+    desviarArchivo?: { accept: string; enviar: (archivo: File) => void } | null
+}
+
+/** Tipo de adjunto de un archivo elegido (botón, pegar, arrastrar o compartido): PDF o, si no, imagen. */
+export const tipoArchivo = (archivo: Blob): TipoAdjunto => (tipoAdjunto(archivo.type) === "documento" ? "documento" : "imagen")
+
+/**
+ * Sube un adjunto al bucket 'chat', en la carpeta del cliente de la conversación (sin `clienteId`, el usuario de la
+ * sesión). Devuelve lo que va con el mensaje, o el error a mostrar.
+ */
+export async function subirAdjunto(archivo: Blob, tipo: TipoAdjunto, clienteId?: string): Promise<AdjuntoSubido | string> {
+    const supabase = await supabaseTabListo()
+    let carpeta = clienteId
+    if (!carpeta) {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return SIN_SESION
+        carpeta = user.id
+    }
+    const mime = mimeAdjunto(archivo.type)
+    const path = rutaAdjunto(carpeta, mime)
+    const { error: errSubida } = await supabase.storage.from("chat").upload(path, archivo, { contentType: mime, upsert: false })
+    // La RLS del bucket pone un tope diario de archivos por cliente (business.chat_puede_subir).
+    if (errSubida) return /row-level security/i.test(errSubida.message)
+        ? "Llegaste al máximo de archivos por hoy. Puedes seguir escribiendo mensajes de texto."
+        : "No se pudo subir el archivo. Revisa tu conexión e inténtalo de nuevo."
+    return { path, tipo }
 }
 
 export const reloj = (ms: number) => {
@@ -53,7 +83,7 @@ const botonEnviar =
  * Caja para escribir en el chat con el asesor, al estilo de las apps de mensajería: texto que crece solo, imagen
  * (botón, pegar o arrastrar) y nota de voz grabada en el navegador (con onda en vivo; se puede escuchar antes de enviar).
  */
-export default function ChatCompositor({ clienteId, etiqueta, placeholder, encabezado, onEnviar }: Readonly<ChatCompositorProps>) {
+export default function ChatCompositor({ clienteId, etiqueta, placeholder, encabezado, onEnviar, desviarArchivo }: Readonly<ChatCompositorProps>) {
     const textoId = useId()
     const archivoRef = useRef<HTMLInputElement>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -96,36 +126,25 @@ export default function ChatCompositor({ clienteId, etiqueta, placeholder, encab
         setTexto(recortado)
     }
 
-    const preparar = (archivo: Blob, tipo: TipoAdjunto, duracion?: number): Borrador | null => {
+    const preparar = (archivo: Blob, tipo: TipoAdjunto, duracion?: number, nombre?: string): Borrador | null => {
         const invalido = validarAdjunto(archivo, tipo)
         setError(invalido)
-        return invalido ? null : { archivo, tipo, url: URL.createObjectURL(archivo), duracion }
+        return invalido ? null : { archivo, tipo, url: URL.createObjectURL(archivo), duracion, nombre }
     }
 
-    const elegirImagen = (archivo: File | undefined) => {
+    /** Imagen o PDF (botón, pegar o arrastrar). */
+    const elegirArchivo = (archivo: File | undefined) => {
         if (!archivo) return
-        const b = preparar(archivo, "imagen")
+        if (desviarArchivo) {
+            desviarArchivo.enviar(archivo)
+            return
+        }
+        const b = preparar(archivo, tipoArchivo(archivo), undefined, archivo.name)
         if (b) setBorrador(b)
         textareaRef.current?.focus()
     }
 
-    const subir = async (b: Borrador): Promise<AdjuntoSubido | string> => {
-        const supabase = await supabaseTabListo()
-        let carpeta = clienteId
-        if (!carpeta) {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) return SIN_SESION
-            carpeta = user.id
-        }
-        const mime = mimeAdjunto(b.archivo.type)
-        const path = rutaAdjunto(carpeta, mime)
-        const { error: errSubida } = await supabase.storage.from("chat").upload(path, b.archivo, { contentType: mime, upsert: false })
-        // La RLS del bucket pone un tope diario de archivos por cliente (business.chat_puede_subir).
-        if (errSubida) return /row-level security/i.test(errSubida.message)
-            ? "Llegaste al máximo de archivos por hoy. Puedes seguir escribiendo mensajes de texto."
-            : "No se pudo subir el archivo. Revisa tu conexión e inténtalo de nuevo."
-        return { path, tipo: b.tipo }
-    }
+    const subir = (b: Borrador) => subirAdjunto(b.archivo, b.tipo, clienteId)
 
     /** Sube el adjunto (si hay) y guarda el mensaje. Si falla, el adjunto queda como borrador para reintentar. */
     const enviarCon = async (valor: string, adjuntoLocal: Borrador | null) => {
@@ -271,7 +290,7 @@ export default function ChatCompositor({ clienteId, etiqueta, placeholder, encab
             onDrop={(e) => {
                 e.preventDefault()
                 setArrastrando(false)
-                elegirImagen(e.dataTransfer.files[0])
+                elegirArchivo(e.dataTransfer.files[0])
             }}
         >
             {error && <Alert variant="error" message={error} />}
@@ -284,7 +303,7 @@ export default function ChatCompositor({ clienteId, etiqueta, placeholder, encab
             >
                 {arrastrando && (
                     <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-3xl text-sm font-medium text-white">
-                        Suelta la imagen para adjuntarla
+                        Suelta la imagen o el PDF para adjuntarlo
                     </div>
                 )}
 
@@ -304,6 +323,14 @@ export default function ChatCompositor({ clienteId, etiqueta, placeholder, encab
                                     <X className="h-3.5 w-3.5" aria-hidden="true" />
                                 </button>
                             </div>
+                        ) : borrador.tipo === "documento" ? (
+                            <span className="flex min-w-0 items-center gap-2 rounded-2xl border border-white/10 bg-white/5 py-2 pl-3 pr-1.5 text-sm text-white">
+                                <FileText className="h-5 w-5 shrink-0 text-white/70" aria-hidden="true" />
+                                <span className="min-w-0 max-w-48 truncate">{borrador.nombre ?? "Documento PDF"}</span>
+                                <button type="button" onClick={() => setBorrador(null)} disabled={enviando} className="rounded-full p-1 hover:bg-white/10" aria-label="Quitar el PDF">
+                                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                                </button>
+                            </span>
                         ) : (
                             <>
                                 <NotaVoz url={borrador.url} duracion={borrador.duracion} className="min-w-0 flex-1" />
@@ -312,7 +339,7 @@ export default function ChatCompositor({ clienteId, etiqueta, placeholder, encab
                                 </button>
                             </>
                         )}
-                        {borrador.tipo === "imagen" && <span className="text-xs text-secondary">Agrega un comentario si quieres y envíala.</span>}
+                        {borrador.tipo !== "audio" && <span className="text-xs text-secondary">Agrega un comentario si quieres y envíalo.</span>}
                     </div>
                 )}
 
@@ -352,16 +379,16 @@ export default function ChatCompositor({ clienteId, etiqueta, placeholder, encab
                         <input
                             ref={archivoRef}
                             type="file"
-                            accept={IMAGEN_ACCEPT}
+                            accept={desviarArchivo?.accept ?? ARCHIVO_ACCEPT}
                             className="hidden"
                             onChange={(e) => {
                                 const archivo = e.target.files?.[0]
                                 e.target.value = ""
-                                elegirImagen(archivo)
+                                elegirArchivo(archivo)
                             }}
                         />
-                        <button type="button" onClick={() => archivoRef.current?.click()} disabled={enviando} className={botonIcono} aria-label="Adjuntar una imagen" title="Adjuntar una imagen">
-                            <ImagePlus className="h-5 w-5" aria-hidden="true" />
+                        <button type="button" onClick={() => archivoRef.current?.click()} disabled={enviando} className={botonIcono} aria-label="Adjuntar una imagen o un PDF" title="Adjuntar una imagen o un PDF">
+                            <Paperclip className="h-5 w-5" aria-hidden="true" />
                         </button>
                         <label htmlFor={textoId} className="sr-only">{etiqueta}</label>
                         <textarea
@@ -376,10 +403,10 @@ export default function ChatCompositor({ clienteId, etiqueta, placeholder, encab
                                 }
                             }}
                             onPaste={(e) => {
-                                const imagen = [...e.clipboardData.files].find((f) => f.type.startsWith("image/"))
-                                if (!imagen) return
+                                const archivo = [...e.clipboardData.files].find((f) => f.type.startsWith("image/") || f.type === "application/pdf")
+                                if (!archivo) return
                                 e.preventDefault()
-                                elegirImagen(imagen)
+                                elegirArchivo(archivo)
                             }}
                             rows={1}
                             placeholder={borrador ? "Agrega un comentario…" : placeholder}
@@ -400,7 +427,7 @@ export default function ChatCompositor({ clienteId, etiqueta, placeholder, encab
 
             <div className="flex items-center justify-between px-3 text-[11px] text-secondary">
                 <span className="hidden sm:inline">
-                    {grabando ? "Máximo 3 minutos por nota de voz" : "Enter para enviar · Shift + Enter para otra línea · Puedes pegar o arrastrar una imagen"}
+                    {grabando ? "Máximo 3 minutos por nota de voz" : "Enter para enviar · Shift + Enter para otra línea · Puedes pegar o arrastrar una imagen o un PDF"}
                 </span>
                 {texto.length >= AVISO_LARGO && <span className={`ml-auto tabular-nums ${texto.length >= MAX ? "text-red-400" : ""}`}>{texto.length}/{MAX}</span>}
             </div>

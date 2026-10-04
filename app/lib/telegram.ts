@@ -1,7 +1,7 @@
 // Solo servidor. Bot de Telegram del asesor, sobre un grupo con Temas (TELEGRAM_CHAT_ID):
 // - Cada cliente tiene su propio tema (business.telegram_tema). Ahí llegan los avisos de sus pedidos (comprobante,
-//   datos y botones Aprobar/Rechazar) y sus mensajes del chat de Mis compras (texto, imágenes y notas de voz), con el
-//   detalle del pedido del que habla.
+//   datos y botones Aprobar/Rechazar; o el aviso de un pago por QR que espera el comprobante) y sus mensajes del chat de
+//   Mis compras (texto, imágenes, PDF y notas de voz), con el detalle del pedido del que habla.
 // - Lo que el asesor escribe en el tema de un cliente le llega a ese cliente (app/api/telegram/route.ts). Lo que el staff
 //   contesta desde la bandeja de Playr (/administrar/mensajes) se copia al tema, así la conversación está en los dos lados.
 // Si el grupo no tiene Temas activados, todo va al grupo y el asesor contesta respondiendo el mensaje del cliente
@@ -13,7 +13,7 @@ import { notificar } from "@lib/notify"
 import { formatCOP } from "@lib/currency"
 import { formatColombianDateTime } from "@lib/date"
 import { comprobanteEsImagen, ESTADO_PEDIDO, type EstadoPedido } from "@lib/pedido"
-import type { TipoAdjunto } from "@lib/chat-adjunto"
+import type { BucketAdjunto, TipoAdjunto } from "@lib/chat-adjunto"
 
 const API = "https://api.telegram.org"
 
@@ -76,7 +76,8 @@ interface PedidoTg {
     total: number
     llave_breb: string
     llave_nombre: string | null
-    comprobante_path: string
+    /** null mientras el pedido espera el comprobante (pago por QR). */
+    comprobante_path: string | null
     motivo_rechazo: string | null
     created_at: string
     pedido_item: { platform_nombre: string; perfil_nombre: string; access_type: string; precio: number }[] | null
@@ -162,18 +163,19 @@ async function enviarAlCliente(
 }
 
 /**
- * Envía al tema del cliente una imagen (foto) o nota de voz del chat, con el texto como pie. Si Telegram no acepta el
- * formato (p. ej. un audio WebM grabado en Chrome), va como archivo. Un texto que no cabe en el pie va antes, aparte.
+ * Envía al tema del cliente una imagen (foto), nota de voz o PDF (archivo) del chat, con el texto como pie. Si Telegram
+ * no acepta el formato (p. ej. un audio WebM grabado en Chrome), va como archivo. Un texto que no cabe en el pie va
+ * antes, aparte.
  */
 async function enviarAdjuntoAlCliente(
     cfg: TelegramCfg,
     db: SupabaseClient,
     clienteId: string,
-    adjunto: { path: string; tipo: TipoAdjunto },
+    adjunto: { bucket: BucketAdjunto; path: string; tipo: TipoAdjunto },
     texto: string,
     extra: Record<string, unknown> = {},
 ): Promise<MensajeTg> {
-    const { data: archivo, error } = await db.storage.from("chat").download(adjunto.path)
+    const { data: archivo, error } = await db.storage.from(adjunto.bucket).download(adjunto.path)
     if (error || !archivo) throw new Error(`no se pudo leer el adjunto: ${error?.message ?? "vacío"}`)
 
     let caption = texto
@@ -200,6 +202,7 @@ async function enviarAdjuntoAlCliente(
             return form
         })
 
+    if (adjunto.tipo === "documento") return enviar("sendDocument", "document")
     try {
         return adjunto.tipo === "imagen" ? await enviar("sendPhoto", "photo") : await enviar("sendVoice", "voice")
     } catch (e) {
@@ -242,10 +245,12 @@ export async function avisarPedidoTelegram(pedidoId: number): Promise<void> {
         const url = sitio()
         if (url) botones.push([{ text: "Ver en Playr", url: `${url}/administrar/pedidos` }])
 
-        const { data: archivo, error: errArchivo } = await db.storage.from("comprobantes").download(pedido.comprobante_path)
+        const ruta = pedido.comprobante_path
+        if (!ruta) throw new Error("el pedido todavía no tiene comprobante")
+        const { data: archivo, error: errArchivo } = await db.storage.from("comprobantes").download(ruta)
         if (errArchivo || !archivo) throw new Error(`no se pudo leer el comprobante: ${errArchivo?.message ?? "vacío"}`)
 
-        const foto = comprobanteEsImagen(pedido.comprobante_path)
+        const foto = comprobanteEsImagen(ruta)
         const enviado = await enviarAlCliente(cfg, db, pedido.cliente_id, foto ? "sendPhoto" : "sendDocument", (thread) => {
             const form = new FormData()
             form.set("chat_id", cfg.chatId)
@@ -253,7 +258,7 @@ export async function avisarPedidoTelegram(pedidoId: number): Promise<void> {
             form.set("caption", caption)
             form.set("parse_mode", "HTML")
             if (botones.length) form.set("reply_markup", JSON.stringify({ inline_keyboard: botones }))
-            form.set(foto ? "photo" : "document", archivo, pedido.comprobante_path.split("/").pop() ?? "comprobante")
+            form.set(foto ? "photo" : "document", archivo, ruta.split("/").pop() ?? "comprobante")
             return form
         })
         await anotarHilo(db, enviado, pedido.cliente_id, pedido.id)
@@ -268,6 +273,48 @@ export async function avisarPedidoTelegram(pedidoId: number): Promise<void> {
 }
 
 /**
+ * Pago por QR: avisa en el tema del cliente que el pedido espera el comprobante (el QR y el monto ya le llegaron solos
+ * al chat). Sin botones: cuando el cliente envíe el comprobante llega el aviso de siempre (avisarPedidoTelegram). Nunca
+ * lanza: si falla, deja un aviso en la campana.
+ */
+export async function avisarPedidoEsperandoTelegram(pedidoId: number): Promise<void> {
+    const cfg = telegramCfg()
+    const db = createSupabaseAdmin()
+    if (!cfg || !db) return
+
+    try {
+        const { data, error } = await db.schema("business").from("pedido").select(PEDIDO_COLUMNAS).eq("id", pedidoId).single()
+        if (error || !data) throw new Error(error?.message ?? "pedido no encontrado")
+        const pedido = data as unknown as PedidoTg
+
+        const text = [
+            `⏳ <b>Pago por QR: esperando el comprobante</b>`,
+            lineaCliente(await leerCliente(db, pedido.cliente_id)),
+            "",
+            ...detallePedido(pedido),
+            "",
+            "Le enviamos el QR y el monto por el chat automáticamente. Cuando mande el comprobante llegará aquí para aprobar o rechazar; sus perfiles quedan apartados hasta entonces.",
+        ].join("\n").slice(0, 4096)
+        const url = sitio()
+        const enviado = await enviarAlCliente(cfg, db, pedido.cliente_id, "sendMessage", (thread) => ({
+            chat_id: cfg.chatId,
+            ...(thread !== null ? { message_thread_id: thread } : {}),
+            text,
+            parse_mode: "HTML",
+            ...(url ? { reply_markup: { inline_keyboard: [[{ text: "Ver en Playr", url: `${url}/administrar/pedidos` }]] } } : {}),
+        }))
+        await anotarHilo(db, enviado, pedido.cliente_id, pedido.id)
+    } catch (e) {
+        await notificar({
+            origen: "plataforma",
+            tipo: "advertencia",
+            titulo: "No se pudo avisar el pedido por Telegram",
+            mensaje: `Pedido #${pedidoId} (esperando comprobante): ${e instanceof Error ? e.message : String(e)}. Revísalo en Pedidos.`,
+        })
+    }
+}
+
+/**
  * Lleva al tema del cliente un mensaje que escribió en Playr, con el detalle del pedido del que habla (o de su último
  * pedido si no eligió uno). Devuelve si llegó; si no, deja un aviso en la campana.
  */
@@ -277,7 +324,7 @@ export async function reenviarMensajeAsesor(mensajeId: number): Promise<boolean>
     if (!cfg || !db) return false
 
     try {
-        const { data: m, error } = await db.schema("business").from("mensaje_asesor").select("id,cliente_id,pedido_id,texto,adjunto_path,adjunto_tipo").eq("id", mensajeId).single()
+        const { data: m, error } = await db.schema("business").from("mensaje_asesor").select("id,cliente_id,pedido_id,texto,adjunto_bucket,adjunto_path,adjunto_tipo").eq("id", mensajeId).single()
         if (error || !m) throw new Error(error?.message ?? "mensaje no encontrado")
 
         const pedidos = db.schema("business").from("pedido").select(PEDIDO_COLUMNAS)
@@ -308,7 +355,7 @@ export async function reenviarMensajeAsesor(mensajeId: number): Promise<boolean>
         const url = sitio()
         const boton = url ? { reply_markup: { inline_keyboard: [[{ text: "Abrir en Playr", url: `${url}/administrar/mensajes?cliente=${m.cliente_id}` }]] } } : {}
         const enviado = m.adjunto_path
-            ? await enviarAdjuntoAlCliente(cfg, db, m.cliente_id, { path: m.adjunto_path, tipo: m.adjunto_tipo }, text, boton)
+            ? await enviarAdjuntoAlCliente(cfg, db, m.cliente_id, { bucket: m.adjunto_bucket, path: m.adjunto_path, tipo: m.adjunto_tipo }, text, boton)
             : await enviarAlCliente(cfg, db, m.cliente_id, "sendMessage", (thread) => ({
                   chat_id: cfg.chatId,
                   ...(thread !== null ? { message_thread_id: thread } : {}),
@@ -337,11 +384,11 @@ export async function copiarMensajePanelTelegram(mensajeId: number): Promise<voi
     if (!cfg || !db) return
 
     try {
-        const { data: m, error } = await db.schema("business").from("mensaje_asesor").select("cliente_id,texto,autor_via,adjunto_path,adjunto_tipo").eq("id", mensajeId).single()
+        const { data: m, error } = await db.schema("business").from("mensaje_asesor").select("cliente_id,texto,autor_via,adjunto_bucket,adjunto_path,adjunto_tipo").eq("id", mensajeId).single()
         if (error || !m) throw new Error(error?.message ?? "mensaje no encontrado")
         const quien = (m.autor_via ?? "").replace(/^panel:/, "") || "el equipo"
         const text = `🧑‍💼 <i>${html(quien)} respondió desde Playr:</i>${m.texto ? `\n${html(m.texto)}` : ""}`
-        if (m.adjunto_path) await enviarAdjuntoAlCliente(cfg, db, m.cliente_id, { path: m.adjunto_path, tipo: m.adjunto_tipo }, text)
+        if (m.adjunto_path) await enviarAdjuntoAlCliente(cfg, db, m.cliente_id, { bucket: m.adjunto_bucket, path: m.adjunto_path, tipo: m.adjunto_tipo }, text)
         else
             await enviarAlCliente(cfg, db, m.cliente_id, "sendMessage", (thread) => ({
                 chat_id: cfg.chatId,

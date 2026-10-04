@@ -5,7 +5,7 @@ import { esStaff, SIN_PERMISO } from "@lib/auth"
 import { copiarMensajePanelTelegram } from "@lib/telegram"
 import type { EstadoPedido } from "@lib/pedido"
 import { firmarAdjuntos } from "@lib/chat-firmar"
-import { resumenMensaje, type TipoAdjunto } from "@lib/chat-adjunto"
+import { resumenMensaje, type BucketAdjunto, type TipoAdjunto } from "@lib/chat-adjunto"
 import type { AdjuntoSubido } from "@action/tienda/chat-asesor-action"
 
 export interface ClienteChat {
@@ -30,6 +30,7 @@ export interface MensajeStaff {
     autor_via: string | null
     created_at: string
     adjunto_tipo: TipoAdjunto | null
+    adjunto_bucket: BucketAdjunto
     adjunto_url: string | null
 }
 
@@ -90,7 +91,7 @@ export async function getConversacionAction(clienteId: string): Promise<DetalleC
     const db = supabase.schema("business")
 
     const [mensajes, pedidos, cliente] = await Promise.all([
-        db.from("mensaje_asesor").select("id,autor,texto,pedido_id,autor_via,created_at,adjunto_path,adjunto_tipo").eq("cliente_id", clienteId).order("id", { ascending: false }).limit(300),
+        db.from("mensaje_asesor").select("id,autor,texto,pedido_id,autor_via,created_at,adjunto_bucket,adjunto_path,adjunto_tipo").eq("cliente_id", clienteId).order("id", { ascending: false }).limit(300),
         db.from("pedido").select("id,estado,total,created_at,pedido_item(platform_nombre,perfil_nombre,access_type)").eq("cliente_id", clienteId).order("created_at", { ascending: false }).limit(10),
         supabase.schema("security").from("client").select("username,email,phone").eq("id", clienteId).maybeSingle(),
     ])
@@ -119,7 +120,7 @@ export async function enviarMensajeStaffAction(
     if (!(await esStaff())) return { ok: false, error: SIN_PERMISO }
     if (typeof clienteId !== "string" || !UUID.test(clienteId)) return { ok: false, error: "Cliente no encontrado." }
     if (typeof texto !== "string" || (!texto.trim() && !adjunto)) return { ok: false, error: "Escribe un mensaje." }
-    if (adjunto && (typeof adjunto.path !== "string" || (adjunto.tipo !== "imagen" && adjunto.tipo !== "audio"))) return { ok: false, error: "El archivo adjunto no es válido." }
+    if (adjunto && (typeof adjunto.path !== "string" || !["imagen", "audio", "documento"].includes(adjunto.tipo))) return { ok: false, error: "El archivo adjunto no es válido." }
 
     const { createSupabase } = await import("@lib/supabase/server")
     const supabase = await createSupabase()

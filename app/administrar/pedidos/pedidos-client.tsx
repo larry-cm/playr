@@ -23,6 +23,7 @@ import { revisarPedidoAction } from "@action/manager-and-admin/pedidos/revisar-p
 type Filtro = EstadoPedido | "todos"
 const FILTROS: { valor: Filtro; label: string }[] = [
     { valor: "pendiente", label: ESTADO_PEDIDO.pendiente.label },
+    { valor: "esperando_comprobante", label: ESTADO_PEDIDO.esperando_comprobante.label },
     { valor: "aprobado", label: "Aprobados" },
     { valor: "rechazado", label: "Rechazados" },
     { valor: "todos", label: "Todos" },
@@ -152,7 +153,10 @@ function PedidoStaffCard({ pedido, onDialogo }: Readonly<{ pedido: PedidoStaff; 
                 ))}
             </ul>
 
-            {pedido.estado !== "pendiente" && (
+            {pedido.estado === "esperando_comprobante" && (
+                <p className="text-xs text-amber-300/90">Pago por QR: esperando comprobante por el chat. Al llegar, el pedido pasa a Por verificar.</p>
+            )}
+            {(pedido.estado === "aprobado" || pedido.estado === "rechazado") && (
                 <p className="text-xs text-secondary">
                     {pedido.estado === "aprobado" ? "Aprobado" : "Rechazado"}
                     {pedido.revisado_at ? ` el ${formatColombianDateTime(pedido.revisado_at)}` : ""}
@@ -162,14 +166,17 @@ function PedidoStaffCard({ pedido, onDialogo }: Readonly<{ pedido: PedidoStaff; 
             )}
 
             <div className="flex flex-wrap gap-2">
-                <Button variant="secondary" size="sm" onClick={() => onDialogo({ tipo: "comprobante", pedido })} leftIcon={<FileImage className="h-4 w-4" />}>
-                    Ver comprobante
-                </Button>
+                {pedido.tiene_comprobante && (
+                    <Button variant="secondary" size="sm" onClick={() => onDialogo({ tipo: "comprobante", pedido })} leftIcon={<FileImage className="h-4 w-4" />}>
+                        Ver comprobante
+                    </Button>
+                )}
                 {pedido.estado === "pendiente" && (
-                    <>
-                        <Button size="sm" onClick={() => onDialogo({ tipo: "aprobar", pedido })} leftIcon={<Check className="h-4 w-4" />}>Aprobar</Button>
-                        <Button variant="outline" size="sm" onClick={() => onDialogo({ tipo: "rechazar", pedido })} leftIcon={<X className="h-4 w-4" />}>Rechazar</Button>
-                    </>
+                    <Button size="sm" onClick={() => onDialogo({ tipo: "aprobar", pedido })} leftIcon={<Check className="h-4 w-4" />}>Aprobar</Button>
+                )}
+                {/* Sin comprobante no hay pago que aprobar; rechazar es la única forma de liberar sus perfiles. */}
+                {(pedido.estado === "pendiente" || pedido.estado === "esperando_comprobante") && (
+                    <Button variant="outline" size="sm" onClick={() => onDialogo({ tipo: "rechazar", pedido })} leftIcon={<X className="h-4 w-4" />}>Rechazar</Button>
                 )}
             </div>
         </Card>

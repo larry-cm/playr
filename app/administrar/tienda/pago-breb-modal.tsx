@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, CircleCheck, Download, FileUp, Send } from "lucide-react"
+import { Check, CircleCheck, FileUp, QrCode, Send } from "lucide-react"
 import Modal from "@ui/modal"
 import Button from "@ui/button"
 import Alert from "@ui/alert"
@@ -11,6 +11,7 @@ import { formatCOP } from "@lib/currency"
 import { COMPROBANTE_ACCEPT, rutaComprobante, tipoComprobante, validateComprobante } from "@lib/pedido"
 import { supabaseTabListo } from "@lib/supabase/client"
 import { crearPedidoAction } from "@action/tienda/crear-pedido-action"
+import { crearPedidoQrAction } from "@action/tienda/crear-pedido-qr-action"
 import { TIPO_ACCESO } from "@/app/administrar/tienda/product-card"
 import type { CatalogoDisponibleItem } from "@action/tienda/get-catalogo-disponible-action"
 
@@ -39,6 +40,8 @@ interface PagoBrebModalProps {
 /**
  * Pago por Bre-B: el cliente elige una de las llaves del negocio, le transfiere el total, sube el comprobante (a su carpeta del bucket privado) y
  * queda el pedido por verificar con los perfiles reservados. El precio que manda es el de la base, no el de acá.
+ * Si la llave tiene QR, "Pagar por QR" crea el pedido sin comprobante y lleva al chat con el asesor, donde llegan solos
+ * el QR y el monto y el cliente envía el comprobante.
  */
 export default function PagoBrebModal({ isOpen, onClose, items, total, llaves, onPedido }: Readonly<PagoBrebModalProps>) {
     const router = useRouter()
@@ -51,9 +54,10 @@ export default function PagoBrebModal({ isOpen, onClose, items, total, llaves, o
     const [error, setError] = useState<string | null>(null)
     const [enviando, setEnviando] = useState(false)
     const [pedidoId, setPedidoId] = useState<number | null>(null)
+    const [creandoQr, setCreandoQr] = useState(false)
 
     const cerrar = () => {
-        if (enviando) return
+        if (enviando || creandoQr) return
         setArchivo(null)
         setError(null)
         setPedidoId(null)
@@ -99,6 +103,24 @@ export default function PagoBrebModal({ isOpen, onClose, items, total, llaves, o
         }
     }
 
+    /** Pago por QR: crea el pedido sin comprobante y lleva al chat de Mis compras, donde ya está el QR con el monto. */
+    const pagarPorQr = async () => {
+        if (!llave || enviando || creandoQr) return
+        setError(null)
+        setCreandoQr(true)
+        const res = await crearPedidoQrAction(items.map((i) => i.profile_id), total, llave.id).catch(() => ({ ok: false as const, error: "No se pudo crear el pedido. Inténtalo de nuevo." }))
+        setCreandoQr(false)
+        if (!res.ok) {
+            setError(res.error)
+            return
+        }
+        setArchivo(null)
+        setElegida(null)
+        onPedido()
+        onClose()
+        router.push(`/administrar/compras?chat=${res.id}`)
+    }
+
     if (pedidoId !== null) {
         return (
             <Modal isOpen={isOpen} title="Pago enviado" onClose={cerrar}>
@@ -120,7 +142,7 @@ export default function PagoBrebModal({ isOpen, onClose, items, total, llaves, o
     }
 
     return (
-        <Modal isOpen={isOpen} title="Pagar con Bre-B" onClose={cerrar} dismissible={!enviando}>
+        <Modal isOpen={isOpen} title="Pagar con Bre-B" onClose={cerrar} dismissible={!enviando && !creandoQr}>
             <form onSubmit={enviar} noValidate className="flex flex-col gap-5">
                 <ul className="flex flex-col gap-1.5 rounded-xl border border-white/8 bg-white/3 p-3 text-sm">
                     {items.map((i) => (
@@ -180,35 +202,26 @@ export default function PagoBrebModal({ isOpen, onClose, items, total, llaves, o
                             </div>
                         </>
                     )}
+                    {/* Con QR, el camino corto: el pedido se crea ya y el QR, el monto y el comprobante van por el chat. */}
                     {llave?.qr_url && (
-                        <div className="flex flex-col items-center gap-3 rounded-xl border border-white/8 bg-white/3 p-3 sm:flex-row sm:items-center">
-                            <div className="shrink-0 rounded-xl bg-white p-2">
-                                {/* eslint-disable-next-line @next/next/no-img-element -- imagen pública de Supabase Storage */}
-                                <img src={llave.qr_url} alt={`QR Bre-B de ${llave.nombre}`} className="h-40 w-40 object-contain" />
-                            </div>
-                            <div className="flex flex-col gap-2 text-center text-sm text-secondary sm:text-left">
-                                <p>
-                                    <b className="text-white">Escanéalo</b> desde tu app (Pagar con QR), o guárdalo y ábrelo desde la galería. Luego escribe el
-                                    monto: <b className="text-white">{formatCOP(total)}</b>.
-                                </p>
-                                <a
-                                    href={`${llave.qr_url}?download=${encodeURIComponent(`QR Bre-B ${llave.nombre}.${llave.qr_url.split(".").pop()}`)}`}
-                                    className="inline-flex items-center justify-center gap-1.5 self-center rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/10 sm:self-start"
-                                >
-                                    <Download className="h-3.5 w-3.5" aria-hidden="true" />
-                                    Guardar QR
-                                </a>
-                            </div>
+                        <div className="flex flex-col gap-3 rounded-xl border border-accent/30 bg-accent/10 p-3 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="text-sm text-secondary">
+                                <b className="text-white">Pagar por QR:</b> te enviamos al chat con el asesor el QR de {llave.nombre} y el monto. Pagas desde tu app y nos mandas
+                                ahí el comprobante.
+                            </p>
+                            <Button type="button" className="shrink-0" onClick={pagarPorQr} isLoading={creandoQr} disabled={enviando || creandoQr} leftIcon={<QrCode className="h-4 w-4" />}>
+                                Pagar por QR
+                            </Button>
                         </div>
                     )}
                     {llave && (
-                        <CopyInput label={`${llave.qr_url ? "O copia la llave" : "Llave Bre-B"} · ${llave.nombre}`} value={llave.llave} readOnly copyLabel="Copiar llave" />
+                        <CopyInput label={`${llave.qr_url ? "O transfiere a la llave" : "Llave Bre-B"} · ${llave.nombre}`} value={llave.llave} readOnly copyLabel="Copiar llave" />
                     )}
                 </div>
 
                 <div className="flex flex-col gap-2">
                     <label htmlFor={fileId} className="text-sm text-white">
-                        <b>2.</b> Sube la captura o el PDF del comprobante (máx. 5 MB):
+                        <b>2.</b> {llave?.qr_url ? "Si transferiste a la llave, sube" : "Sube"} la captura o el PDF del comprobante (máx. 5 MB):
                     </label>
                     <label
                         htmlFor={fileId}
@@ -237,8 +250,14 @@ export default function PagoBrebModal({ isOpen, onClose, items, total, llaves, o
                 </p>
 
                 <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                    <Button type="button" variant="secondary" onClick={cerrar} disabled={enviando}>Cancelar</Button>
-                    <Button type="submit" isLoading={enviando} disabled={enviando} leftIcon={<Send className="h-4 w-4" />}>
+                    <Button type="button" variant="secondary" onClick={cerrar} disabled={enviando || creandoQr}>Cancelar</Button>
+                    <Button
+                        type="submit"
+                        variant={llave?.qr_url ? "secondary" : "primary"}
+                        isLoading={enviando}
+                        disabled={enviando || creandoQr}
+                        leftIcon={<Send className="h-4 w-4" />}
+                    >
                         Enviar comprobante
                     </Button>
                 </div>

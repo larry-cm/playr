@@ -9,6 +9,8 @@ export interface PedidoStaff extends MiPedido {
     /** Nombre de la llave a la que pagó ("Nequi"…); null en pedidos de antes de tener varias llaves. */
     llave_nombre: string | null
     revisado_via: string | null
+    /** false = pago por QR que aún espera el comprobante (o se rechazó sin recibirlo). */
+    tiene_comprobante: boolean
     cliente: { username: string; email: string | null; phone: string | null } | null
 }
 
@@ -21,7 +23,7 @@ export async function getPedidosAction(): Promise<PedidoStaff[] | null> {
     const { data, error } = await supabase
         .schema("business")
         .from("pedido")
-        .select("id,cliente_id,estado,total,llave_breb,llave_nombre,motivo_rechazo,revisado_via,created_at,revisado_at,pedido_item(profile_id,platform_nombre,perfil_nombre,access_type,precio)")
+        .select("id,cliente_id,estado,total,llave_breb,llave_nombre,motivo_rechazo,revisado_via,comprobante_path,created_at,revisado_at,pedido_item(profile_id,platform_nombre,perfil_nombre,access_type,precio)")
         .order("created_at", { ascending: false })
         .limit(200)
     if (error) {
@@ -35,11 +37,12 @@ export async function getPedidosAction(): Promise<PedidoStaff[] | null> {
         : { data: [] as { id: string; username: string; email: string | null; phone: string | null }[] }
     const porId = new Map((clientes ?? []).map((c) => [c.id, c]))
 
-    return data.map(({ pedido_item, cliente_id, ...p }) => {
+    return data.map(({ pedido_item, cliente_id, comprobante_path, ...p }) => {
         const c = porId.get(cliente_id)
         return {
             ...p,
             total: Number(p.total),
+            tiene_comprobante: comprobante_path !== null,
             items: (pedido_item ?? []).map((i) => ({ ...i, precio: Number(i.precio) })),
             cliente: c ? { username: c.username, email: c.email, phone: c.phone } : null,
         }
@@ -55,6 +58,7 @@ export async function getComprobanteUrlAction(pedidoId: number): Promise<{ ok: t
     const supabase = await createSupabase()
     const { data: pedido } = await supabase.schema("business").from("pedido").select("comprobante_path").eq("id", pedidoId).maybeSingle()
     if (!pedido) return { ok: false, error: "Pedido no encontrado." }
+    if (!pedido.comprobante_path) return { ok: false, error: "Este pedido todavía no tiene comprobante: el cliente lo envía por el chat." }
 
     const { data, error } = await supabase.storage.from("comprobantes").createSignedUrl(pedido.comprobante_path, 300)
     if (error || !data) return { ok: false, error: "No se pudo abrir el comprobante." }

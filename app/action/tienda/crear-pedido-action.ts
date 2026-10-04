@@ -17,22 +17,23 @@ const AVISO_PAGO = " Si ya transferiste, tu comprobante quedó guardado y avisam
 /**
  * Registra el pedido del cliente con el comprobante ya subido a su carpeta del bucket 'comprobantes'.
  * business.crear_pedido valida todo en la base (perfiles disponibles, precio igual al que vio el cliente, comprobante
- * propio y sin usar, llave configurada) y reserva los perfiles. Después de responder, avisa al staff en la campana y
+ * propio y sin usar, llave elegida visible) y reserva los perfiles. Después de responder, avisa al staff en la campana y
  * en el canal de Telegram. Si falla, deja en la campana el comprobante huérfano (pago sin pedido).
  */
-export async function crearPedidoAction(profileIds: number[], comprobantePath: string, totalEsperado: number): Promise<CrearPedidoResult> {
+export async function crearPedidoAction(profileIds: number[], comprobantePath: string, totalEsperado: number, llaveId: number): Promise<CrearPedidoResult> {
     if ((await getRoleUser()) === "error") return { ok: false, error: "Tu sesión expiró. Vuelve a iniciar sesión." }
 
     const ids = Array.isArray(profileIds) ? [...new Set(profileIds.filter((id) => Number.isInteger(id) && id > 0))] : []
     if (ids.length === 0 || ids.length > MAX_PERFILES_PEDIDO) return { ok: false, error: `Elige entre 1 y ${MAX_PERFILES_PEDIDO} perfiles.` }
     if (typeof comprobantePath !== "string" || !comprobantePath) return { ok: false, error: "Sube el comprobante de pago." }
     if (!Number.isFinite(totalEsperado)) return { ok: false, error: ERROR_GENERICO }
+    if (!Number.isInteger(llaveId)) return { ok: false, error: "Elige la llave a la que transferiste." }
 
     const { createSupabase } = await import("@lib/supabase/server")
     const supabase = await createSupabase()
     const { data, error } = await supabase
         .schema("business")
-        .rpc("crear_pedido", { p_profile_ids: ids, p_comprobante: comprobantePath, p_total_esperado: totalEsperado })
+        .rpc("crear_pedido", { p_profile_ids: ids, p_comprobante: comprobantePath, p_total_esperado: totalEsperado, p_llave_id: llaveId })
 
     if (error || typeof data !== "number") {
         console.error("crearPedidoAction:", error?.message)

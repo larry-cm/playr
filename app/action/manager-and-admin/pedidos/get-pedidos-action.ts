@@ -1,10 +1,13 @@
 "use server"
 
 import { esStaff } from "@lib/auth"
+import { comprobanteEsImagen } from "@lib/pedido"
 import type { MiPedido } from "@action/tienda/get-mis-pedidos-action"
 
 export interface PedidoStaff extends MiPedido {
     llave_breb: string
+    /** Nombre de la llave a la que pagó ("Nequi"…); null en pedidos de antes de tener varias llaves. */
+    llave_nombre: string | null
     revisado_via: string | null
     cliente: { username: string; email: string | null; phone: string | null } | null
 }
@@ -18,7 +21,7 @@ export async function getPedidosAction(): Promise<PedidoStaff[] | null> {
     const { data, error } = await supabase
         .schema("business")
         .from("pedido")
-        .select("id,cliente_id,estado,total,llave_breb,motivo_rechazo,revisado_via,created_at,revisado_at,pedido_item(profile_id,platform_nombre,perfil_nombre,access_type,precio)")
+        .select("id,cliente_id,estado,total,llave_breb,llave_nombre,motivo_rechazo,revisado_via,created_at,revisado_at,pedido_item(profile_id,platform_nombre,perfil_nombre,access_type,precio)")
         .order("created_at", { ascending: false })
         .limit(200)
     if (error) {
@@ -44,7 +47,7 @@ export async function getPedidosAction(): Promise<PedidoStaff[] | null> {
 }
 
 /** URL firmada (5 min) del comprobante de un pedido. Solo admin/manager. */
-export async function getComprobanteUrlAction(pedidoId: number): Promise<{ ok: true; url: string; pdf: boolean } | { ok: false; error: string }> {
+export async function getComprobanteUrlAction(pedidoId: number): Promise<{ ok: true; url: string; imagen: boolean } | { ok: false; error: string }> {
     if (!(await esStaff())) return { ok: false, error: "No tienes permiso." }
     if (!Number.isInteger(pedidoId)) return { ok: false, error: "Pedido no encontrado." }
 
@@ -55,5 +58,5 @@ export async function getComprobanteUrlAction(pedidoId: number): Promise<{ ok: t
 
     const { data, error } = await supabase.storage.from("comprobantes").createSignedUrl(pedido.comprobante_path, 300)
     if (error || !data) return { ok: false, error: "No se pudo abrir el comprobante." }
-    return { ok: true, url: data.signedUrl, pdf: pedido.comprobante_path.endsWith(".pdf") }
+    return { ok: true, url: data.signedUrl, imagen: comprobanteEsImagen(pedido.comprobante_path) }
 }

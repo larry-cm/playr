@@ -15,7 +15,7 @@ interface ProductCardProps {
 /** Perfiles que se dibujan en la imagen: una pantalla enciende uno, una cuenta completa los enciende todos. */
 const PERFILES = 5
 
-/** Qué se compra, en texto: lo usan la tarjeta y el mensaje de WhatsApp. */
+/** Qué se compra, en texto. */
 export const TIPO_ACCESO: Record<CatalogoDisponibleItem["access_type"], string> = {
     completa: "Cuenta completa",
     pantalla: "Pantalla",

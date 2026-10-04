@@ -13,6 +13,8 @@ declare
   v_p2 bigint;
   v_pedido bigint;
   v_pedido2 bigint;
+  v_llave bigint;
+  v_oculta bigint;
   v_total numeric;
   n int;
   v_estado text;
@@ -27,7 +29,8 @@ begin
   assert v_p1 is not null and v_p2 is not null, 'faltan 2 perfiles disponibles para probar';
   select sum(precio_venta) into v_total from business.catalogo_disponible where profile_id in (v_p1, v_p2);
 
-  insert into business.ajuste (clave, valor) values ('llave_breb', '@check') on conflict (clave) do update set valor = '@check';
+  insert into business.llave_breb (nombre, llave) values ('Check', '@check') returning id into v_llave;
+  insert into business.llave_breb (nombre, llave, activa) values ('Oculta', '@check-oculta', false) returning id into v_oculta;
   insert into storage.objects (bucket_id, name) values ('comprobantes', v_cliente || '/check.png'), ('comprobantes', v_cliente || '/check2.png'), ('comprobantes', v_otro || '/check.png');
 
   -- 1) el cliente no puede usar el comprobante de otro
@@ -46,8 +49,24 @@ begin
   exception when raise_exception then null;
   end;
 
-  -- 2) crea el pedido: total de la base, perfiles reservados y fuera de la Tienda
-  v_pedido := business.crear_pedido(array[v_p1, v_p2, v_p1], v_cliente || '/check.png', v_total);
+  -- 1c) llaves: el cliente no ve las ocultas, no puede pagar a una oculta ni agregar llaves
+  select count(*) into n from business.llave_breb where id = v_oculta;
+  assert n = 0, 'el cliente no debe ver las llaves ocultas';
+  begin
+    perform business.crear_pedido(array[v_p1, v_p2], v_cliente || '/check.png', v_total, v_oculta);
+    assert false, 'no debe aceptar una llave oculta';
+  exception when raise_exception then null;
+  end;
+  begin
+    insert into business.llave_breb (nombre, llave) values ('Falsa', '@falsa');
+    assert false, 'el cliente no debe agregar llaves';
+  exception when insufficient_privilege then null;
+  end;
+
+  -- 2) crea el pedido: total de la base, llave elegida, perfiles reservados y fuera de la Tienda
+  v_pedido := business.crear_pedido(array[v_p1, v_p2, v_p1], v_cliente || '/check.png', v_total, v_llave);
+  select count(*) into n from business.pedido where id = v_pedido and llave_breb = '@check' and llave_nombre = 'Check';
+  assert n = 1, 'el pedido debe guardar la llave elegida y su nombre';
   select count(*) into n from business.catalogo_disponible where profile_id in (v_p1, v_p2);
   assert n = 0, 'los perfiles del pedido no deben seguir en la Tienda';
   select count(*) into n from business.pedido where id = v_pedido and total = v_total and estado = 'pendiente';

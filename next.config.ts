@@ -52,6 +52,9 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Los worktrees viven dentro del repo (.claude/worktrees/*) y cada uno tiene su pnpm-workspace.yaml: sin esto Turbopack toma
+  // como raíz el repo de afuera, vigila también las otras copias y el HMR se rompe (recargas en bucle).
+  turbopack: { root: __dirname },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }]
   },

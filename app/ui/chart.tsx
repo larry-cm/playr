@@ -71,3 +71,11 @@ export function ChartTooltipRow({ serie, value }: Readonly<{ serie: string; valu
         </div>
     )
 }
+
+/** Marcas redondas (1-2-5 × 10^n, unas 4) por debajo del techo; el eje igual termina en el techo exacto. */
+export function marcasEje(techo: number): number[] {
+    const crudo = techo / 4
+    const base = 10 ** Math.floor(Math.log10(crudo))
+    const paso = [1, 2, 5, 10].map((m) => m * base).find((p) => p >= crudo) ?? base * 10
+    return Array.from({ length: Math.floor(techo / paso) + 1 }, (_, i) => i * paso)
+}

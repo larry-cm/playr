@@ -7,12 +7,14 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import Card from "@ui/card"
 import { SectionHeader } from "@ui/page-header"
 import { SkeletonBar } from "@ui/data-frame"
-import { ChartContainer, ChartTooltip, ChartTooltipBox, type ChartConfig } from "@ui/chart"
+import { ChartContainer, ChartTooltip, ChartTooltipBox, marcasEje, type ChartConfig } from "@ui/chart"
 import { formatCOP } from "@lib/currency"
 import { capitalizar } from "@lib/text"
-import { calcularConsumo, RANGOS, type Periodo, type Rango } from "@lib/bodega/consumo"
+import { calcularConsumo, type Periodo, type Rango } from "@lib/bodega/consumo"
+import SelectorRango from "@/app/administrar/(inicio)/selector-rango"
 import type { HistorialProveedor } from "@lib/bodega/tipos"
 import { sincronizarHistorialAction } from "@action/manager-and-admin/bodega/historial-action"
+import { coloresPara, COLORES_LIBRES } from "@lib/colores-plataforma"
 
 /** Igual que Bodega: el registro guardado se sincroniza con el sitio solo si la última sincronización tiene más de un día. */
 const SYNC_CADA_MS = 24 * 60 * 60 * 1000
@@ -21,55 +23,13 @@ const desactualizado = (h: HistorialProveedor) => !h.sincronizadoEn || Date.now(
 const copCompacto = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", notation: "compact", maximumFractionDigits: 1 })
 const fechaCorta = (iso: string) =>
     new Date(iso).toLocaleString("es-CO", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "America/Bogota" })
-/** El eje de dinero va de 0 a la barra más alta del rango + esto (pedido del usuario). */
-const MARGEN_EJE = 2000
 
-// Color oficial de cada plataforma (pedido del usuario), por su nombre en business.platform. Solo se aclaran los que no se ven
-// sobre la card oscura (Max). Apple TV es negro: va en blanco. Combos no es una marca: amarillo (no lo usa ninguna plataforma). Varios oficiales se
-// parecen entre sí (azules, rojos): la leyenda y el tooltip siempre dicen el nombre, el color no es lo único que identifica.
-const COLOR_MARCA: Record<string, string> = {
-    NETFLIX: "#E50914",
-    DISNEY: "#0063E5",
-    HBO: "#991EEB",
-    MAX: "#2E5BFF",
-    AMAZON: "#00A8E1",
-    CRUNCHYROLL: "#F47521",
-    "APPLE TV": "#FFFFFF",
-    SPOTIFY: "#1DB954",
-    YOUTUBE: "#FF0000",
-    PARAMOUNT: "#0064FF",
-    "VIX+": "#FF5A00",
-    CANVA: "#00C4CC",
-    DEEZER: "#A238FF",
-    PLEX: "#E5A00D",
-    "CLARO VIDEO": "#DA291C",
-    "DIRECTV GO": "#00A6D6",
-    DUOLINGO: "#58CC02",
-    OFFICE: "#D83B01",
-    PORNHUB: "#FF9000",
-    COMBOS: "#FACC15",
-}
-// Plataforma sin color de marca (o producto sin plataforma): el siguiente de la paleta categórica validada (dataviz).
-const COLORES_LIBRES = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#9085e9"]
-
-/** Color de cada plataforma: el de su marca, o uno libre en orden fijo (según el gasto de todo el historial). */
-function coloresPara(ranking: string[]): Map<string, string> {
-    let libre = 0
-    return new Map(ranking.map((n) => [n, COLOR_MARCA[n.toUpperCase()] ?? COLORES_LIBRES[libre++ % COLORES_LIBRES.length]]))
-}
 type Serie = string
 /** Separación de 1px entre tramos apilados, del color de la card. */
 const SUPERFICIE = "#111116"
 /** Referencia estable (el default [] en props sería un arreglo nuevo en cada render y rompería los useMemo). */
 const SIN_PLATAFORMAS: string[] = []
 
-/** Marcas redondas (1-2-5 × 10^n, unas 4) por debajo del techo; el eje igual termina en el techo exacto. */
-function marcasEje(techo: number): number[] {
-    const crudo = techo / 4
-    const base = 10 ** Math.floor(Math.log10(crudo))
-    const paso = [1, 2, 5, 10].map((m) => m * base).find((p) => p >= crudo) ?? base * 10
-    return Array.from({ length: Math.floor(techo / paso) + 1 }, (_, i) => i * paso)
-}
 
 /**
  * Detalle del período: cada plataforma con su gasto y, debajo, sus productos con el precio del producto completo (sin dividir
@@ -161,7 +121,7 @@ export default function ComprasCard({ historial: inicial, plataformas = SIN_PLAT
     // lo sincronizado en esta visita reemplaza a lo que llegó del servidor
     const [sincronizado, setHistorial] = useState<HistorialProveedor | null>(null)
     const historial = sincronizado ?? inicial
-    const [rango, setRango] = useState<Rango>("30d")
+    const [rango, setRango] = useState<Rango>("todo")
     const [sincronizando, startSync] = useTransition()
     const [errorSync, setErrorSync] = useState(false)
     const [activa, setActiva] = useState<Serie | null>(null)
@@ -212,7 +172,7 @@ export default function ComprasCard({ historial: inicial, plataformas = SIN_PLAT
     }), [c, serieDe])
     // en el orden del ranking: cada plataforma ocupa siempre el mismo lugar en la pila
     const enUso = ranking.filter((n) => c?.plataformas.some((p) => p.nombre === n)).map(serieDe)
-    const techo = Math.max(0, ...(c?.periodos.map((p) => p.gasto) ?? [])) + MARGEN_EJE
+    const techo = Math.max(1, ...(c?.periodos.map((p) => p.gasto) ?? []))
     const marcas = marcasEje(techo)
 
     const descripcion = sincronizando
@@ -222,30 +182,17 @@ export default function ComprasCard({ historial: inicial, plataformas = SIN_PLAT
             : "Pedidos hechos desde Bodega y en el sitio del proveedor"
 
     return (
-        <Card className="flex flex-col gap-6">
+        <Card className="@container flex h-full flex-col gap-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <SectionHeader icon={ShoppingCart} title="Compras a proveedores" description={descripcion} />
-                <div role="radiogroup" aria-label="Rango de tiempo" className="flex shrink-0 rounded-xl border border-white/6 bg-white/3 p-1">
-                    {RANGOS.map((r) => (
-                        <button
-                            key={r.value}
-                            type="button"
-                            role="radio"
-                            aria-checked={rango === r.value}
-                            onClick={() => setRango(r.value)}
-                            className={`flex-1 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-accent ${rango === r.value ? "bg-accent/15 text-accent" : "text-secondary hover:text-white"}`}
-                        >
-                            {r.label}
-                        </button>
-                    ))}
-                </div>
+                <SelectorRango value={rango} onChange={setRango} />
             </div>
 
             {historial === null || (primeraVez && errorSync) ? (
                 <p className="text-sm text-red-400" role="alert">No se pudo leer el registro de compras. Recarga la página para reintentar.</p>
             ) : (
                 <>
-                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    <div className="grid grid-cols-2 gap-3 @3xl:grid-cols-4">
                         <Kpi label="Gastado" value={c && formatCOP(c.gastado)} detail={c && variacion(c.gastado, c.gastadoAnterior)} />
                         <Kpi label="Pedidos" value={c && String(c.pedidos)} detail={c && `${c.productos} ${c.productos === 1 ? "producto" : "productos"}`} />
                         <Kpi label="Ticket promedio" value={c && formatCOP(c.ticketPromedio)} detail={c && "Por pedido"} />
@@ -283,7 +230,7 @@ export default function ComprasCard({ historial: inicial, plataformas = SIN_PLAT
                                         <BarChart data={filas} margin={{ top: 8, right: 4, left: 4, bottom: 0 }} barCategoryGap={2}>
                                             <CartesianGrid vertical={false} />
                                             <XAxis dataKey="corta" tickLine={false} axisLine={false} tickMargin={8} minTickGap={16} />
-                                            {/* de 0 a la barra más alta + $2.000 */}
+                                            {/* de 0 a la barra más alta */}
                                             <YAxis
                                                 width={64}
                                                 tickLine={false}

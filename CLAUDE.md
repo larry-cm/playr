@@ -71,7 +71,6 @@ app/
     layout.tsx
     page.tsx
     view-manager-and-admin.tsx
-    view-user.tsx
     clientes/
       page.tsx
       table-client.tsx
@@ -176,9 +175,8 @@ El patrón esperado es recibir `FormData` o un objeto plano y devolver:
 ## 8) Dashboard y UI
 
 ### Panel principal
-- `app/administrar/page.tsx` decide si mostrar `ViewUser` o `ViewManagerAndAdmin` según el rol.
+- `app/administrar/(inicio)/page.tsx` es el Dashboard, solo para admin/manager. El cliente (rol `user`) no tiene Dashboard: su menú solo muestra **Tienda** y `/administrar` lo redirige a `/administrar/tienda` (pedido del usuario).
 - `app/administrar/view-manager-and-admin.tsx` representa el dashboard de administración con resumen de servicios.
-- `app/administrar/view-user.tsx` representa la vista del usuario final.
 
 ### Dashboard (inicio, `/administrar`)
 - En el menú se llama **Dashboard** (la ruta sigue siendo `/administrar`).

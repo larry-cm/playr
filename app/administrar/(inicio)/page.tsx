@@ -1,11 +1,11 @@
 import { Suspense } from "react"
+import { redirect } from "next/navigation"
 import { getRoleUser } from "@action/get-role-action"
 import { resumeServicesAction } from "@action/manager-and-admin/resume-service-action"
 import { getHistorialAction } from "@action/manager-and-admin/bodega/historial-action"
 import ViewManagerAndAdmin from "@/app/administrar/view-manager-and-admin"
 import Inicio from "@/app/administrar/(inicio)/inicio"
 import ComprasCard from "@/app/administrar/(inicio)/compras-card"
-import { getWhatsappAsesor } from "@lib/ajustes"
 
 /** Solo admin/manager: el resumen de servicios (conteos) es lo lento, por eso va en su propio Suspense. */
 async function ResumenServicios() {
@@ -30,13 +30,12 @@ export default async function AdministrarPage() {
     // El rol se decide antes del Suspense: así un cliente nunca ve el esqueleto del panel de administración
     // y el resumen de servicios no se consulta para él.
     const role = await getRoleUser()
-    // Solo el cliente ve Soporte; el número lo configura el admin en Ajustes.
-    const telefonoAsesor = role === "user" ? await getWhatsappAsesor() : undefined
+    // El cliente no tiene Dashboard: su único acceso es la Tienda.
+    if (role === "user") redirect("/administrar/tienda")
 
     return (
         <Inicio
             role={role}
-            telefonoAsesor={telefonoAsesor}
             resumen={
                 <Suspense fallback={<ViewManagerAndAdmin />}>
                     <ResumenServicios />

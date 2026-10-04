@@ -2,7 +2,7 @@
 
 import { Mail } from "lucide-react"
 import { type LoginState, loginAction } from "@action/login/login-action"
-import { unstable_rethrow } from "next/navigation"
+import { unstable_rethrow, useRouter } from "next/navigation"
 import { type FormEvent, useActionState, useEffect, useRef, useState } from "react"
 import { validateEmail } from "@lib/validation"
 import Alert from "@ui/alert"
@@ -12,7 +12,8 @@ import Input, { type ValidationState } from "@ui/input"
 import Link from "next/link"
 import PasswordInput from "@ui/password-input"
 import PlayrLogo from "@ui/playr-logo"
-import { nuevoSid, SID_STORAGE_KEY } from "@lib/sesion-tab"
+import { esFallaTransitoria, rutaSegura, VOLVER_COOKIE } from "@lib/sesion-tab"
+import { supabaseTabListo, tokenGuardado } from "@lib/supabase/client"
 
 type Field = "email" | "password"
 
@@ -35,7 +36,11 @@ function getValidation(touched: boolean, error: string | undefined): ValidationS
   return touched ? "valid" : "idle"
 }
 
-export default function LoginForm({ sesionCerrada = false }: Readonly<{ sesionCerrada?: boolean }>) {
+export default function LoginForm({ volver }: Readonly<{ volver?: string }>) {
+  const router = useRouter()
+  const [sesionCerrada, setSesionCerrada] = useState(false)
+  // Falla al abrir o recuperar la sesión de la pestaña (no del formulario).
+  const [aviso, setAviso] = useState<string | null>(null)
   const [state, action, isLoading] = useActionState(submitLogin, initialState)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -45,7 +50,6 @@ export default function LoginForm({ sesionCerrada = false }: Readonly<{ sesionCe
   const [edited, setEdited] = useState({ email: false, password: false })
   const [prevState, setPrevState] = useState(state)
   const alertRef = useRef<HTMLDivElement>(null)
-  const sidRef = useRef<HTMLInputElement>(null)
 
   if (state !== prevState) {
     setPrevState(state)
@@ -62,6 +66,42 @@ export default function LoginForm({ sesionCerrada = false }: Readonly<{ sesionCe
   const passwordShown = fieldError("password", passwordError)
 
   const focusField = (field: Field) => document.getElementById(field)?.focus()
+
+  // La sesión es de esta pestaña: se guarda en su sessionStorage y entra al panel.
+  useEffect(() => {
+    if (!state.session) return
+    const session = state.session
+    supabaseTabListo()
+      .then((supabase) => supabase.auth.setSession(session))
+      .then(({ error }) => {
+        if (error) throw error
+        setAviso(null)
+        router.replace(rutaSegura(volver))
+      })
+      .catch((error: unknown) => {
+        console.error("login: no se pudo guardar la sesión de la pestaña:", error)
+        setAviso("Iniciaste sesión, pero no se pudo abrir en esta pestaña. Intenta de nuevo.")
+      })
+  }, [state, router, volver])
+
+  // Si la pestaña ya tiene sesión (al recargar con el token vencido, proxy.ts la manda
+  // aquí), se renueva y vuelve a donde estaba. Si la cerraron porque la cuenta entró en
+  // otro lugar, se borra y se avisa.
+  useEffect(() => {
+    document.cookie = `${VOLVER_COOKIE}=; path=/; max-age=0`
+    supabaseTabListo().then(async (supabase) => {
+      if (!tokenGuardado()) return
+      const { data, error } = await supabase.auth.getUser()
+      if (data.user) return router.replace(rutaSegura(volver))
+      // Supabase no respondió: la sesión puede seguir siendo válida, no se borra.
+      if (esFallaTransitoria(error)) {
+        setAviso("No se pudo verificar tu sesión. Revisa tu conexión y recarga la página.")
+        return
+      }
+      await supabase.auth.signOut({ scope: "local" })
+      setSesionCerrada(true)
+    })
+  }, [router, volver])
 
   // Tras una respuesta fallida, el foco va al primer campo con error o, si no, al aviso.
   useEffect(() => {
@@ -81,18 +121,7 @@ export default function LoginForm({ sesionCerrada = false }: Readonly<{ sesionCe
   }
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
-    if (!emailError && !passwordError) {
-      // Cada pestaña inicia su propia sesión con un sid nuevo (ver @lib/sesion-tab).
-      // onSubmit corre antes de que React arme el FormData de la acción.
-      const sid = nuevoSid()
-      sidRef.current!.value = sid
-      try {
-        sessionStorage.setItem(SID_STORAGE_KEY, sid)
-      } catch {
-        // Sin sessionStorage la pestaña no puede quedarse con su sesión: el guardia la manda al login.
-      }
-      return
-    }
+    if (!emailError && !passwordError) return
     e.preventDefault()
     setTouched({ email: true, password: true })
     focusField(emailError ? "email" : "password")
@@ -112,7 +141,13 @@ export default function LoginForm({ sesionCerrada = false }: Readonly<{ sesionCe
             </p>
           </div>
 
-          {sesionCerrada && !state.message && (
+          {aviso && !state.message && (
+            <div className="mb-6">
+              <Alert variant="error" message={aviso} />
+            </div>
+          )}
+
+          {sesionCerrada && !aviso && !state.message && (
             <div className="mb-6">
               <Alert variant="warning" message="Tu cuenta inició sesión en otro lugar. Vuelve a ingresar para continuar aquí." />
             </div>
@@ -125,7 +160,6 @@ export default function LoginForm({ sesionCerrada = false }: Readonly<{ sesionCe
           )}
 
           <form className="flex flex-col gap-5" action={action} onSubmit={handleSubmit} noValidate>
-            <input ref={sidRef} type="hidden" name="sid" />
             <Input
               id="email"
               name="email"

@@ -1,33 +1,30 @@
-import type { CookieOptionsWithName } from "@supabase/ssr"
+import { isAuthError, isAuthRetryableFetchError } from "@supabase/supabase-js"
 
-// Cada pestaña tiene su propia sesión. La pestaña vive bajo /s/<sid>/... y sus
-// cookies de Supabase se llaman sb-<sid> con Path=/s/<sid>: el navegador solo las
-// manda a esa pestaña, así dos pestañas pueden tener cuentas distintas. proxy.ts
-// reescribe /s/<sid>/administrar/... a /administrar/... y pasa el sid en un header.
+// Cada pestaña tiene su propia sesión, sin que se note en la URL. La sesión vive en el
+// sessionStorage de la pestaña (lo comparte solo con ella) y viaja al servidor así:
+// - fetch de la app (navegación, server actions): header TOKEN_HEADER (app/sesion-fetch.tsx).
+// - carga completa (recargar, escribir la URL): la pestaña deja HINT_COOKIE al salir, que
+//   dura unos segundos y proxy.ts consume en la siguiente petición.
+// proxy.ts valida el token y lo deja en TOKEN_HEADER para el servidor (@lib/supabase/server).
 
-export const SID_HEADER = "x-playr-sid"
-export const SID_STORAGE_KEY = "playr-sid"
+export const TOKEN_HEADER = "x-playr-token"
+export const HINT_COOKIE = "playr-tab-token"
+export const HINT_SEGUNDOS = 10
 
-const SID_RE = /^[0-9a-f]{32}$/
+// Clave de la sesión de Supabase en el sessionStorage de la pestaña.
+export const STORAGE_KEY = "playr-sesion"
+// Id de la pestaña, para detectar una pestaña duplicada (copia el sessionStorage).
+export const TAB_ID_KEY = "playr-tab-id"
 
-export const esSid = (value: unknown): value is string =>
-    typeof value === "string" && SID_RE.test(value)
+// Caída de red o de Supabase Auth (5xx, límite de peticiones): no dice nada de la sesión,
+// así que no se borra ni se avisa "inició sesión en otro lugar".
+export const esFallaTransitoria = (error: unknown) =>
+    isAuthRetryableFetchError(error)
+    || (isAuthError(error) && ((error.status ?? 0) >= 500 || error.status === 429))
 
-export const nuevoSid = () => crypto.randomUUID().replaceAll("-", "")
+// Ruta que pedía la pestaña cuando proxy.ts la mandó al login (cookie, para no ensuciar la URL).
+export const VOLVER_COOKIE = "playr-volver"
 
-export const prefijoTab = (sid: string) => `/s/${sid}`
-
-// "/administrar/clientes" → "/s/<sid>/administrar/clientes"
-export const rutaTab = (sid: string, path: string) => `${prefijoTab(sid)}${path}`
-
-// Separa "/s/<sid>/resto" en sid y resto; null si la URL no es de una pestaña.
-export const leerRutaTab = (pathname: string) => {
-    const match = /^\/s\/([^/]+)(\/.*)?$/.exec(pathname)
-    if (!match || !esSid(match[1])) return null
-    return { sid: match[1], resto: match[2] ?? "/" }
-}
-
-export const cookieOptionsTab = (sid: string): CookieOptionsWithName => ({
-    name: `sb-${sid}`,
-    path: prefijoTab(sid),
-})
+// Ruta a donde volver tras recuperar la sesión en el login: solo rutas internas.
+export const rutaSegura = (value: string | null | undefined) =>
+    value && value.startsWith("/administrar") ? value : "/administrar"

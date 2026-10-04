@@ -1,10 +1,9 @@
 "use server"
 
 import { z } from "zod"
-import { createSupabaseTab } from "@lib/supabase/server"
-import { esSid, rutaTab } from "@lib/sesion-tab"
+import { createClient } from "@supabase/supabase-js"
+import { supabaseUrl, supabaseKey } from "@lib/const"
 import { notificar } from "@lib/notify"
-import { redirect } from "next/navigation"
 import { translateAuthError } from "@lib/supabase/auth-errors"
 
 // Al iniciar sesión solo se exige que haya datos: las reglas de complejidad son
@@ -35,6 +34,8 @@ export type LoginState = {
     success: boolean
     errors?: Record<string, string[] | undefined>
     message?: string
+    /** Login correcto: la pestaña guarda esta sesión en su sessionStorage (ver @lib/sesion-tab). */
+    session?: { access_token: string, refresh_token: string }
 }
 
 export const loginAction = async (initialState: LoginState, formData: FormData) => {
@@ -49,27 +50,20 @@ export const loginAction = async (initialState: LoginState, formData: FormData) 
             errors: z.flattenError(data.error).fieldErrors,
         } satisfies LoginState
     }
-    // El sid lo genera la pestaña (sessionStorage): la sesión queda solo para ella.
-    const sid = formData.get("sid")
-    if (!esSid(sid)) {
-        return {
-            success: false,
-            errors: {},
-            message: "Recarga la página e intenta de nuevo.",
-        } satisfies LoginState
-    }
-
-    const supabase = await createSupabaseTab(sid)
-    const { error } = await supabase.auth.signInWithPassword({
+    // Sin cookies: la sesión es solo de la pestaña que inicia sesión, que la recibe abajo.
+    const supabase = createClient(supabaseUrl!, supabaseKey!, {
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    })
+    const { data: auth, error } = await supabase.auth.signInWithPassword({
         email: data.data.email,
         password: data.data.password,
     })
 
-    if (error) {
+    if (error || !auth.session) {
         return {
             success: false,
             errors: {},
-            message: translateAuthError(error.message),
+            message: translateAuthError(error?.message ?? ""),
         } satisfies LoginState
     }
 
@@ -87,5 +81,6 @@ export const loginAction = async (initialState: LoginState, formData: FormData) 
         })
     }
 
-    redirect(rutaTab(sid, "/administrar"))
+    const { access_token, refresh_token } = auth.session
+    return { success: true, session: { access_token, refresh_token } } satisfies LoginState
 }

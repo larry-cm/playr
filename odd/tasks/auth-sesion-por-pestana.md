@@ -29,6 +29,10 @@ User request 2026-10-03; user chose "different accounts per tab" over "last logi
 - [x] T2 — Prefix every internal `/administrar` link/redirect. Route: delegated (writer, 20+ mechanical files). Risk: medium.
 - [x] T3 — Verify in a real browser: two tabs with two accounts, new tab asks for login, second browser login kicks the first. Route: inline.
 
+- [x] T4 — Clean URLs (user request 2026-10-03: "/s/id" visible is ugly): session moves to per-tab sessionStorage; token travels in header `x-playr-token` (fetch patch) or 10 s `beforeunload` hint cookie on full loads; proxy validates; login returns session to the tab; duplicate-tab detection via BroadcastChannel; prefix helpers become identity (a git checkout revert of the 25 prefixed files was denied by the permission classifier). Route: inline. Risk: high.
+
+- [x] T5 — Fix review-3 warnings (user request): transient Auth failures (esFallaTransitoria: retryable/5xx/429) never wipe the tab session on the login restore; setSession failure after login shows an error; hint cookie cleared on pagehide so a closed tab does not leave it. Route: inline. Risk: high.
+
 ## Acceptance criteria
 1. `pnpm lint`, `pnpm exec tsc --noEmit`, `pnpm build` pass.
 2. Tab A logged in as X, tab B (new) shows login; logging in B as Y leaves A on X.
@@ -42,6 +46,10 @@ User request 2026-10-03; user chose "different accounts per tab" over "last logi
 ## Progress / Evidence
 - T1+T2: `pnpm exec tsc --noEmit` OK, `pnpm lint` OK, `pnpm build` OK. T2 delegated writer (21 files under app/administrar). supabase-js reports a revoked session as AuthSessionMissingError (no session_not_found code): proxy flags `?sesion=cerrada` when the tab sent its cookie.
 - T3 (next start :3107, agent-browser, 2 temp users created and deleted): tab A=user A and tab B=user B coexist after reloads; new tab on "/" shows login; A's URL opened in a new tab → "/"; aside client nav keeps prefix and active item; 2nd browser login kicks the 1st on reload and on client nav with the notice; the other account stays; logout clears the tab cookie and the old URL → "/". Not verified: duplicated-tab BroadcastChannel path (no way to duplicate a tab from agent-browser).
+
+- T4: tsc OK, lint OK, build OK. Browser (next start :3107, agent-browser, 2 temp users created+deleted): URLs are /administrar/...; tab A=user A and tab B=user B; reloads load directly (navigation redirectCount 0); new tab typed URL → login; simulated duplicate (copied sessionStorage) → login without session while the original keeps its session; 2nd browser login kicks tab A on next nav with notice, tab B (other account) unaffected; logout clears tab storage. Finding: Chrome sends the reload request before pagehide → hint set in beforeunload.
+
+- T5: tsc OK, lint OK, build OK. Browser (temp users created+deleted): reload loads directly (redirectCount 0) and no hint cookie remains; after closing a logged-in tab no hint cookie remains and a new tab on /administrar gets login; Auth /user aborted on restore → session kept + "No se pudo verificar tu sesión" notice, then restored when Auth is back; Auth /user aborted during login → "Iniciaste sesión, pero no se pudo abrir en esta pestaña"; 2nd-browser kick still shows notice. Not simulable with agent-browser: HTTP 500/429 bodies (same code path via esFallaTransitoria).
 
 ## Delivery
 Forecast: ~350 authored lines. Strategy: ask-on-risk. Slices: single PR.

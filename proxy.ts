@@ -1,50 +1,41 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { isAuthRetryableFetchError } from "@supabase/supabase-js"
-import { createClient } from "@/app/lib/supabase/middleware"
-import { leerRutaTab, SID_HEADER } from "@lib/sesion-tab"
+import { createSupabaseConToken } from "@lib/supabase/middleware"
+import { esFallaTransitoria, HINT_COOKIE, TOKEN_HEADER, VOLVER_COOKIE } from "@lib/sesion-tab"
 
-// Cada pestaña vive bajo /s/<sid>/... con su propia sesión (ver @lib/sesion-tab):
-// aquí se valida esa sesión y se reescribe a la ruta real, pasando el sid en un header.
+// Cada pestaña manda el token de su propia sesión (ver @lib/sesion-tab): en el header
+// si la petición es un fetch de la app, o en la cookie de paso si es una carga completa.
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl
-  const tab = leerRutaTab(pathname)
-
-  // /administrar sin pestaña no tiene sesión: al login.
-  // El header del sid solo lo pone este proxy, nunca el navegador.
-  if (!tab) {
-    if (pathname.startsWith("/administrar")) return NextResponse.redirect(new URL("/", request.url))
-    const headers = new Headers(request.headers)
-    headers.delete(SID_HEADER)
-    return NextResponse.next({ request: { headers } })
-  }
-
-  const { supabase, cookiesToSet } = createClient(request, tab.sid)
-  // getUser consulta a Supabase Auth: si la sesión se cerró porque la cuenta inició
-  // sesión en otro lugar, falla aunque el token todavía no haya vencido.
-  // supabase-js reporta esa sesión cerrada igual que la falta de sesión: se distingue
-  // porque la pestaña sí traía su cookie.
-  const traiaSesion = request.cookies.getAll().some(({ name }) => name.startsWith(`sb-${tab.sid}`))
-  const { data, error } = await supabase.auth.getUser()
-  const isAuthorized = data.user?.role === "authenticated"
-
-  if (tab.resto.startsWith("/administrar") && !isAuthorized) {
-    const login = new URL("/", request.url)
-    // Una caída de red o de Supabase Auth no es "otra sesión": no se muestra ese aviso.
-    const fallaTransitoria = !!error && (isAuthRetryableFetchError(error) || (error.status ?? 0) >= 500 || error.status === 429)
-    if (fallaTransitoria) console.error("proxy: no se pudo validar la sesión:", error.message)
-    else if (traiaSesion) login.searchParams.set("sesion", "cerrada")
-    const response = NextResponse.redirect(login)
-    // Si Supabase borró la sesión vencida, la cookie también se borra en el navegador.
-    cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
-    return response
-  }
+  const hint = request.cookies.get(HINT_COOKIE)?.value
+  const token = request.headers.get(TOKEN_HEADER) ?? hint ?? null
 
   const headers = new Headers(request.headers)
-  headers.set(SID_HEADER, tab.sid)
-  const response = NextResponse.rewrite(new URL(`${tab.resto}${search}`, request.url), {
-    request: { headers },
-  })
-  cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
+  if (token) headers.set(TOKEN_HEADER, token)
+  else headers.delete(TOKEN_HEADER)
+
+  if (pathname.startsWith("/administrar")) {
+    // getUser consulta a Supabase Auth: si la sesión se cerró porque la cuenta inició
+    // sesión en otro lugar, falla aunque el token todavía no haya vencido.
+    const { data, error } = token
+      ? await createSupabaseConToken(token).auth.getUser(token)
+      : { data: { user: null }, error: null }
+
+    if (data.user?.role !== "authenticated") {
+      if (esFallaTransitoria(error)) {
+        console.error("proxy: no se pudo validar la sesión:", error?.message)
+      }
+      // El login decide: si la pestaña aún tiene sesión (token vencido), la renueva y
+      // vuelve aquí; si la cerraron desde otro lugar, lo avisa.
+      const response = NextResponse.redirect(new URL("/", request.url))
+      response.cookies.set(VOLVER_COOKIE, `${pathname}${search}`, { path: "/", maxAge: 60, sameSite: "strict" })
+      if (hint) response.cookies.delete(HINT_COOKIE)
+      return response
+    }
+  }
+
+  const response = NextResponse.next({ request: { headers } })
+  // La cookie de paso se usa una sola vez.
+  if (hint) response.cookies.delete(HINT_COOKIE)
   return response
 }
 

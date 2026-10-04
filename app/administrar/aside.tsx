@@ -5,7 +5,6 @@ import type { ReactNode, Ref } from "react"
 
 import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
-import { leerRutaTab, SID_STORAGE_KEY } from "@lib/sesion-tab"
 import { useRuta, useSupabase } from "@/app/administrar/sesion-tab"
 import logoPlayr from "@/public/favicon.svg"
 import Image from "next/image"
@@ -37,8 +36,7 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role, bell, ref, in
     const router = useRouter()
     const ruta = useRuta()
     const supabase = useSupabase()
-    // Con la URL de la pestaña (/s/<sid>/administrar/...) o la reescrita (/administrar/...): se compara sin el prefijo.
-    const actual = leerRutaTab(pathname)?.resto ?? pathname
+    const actual = pathname
 
     const filteredItems = navItems.filter(item => !item.roles || item.roles.includes(role))
 
@@ -98,12 +96,8 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role, bell, ref, in
             <div className="pt-4 mt-4 border-t border-white/6">
                 <button
                     onClick={async () => {
+                        // Borra la sesión de esta pestaña (su sessionStorage) y la cierra en Supabase.
                         await supabase.auth.signOut()
-                        try {
-                            sessionStorage.removeItem(SID_STORAGE_KEY)
-                        } catch {
-                            // Sin sessionStorage no hay sid que limpiar.
-                        }
                         router.push("/")
                     }}
                     type="button"

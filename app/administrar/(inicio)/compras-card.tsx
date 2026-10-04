@@ -252,7 +252,7 @@ export default function ComprasCard({ historial: inicial, plataformas = SIN_PLAT
                         <Kpi
                             label="Mayor compra"
                             value={c && formatCOP(c.mayorCompra?.total ?? 0)}
-                            detail={c && (c.mayorCompra ? `#${c.mayorCompra.id} · ${fechaCorta(c.mayorCompra.fecha)}` : "—")}
+                            detail={c && (c.mayorCompra ? fechaCorta(c.mayorCompra.fecha) : "—")}
                         />
                     </div>
 

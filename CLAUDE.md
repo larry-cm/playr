@@ -138,6 +138,12 @@ Usar estos aliases en lugar de rutas relativas largas. Es el patrón esperado po
 - **Nadie asigna roles desde el cliente**: `security.user_role`/`role` no tienen INSERT/UPDATE/DELETE para `authenticated`. Los asigna el servidor con `createSupabaseAdmin()` (clave secreta) después de verificar que quien llama es admin.
 - **Registro público cerrado** en Supabase Auth (`disable_signup`). Los usuarios los crea el staff en Clientes (`createCustomerAction` → `auth.admin.createUser`; contraseña escrita por el staff con las reglas de `validatePassword`; solo un admin puede crear admin/manager).
 
+### Sesión por pestaña y una sesión por cuenta
+- Cada pestaña tiene su propia sesión (pedido del usuario 2026-10-03: cuentas distintas por pestaña). La URL es `/s/<sid>/administrar/...`; `proxy.ts` la reescribe a `/administrar/...` y pasa el sid en `x-playr-sid`. Las cookies de Supabase se llaman `sb-<sid>` con `Path=/s/<sid>`, así el navegador las manda solo a esa pestaña (`app/lib/sesion-tab.ts`).
+- El sid lo genera el login en el navegador (sessionStorage). `SesionTabProvider` (`app/administrar/sesion-tab.tsx`) devuelve al login una pestaña que no inició ese sid (enlace abierto en otra pestaña, pestaña duplicada).
+- **Enlaces y redirects a `/administrar` siempre con prefijo**: en cliente `useRuta()`, en servidor `await rutaServidor(...)`; Supabase en cliente con `useSupabase()`. Sin prefijo se pierde la sesión. `revalidatePath("/administrar/...")` sigue sin prefijo (ruta interna).
+- Una cuenta, un solo lugar: el login hace `signOut({ scope: "others" })`; la otra pestaña/navegador vuelve al login en su siguiente petición con `?sesion=cerrada` (aviso en el login).
+
 ### Rutas protegidas
 - `proxy.ts` solo exige sesión en `/administrar` (`data.user.role === "authenticated"` es el rol JWT, no el de la app).
 - **Toda server action de `manager-and-admin` empieza con `if (!(await esStaff())) return …`** (`app/lib/auth.ts`) y toda página de staff redirige si el rol no es admin/manager. Las actions son endpoints POST públicos: ocultar el botón no protege nada.

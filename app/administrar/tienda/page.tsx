@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation"
+import { rutaServidor } from "@lib/supabase/server"
 import { getRoleUser } from "@action/get-role-action"
 import TiendaClient from "@/app/administrar/tienda/tienda-client"
 import { getCatalogoDisponibleAction } from "@action/tienda/get-catalogo-disponible-action"
@@ -6,7 +7,7 @@ import { getWhatsappAsesor } from "@lib/ajustes"
 
 export default async function PageAdministrarTienda() {
     const role = await getRoleUser()
-    if (role !== "user") redirect("/administrar")
+    if (role !== "user") redirect(await rutaServidor("/administrar"))
 
     // Se resuelve en el servidor antes de renderizar: el cliente ya recibe el catálogo listo en el
     // primer render, sin el spinner de un fetch posterior al montar. create/edit/delete de productos

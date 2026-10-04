@@ -4,6 +4,7 @@ import Card from "@ui/card"
 import { SectionHeader } from "@ui/page-header"
 import { ShoppingBag, ChevronRight, MessageCircle } from "lucide-react"
 import Link from "next/link"
+import { useRuta } from "@/app/administrar/sesion-tab"
 import SoporteCard, { SOPORTE_ID } from "@/app/administrar/soporte-card"
 
 const LINK_CLASS =
@@ -14,6 +15,7 @@ const LINK_CLASS =
  * contadores en cero se le muestra qué puede hacer: pedir en la Tienda o escribir a soporte.
  */
 export default function ViewClientPage({ telefonoAsesor }: Readonly<{ /** Ver SoporteCard: "" = no configurado · undefined = aún carga. */ telefonoAsesor?: string }>) {
+    const ruta = useRuta()
     return (
         <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="sm:col-span-2">
@@ -28,7 +30,7 @@ export default function ViewClientPage({ telefonoAsesor }: Readonly<{ /** Ver So
                             responde por WhatsApp con los datos de acceso. Si un perfil deja de funcionar, escríbenos desde Soporte.
                         </p>
                         <div className="grid gap-3 sm:grid-cols-2">
-                            <Link href="/administrar/tienda" className={LINK_CLASS}>
+                            <Link href={ruta("/administrar/tienda")} className={LINK_CLASS}>
                                 <ShoppingBag className="h-5 w-5 shrink-0 text-accent" aria-hidden="true" />
                                 <span className="flex-1 font-medium">Ir a la Tienda</span>
                                 <ChevronRight className="h-4 w-4 text-secondary transition-transform group-hover:translate-x-0.5" aria-hidden="true" />

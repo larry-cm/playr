@@ -12,6 +12,7 @@ import Input, { type ValidationState } from "@ui/input"
 import Link from "next/link"
 import PasswordInput from "@ui/password-input"
 import PlayrLogo from "@ui/playr-logo"
+import { nuevoSid, SID_STORAGE_KEY } from "@lib/sesion-tab"
 
 type Field = "email" | "password"
 
@@ -34,7 +35,7 @@ function getValidation(touched: boolean, error: string | undefined): ValidationS
   return touched ? "valid" : "idle"
 }
 
-export default function LoginForm() {
+export default function LoginForm({ sesionCerrada = false }: Readonly<{ sesionCerrada?: boolean }>) {
   const [state, action, isLoading] = useActionState(submitLogin, initialState)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -44,6 +45,7 @@ export default function LoginForm() {
   const [edited, setEdited] = useState({ email: false, password: false })
   const [prevState, setPrevState] = useState(state)
   const alertRef = useRef<HTMLDivElement>(null)
+  const sidRef = useRef<HTMLInputElement>(null)
 
   if (state !== prevState) {
     setPrevState(state)
@@ -79,7 +81,18 @@ export default function LoginForm() {
   }
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
-    if (!emailError && !passwordError) return
+    if (!emailError && !passwordError) {
+      // Cada pestaña inicia su propia sesión con un sid nuevo (ver @lib/sesion-tab).
+      // onSubmit corre antes de que React arme el FormData de la acción.
+      const sid = nuevoSid()
+      sidRef.current!.value = sid
+      try {
+        sessionStorage.setItem(SID_STORAGE_KEY, sid)
+      } catch {
+        // Sin sessionStorage la pestaña no puede quedarse con su sesión: el guardia la manda al login.
+      }
+      return
+    }
     e.preventDefault()
     setTouched({ email: true, password: true })
     focusField(emailError ? "email" : "password")
@@ -99,6 +112,12 @@ export default function LoginForm() {
             </p>
           </div>
 
+          {sesionCerrada && !state.message && (
+            <div className="mb-6">
+              <Alert variant="warning" message="Tu cuenta inició sesión en otro lugar. Vuelve a ingresar para continuar aquí." />
+            </div>
+          )}
+
           {state.message && (
             <div ref={alertRef} tabIndex={-1} className="mb-6 outline-none">
               <Alert variant="error" message={state.message} />
@@ -106,6 +125,7 @@ export default function LoginForm() {
           )}
 
           <form className="flex flex-col gap-5" action={action} onSubmit={handleSubmit} noValidate>
+            <input ref={sidRef} type="hidden" name="sid" />
             <Input
               id="email"
               name="email"

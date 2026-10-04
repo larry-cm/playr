@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react"
 import Link from "next/link"
+import { useRuta } from "@/app/administrar/sesion-tab"
 import { ChevronRight, ShoppingCart } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import Card from "@ui/card"
@@ -118,6 +119,7 @@ function variacion(actual: number, anterior: number | null): string | undefined 
  * `historial`: undefined = cargando · null = no se pudo leer. `plataformas`: nombres de business.platform.
  */
 export default function ComprasCard({ historial: inicial, plataformas = SIN_PLATAFORMAS }: Readonly<{ historial?: HistorialProveedor | null; plataformas?: string[] }>) {
+    const ruta = useRuta()
     // lo sincronizado en esta visita reemplaza a lo que llegó del servidor
     const [sincronizado, setHistorial] = useState<HistorialProveedor | null>(null)
     const historial = sincronizado ?? inicial
@@ -263,7 +265,7 @@ export default function ComprasCard({ historial: inicial, plataformas = SIN_PLAT
                                     {c.pedidos === 0 && (
                                         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-center text-sm text-secondary">
                                             <p>No hay compras en este rango.</p>
-                                            <Link href="/administrar/bodega" className="inline-flex items-center gap-1 text-accent hover:text-accent-hover">
+                                            <Link href={ruta("/administrar/bodega")} className="inline-flex items-center gap-1 text-accent hover:text-accent-hover">
                                                 Ir a Bodega <ChevronRight className="h-4 w-4" />
                                             </Link>
                                         </div>

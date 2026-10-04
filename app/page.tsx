@@ -6,6 +6,8 @@ export const metadata: Metadata = {
   title: { absolute: "Iniciar sesión · Playr" },
 }
 
-export default function Home() {
-  return <LoginForm />
+// ?sesion=cerrada: proxy.ts encontró la sesión cerrada porque la cuenta entró en otro lugar.
+export default async function Home({ searchParams }: Readonly<{ searchParams: Promise<{ sesion?: string }> }>) {
+  const { sesion } = await searchParams
+  return <LoginForm sesionCerrada={sesion === "cerrada"} />
 }

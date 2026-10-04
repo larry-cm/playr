@@ -1,8 +1,11 @@
+"use client"
+
 import Card from "@ui/card"
 import CountUp from "@ui/count-up"
 import { SectionHeader } from "@ui/page-header"
 import { List, Monitor, Network, ChevronRight } from "lucide-react"
 import Link from "next/link"
+import { useRuta } from "@/app/administrar/sesion-tab"
 
 interface ViewServerProps {
     services?: {
@@ -14,6 +17,7 @@ interface ViewServerProps {
 export default function ViewServer({
     services
 }: Readonly<ViewServerProps>) {
+    const ruta = useRuta()
     return (
         <Card className="h-full flex flex-col">
             <SectionHeader icon={List} title="Resumen de Servicios" />
@@ -22,7 +26,7 @@ export default function ViewServer({
 
             <div className="mt-6 flex-1 grid grid-cols-2 divide-x divide-white/6">
                 <div className="flex flex-col items-center justify-center gap-3 px-2">
-                    <Link href="/administrar/perfiles" className="p-3 rounded-xl bg-accent/10" aria-label="Ir a Perfiles">
+                    <Link href={ruta("/administrar/perfiles")} className="p-3 rounded-xl bg-accent/10" aria-label="Ir a Perfiles">
                         <Monitor className="w-6 h-6 text-accent" />
                     </Link>
                     <div className="text-center">
@@ -30,7 +34,7 @@ export default function ViewServer({
                             <CountUp value={services ? services.profiles ?? 0 : undefined} />
                         </p>
                         <Link
-                            href="/administrar/perfiles"
+                            href={ruta("/administrar/perfiles")}
                             className="flex items-center justify-center gap-1 mt-2 group"
                             title="Ir a la página de perfiles"
                         >
@@ -44,7 +48,7 @@ export default function ViewServer({
 
                 </div>
                 <div className="flex flex-col items-center justify-center gap-3 px-2">
-                    <Link href="/administrar/cuentas" className="p-3 rounded-xl bg-accent/10" aria-label="Ir a Cuentas">
+                    <Link href={ruta("/administrar/cuentas")} className="p-3 rounded-xl bg-accent/10" aria-label="Ir a Cuentas">
                         <Network className="w-6 h-6 text-accent" />
                     </Link>
                     <div className="text-center">
@@ -52,7 +56,7 @@ export default function ViewServer({
                             <CountUp value={services ? services.accounts ?? 0 : undefined} />
                         </p>
                         <Link
-                            href="/administrar/cuentas"
+                            href={ruta("/administrar/cuentas")}
                             className="flex items-center justify-center gap-1 mt-2 group"
                             title="Ir a la página de cuentas"
                         >

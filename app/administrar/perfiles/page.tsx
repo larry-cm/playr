@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation"
+import { rutaServidor } from "@lib/supabase/server"
 import { getRoleUser } from "@action/get-role-action"
 import PerfilesClient from "@/app/administrar/perfiles/perfiles-client"
 import { getAllPerfilesAction } from "@action/manager-and-admin/perfiles/get-all-perfiles-action"
 
 export default async function PageAdministrarPerfiles({ searchParams }: Readonly<{ searchParams: Promise<{ cuenta?: string }> }>) {
     const role = await getRoleUser()
-    if (role !== "admin" && role !== "manager") redirect("/administrar")
+    if (role !== "admin" && role !== "manager") redirect(await rutaServidor("/administrar"))
 
     const perfiles = await getAllPerfilesAction()
     // ?cuenta=ID llega desde Cuentas ("Ver perfiles"): la tabla abre filtrada por esa cuenta.

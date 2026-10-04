@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation"
+import { rutaServidor } from "@lib/supabase/server"
 import { getRoleUser } from "@action/get-role-action"
 import ProductosClient from "@/app/administrar/productos/productos-client"
 import { getAllProductosAction } from "@action/manager-and-admin/productos/get-all-productos-action"
@@ -7,7 +8,7 @@ import { getOfertaProveedorAction } from "@action/manager-and-admin/productos/ge
 
 export default async function PageAdministrarProductos() {
     const role = await getRoleUser()
-    if (role !== "admin" && role !== "manager") redirect("/administrar")
+    if (role !== "admin" && role !== "manager") redirect(await rutaServidor("/administrar"))
 
     // productos y oferta = queries normales a la DB (rápidas): se esperan acá para que la tabla y el
     // armador de combos lleguen ya renderizados.

@@ -1,34 +1,34 @@
 import { createServerClient } from "@supabase/ssr"
-import { type NextRequest, NextResponse } from "next/server"
+import type { NextRequest } from "next/server"
 import { supabaseUrl, supabaseKey } from "@lib/const"
+import { cookieOptionsTab } from "@lib/sesion-tab"
 
-export const createClient = (request: NextRequest) => {
-  let supabaseResponse = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  })
+type CookieToSet = { name: string, value: string, options: Record<string, unknown> }
+
+// Cliente de la pestaña <sid>. Las cookies que refresca se guardan en `request`
+// (para lo que se renderiza después en esta misma petición) y en `cookiesToSet`
+// (para copiarlas a la respuesta que arme proxy.ts).
+export const createClient = (request: NextRequest, sid: string) => {
+  const cookiesToSet: CookieToSet[] = []
 
   const supabase = createServerClient(
     supabaseUrl!,
     supabaseKey!,
     {
+      cookieOptions: cookieOptionsTab(sid),
       cookies: {
         getAll() {
           return request.cookies.getAll()
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({
-            request,
+        setAll(nuevas) {
+          nuevas.forEach(({ name, value, options }) => {
+            request.cookies.set(name, value)
+            cookiesToSet.push({ name, value, options })
           })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          )
         },
       },
     },
   )
 
-  return { supabase, supabaseResponse }
+  return { supabase, cookiesToSet }
 }

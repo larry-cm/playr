@@ -5,7 +5,7 @@ import Card from "@ui/card"
 import { SectionHeader } from "@ui/page-header"
 import Button from "@ui/button"
 import { MessageCircle, CircleCheck } from "lucide-react"
-import { supabase } from "@lib/supabase/client"
+import { useSupabase } from "@/app/administrar/sesion-tab"
 
 /** Ancla de la tarjeta: el inicio del cliente enlaza aquí. */
 export const SOPORTE_ID = "soporte"
@@ -15,13 +15,14 @@ export const SOPORTE_ID = "soporte"
  * "" = no configurado · undefined = la página aún carga (sin aviso de "no disponible" que luego desaparece).
  */
 export default function SoporteCard({ telefonoAsesor }: Readonly<{ telefonoAsesor: string | undefined }>) {
+    const supabase = useSupabase()
     const [razon, setRazon] = useState("")
     const [correo, setCorreo] = useState<string | null>(null)
 
     // El correo va en el mensaje para que el asesor ubique al cliente sin preguntarle.
     useEffect(() => {
         supabase.auth.getUser().then(({ data }) => setCorreo(data.user?.email ?? null))
-    }, [])
+    }, [supabase])
 
     const hayAsesor = !!telefonoAsesor
     const mensaje = `Hola, necesito ayuda con mi cuenta de Playr.\n\nMotivo: ${razon.trim()}${correo ? `\n\nCorreo de mi cuenta: ${correo}` : ""}`

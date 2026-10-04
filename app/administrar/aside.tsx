@@ -5,7 +5,8 @@ import type { ReactNode, Ref } from "react"
 
 import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
-import { supabase } from "@lib/supabase/client"
+import { leerRutaTab, SID_STORAGE_KEY } from "@lib/sesion-tab"
+import { useRuta, useSupabase } from "@/app/administrar/sesion-tab"
 import logoPlayr from "@/public/favicon.svg"
 import Image from "next/image"
 
@@ -34,6 +35,10 @@ const navItems = [
 export default function Aside({ sidebarOpen, setSidebarOpen, role, bell, ref, inert }: AsideProps) {
     const pathname = usePathname()
     const router = useRouter()
+    const ruta = useRuta()
+    const supabase = useSupabase()
+    // Con la URL de la pestaña (/s/<sid>/administrar/...) o la reescrita (/administrar/...): se compara sin el prefijo.
+    const actual = leerRutaTab(pathname)?.resto ?? pathname
 
     const filteredItems = navItems.filter(item => !item.roles || item.roles.includes(role))
 
@@ -51,7 +56,7 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role, bell, ref, in
         >
             {/* Logo */}
             <div className="flex items-center justify-between px-2 py-3 mb-8">
-                <Link href="/administrar" className="flex items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+                <Link href={ruta("/administrar")} className="flex items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
                     <Image src={logoPlayr} width="28" height="28" alt="Playr" />
                     <span className="text-xl font-bold tracking-tight text-white">Playr</span>
                 </Link>
@@ -70,11 +75,11 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role, bell, ref, in
             <nav className="flex-1 min-h-0 overflow-y-auto space-y-1">
                 {filteredItems.map((item) => {
                     const Icon = item.icon
-                    const isActive = pathname === item.href
+                    const isActive = actual === item.href
                     return (
                         <Link
                             key={item.href}
-                            href={item.href}
+                            href={ruta(item.href)}
                             onClick={() => setSidebarOpen(false)}
                             aria-current={isActive ? "page" : undefined}
                             className={`flex items-center gap-3 px-3 py-3 lg:py-2.5 rounded-xl text-sm font-medium transition-all duration-200 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent ${isActive
@@ -94,6 +99,11 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role, bell, ref, in
                 <button
                     onClick={async () => {
                         await supabase.auth.signOut()
+                        try {
+                            sessionStorage.removeItem(SID_STORAGE_KEY)
+                        } catch {
+                            // Sin sessionStorage no hay sid que limpiar.
+                        }
                         router.push("/")
                     }}
                     type="button"

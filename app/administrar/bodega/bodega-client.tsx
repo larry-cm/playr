@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
+import { useRuta } from "@/app/administrar/sesion-tab"
 import Card from "@ui/card"
 import Alert from "@ui/alert"
 import Button from "@ui/button"
@@ -79,6 +80,7 @@ const nuevoId = () =>
     globalThis.crypto?.randomUUID?.() ?? "xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx".replace(/x/g, () => Math.floor(Math.random() * 16).toString(16))
 
 export default function BodegaClient({ initialCatalogo, initialHistorial, simulacion }: Readonly<BodegaClientProps>) {
+    const ruta = useRuta()
     // undefined = cargando · null = error · objeto = leído
     const [saldo, setSaldo] = useState<SaldoProveedor | null | undefined>(undefined)
     const [historial, setHistorial] = useState<HistorialProveedor | null | undefined>(initialHistorial)
@@ -381,7 +383,7 @@ export default function BodegaClient({ initialCatalogo, initialHistorial, simula
                             <>
                                 {escaneo ? `Stock del escaneo del ${escaneo}` : "Stock del último escaneo al proveedor"}. Al comprar se
                                 verifica en vivo — fija el precio de venta en{" "}
-                                <Link href="/administrar/productos" className="text-accent hover:underline">Productos</Link>.
+                                <Link href={ruta("/administrar/productos")} className="text-accent hover:underline">Productos</Link>.
                             </>
                         }
                     />

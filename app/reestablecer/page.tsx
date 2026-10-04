@@ -79,6 +79,8 @@ export default function ResetPasswordPage() {
         setSubmitError(translateAuthError(error.message))
         return
       }
+      // La sesión de recuperación no es la de ninguna pestaña: se cierra y se entra por el login.
+      await supabase.auth.signOut({ scope: "local" })
       setStatus("exito")
     } catch {
       setSubmitError("No se pudo conectar. Intenta de nuevo.")

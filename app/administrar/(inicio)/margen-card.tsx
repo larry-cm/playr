@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
+import { useRuta } from "@/app/administrar/sesion-tab"
 import { ChevronRight, TrendingUp } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts"
 import Card from "@ui/card"
@@ -92,6 +93,7 @@ function Kpi({ label, value, detail }: Readonly<{ label: string; value?: string;
  * catálogo (verde), apilados (juntos = valor de venta). `evolucion`: undefined = cargando · null = no se pudo leer.
  */
 export default function MargenCard({ evolucion }: Readonly<{ evolucion?: PuntoGanancia[] | null }>) {
+    const ruta = useRuta()
     const [rango, setRango] = useState<Rango>("todo")
     const periodos = useMemo(() => (evolucion ? gananciaPorPeriodo(evolucion, rango) : undefined), [evolucion, rango])
     const total = periodos?.reduce(
@@ -112,7 +114,7 @@ export default function MargenCard({ evolucion }: Readonly<{ evolucion?: PuntoGa
             ) : evolucion !== undefined && evolucion.length === 0 ? (
                 <div className="flex flex-col items-start gap-1 text-sm text-secondary">
                     <p>Ninguna compra corresponde todavía a un producto con precio de venta.</p>
-                    <Link href="/administrar/productos" className="inline-flex items-center gap-1 text-accent hover:text-accent-hover">
+                    <Link href={ruta("/administrar/productos")} className="inline-flex items-center gap-1 text-accent hover:text-accent-hover">
                         Fijar precios en Productos <ChevronRight className="h-4 w-4" />
                     </Link>
                 </div>

@@ -1,7 +1,9 @@
 "use server"
 
 import { z } from "zod"
-import { createSupabase } from "@lib/supabase/server"
+import { createSupabaseTab } from "@lib/supabase/server"
+import { esSid, rutaTab } from "@lib/sesion-tab"
+import { notificar } from "@lib/notify"
 import { redirect } from "next/navigation"
 import { translateAuthError } from "@lib/supabase/auth-errors"
 
@@ -47,7 +49,17 @@ export const loginAction = async (initialState: LoginState, formData: FormData) 
             errors: z.flattenError(data.error).fieldErrors,
         } satisfies LoginState
     }
-    const supabase = await createSupabase()
+    // El sid lo genera la pestaña (sessionStorage): la sesión queda solo para ella.
+    const sid = formData.get("sid")
+    if (!esSid(sid)) {
+        return {
+            success: false,
+            errors: {},
+            message: "Recarga la página e intenta de nuevo.",
+        } satisfies LoginState
+    }
+
+    const supabase = await createSupabaseTab(sid)
     const { error } = await supabase.auth.signInWithPassword({
         email: data.data.email,
         password: data.data.password,
@@ -61,5 +73,19 @@ export const loginAction = async (initialState: LoginState, formData: FormData) 
         } satisfies LoginState
     }
 
-    redirect("/administrar")
+    // Una cuenta, un solo lugar: se cierran sus demás sesiones (otras pestañas u
+    // otros navegadores), que vuelven al login en su siguiente petición.
+    // Si falla, el login sigue (no se bloquea al usuario) pero queda el aviso para el staff.
+    const { error: cierreError } = await supabase.auth.signOut({ scope: "others" })
+    if (cierreError) {
+        console.error("login: no se cerraron las otras sesiones:", cierreError.message)
+        await notificar({
+            origen: "plataforma",
+            tipo: "advertencia",
+            titulo: "No se cerraron las otras sesiones",
+            mensaje: `${data.data.email} inició sesión, pero sus otras sesiones siguen abiertas: ${cierreError.message}`,
+        })
+    }
+
+    redirect(rutaTab(sid, "/administrar"))
 }

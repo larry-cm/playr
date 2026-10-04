@@ -8,6 +8,7 @@ import Input from "@ui/input"
 import Modal from "@ui/modal"
 import Alert from "@ui/alert"
 import Link from "next/link"
+import { useRuta } from "@/app/administrar/sesion-tab"
 import { AlertCircle, ArrowUpRight, Eye, Pencil, RefreshCw, Trash2 } from "lucide-react"
 import { ActionsCell, ActionsTh, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, SkeletonCards, SkeletonRows, TableFrame, Td, Th } from "@ui/data-frame"
 import type { CuentaRow } from "@action/manager-and-admin/cuentas/get-all-cuentas-action"
@@ -27,9 +28,10 @@ const ocupacionColor = (row: CuentaRow) =>
 
 /** "2 de 5" enlazado a Perfiles filtrado por esta cuenta: solo una flecha tenue lo delata, y se aviva al pasar el mouse. */
 function PerfilesLink({ row }: Readonly<{ row: CuentaRow }>) {
+    const ruta = useRuta()
     return (
         <Link
-            href={`/administrar/perfiles?cuenta=${row.id}`}
+            href={ruta(`/administrar/perfiles?cuenta=${row.id}`)}
             title="Ver los perfiles de esta cuenta"
             aria-label={`Ver los perfiles de ${row.email}`}
             className="group inline-flex items-center gap-1 font-medium underline decoration-transparent decoration-dotted underline-offset-4 transition hover:decoration-current"

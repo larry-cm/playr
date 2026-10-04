@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation"
+import { rutaServidor } from "@lib/supabase/server"
 import { getRoleUser } from "@action/get-role-action"
 import { getWhatsappAsesor } from "@lib/ajustes"
 import WhatsappCard from "@/app/administrar/ajustes/whatsapp-card"
 
 export default async function PageAdministrarAjustes() {
     const role = await getRoleUser()
-    if (role !== "admin") redirect("/administrar")
+    if (role !== "admin") redirect(await rutaServidor("/administrar"))
 
     const telefono = await getWhatsappAsesor()
 

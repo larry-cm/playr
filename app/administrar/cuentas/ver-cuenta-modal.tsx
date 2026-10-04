@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState } from "react"
 import Link from "next/link"
+import { useRuta } from "@/app/administrar/sesion-tab"
 import { ArrowUpRight, ChevronDown } from "lucide-react"
 import Modal from "@ui/modal"
 import Button from "@ui/button"
@@ -79,6 +80,7 @@ interface VerCuentaModalProps {
  * abrir (el padre lo monta con key por cuenta, así cada apertura arranca limpia): la contraseña se lee en vivo del proveedor (tarda unos segundos) y es la misma para todos los perfiles de la cuenta.
  */
 export default function VerCuentaModal({ cuenta, onClose }: Readonly<VerCuentaModalProps>) {
+    const ruta = useRuta()
     const [perfiles, setPerfiles] = useState<PerfilDeCuenta[] | null | "cargando">("cargando")
     const [clave, setClave] = useState<ClavePerfil | "cargando">("cargando")
     const [clavesPerfil, setClavesPerfil] = useState<Record<number, ClavePerfil> | "cargando">("cargando")
@@ -148,7 +150,7 @@ export default function VerCuentaModal({ cuenta, onClose }: Readonly<VerCuentaMo
                                     </button>
                                 )}
                                 <Link
-                                    href={`/administrar/perfiles?cuenta=${cuenta.id}`}
+                                    href={ruta(`/administrar/perfiles?cuenta=${cuenta.id}`)}
                                     className="group inline-flex items-center gap-1 text-secondary transition hover:text-accent"
                                 >
                                     Abrir en Perfiles

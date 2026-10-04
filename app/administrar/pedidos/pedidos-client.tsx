@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
+import AutoRefresh from "@ui/auto-refresh"
 import { AlertCircle, Check, ExternalLink, FileImage, RefreshCw, X } from "lucide-react"
 import Card from "@ui/card"
 import Button from "@ui/button"
@@ -30,14 +31,14 @@ const FILTROS: { valor: Filtro; label: string }[] = [
 type Dialogo = { tipo: "comprobante" | "aprobar" | "rechazar"; pedido: PedidoStaff } | null
 
 function ComprobanteModal({ pedido, onClose }: Readonly<{ pedido: PedidoStaff; onClose: () => void }>) {
-    const [estado, setEstado] = useState<{ url: string; pdf: boolean } | string | null>(null)
+    const [estado, setEstado] = useState<{ url: string; imagen: boolean } | string | null>(null)
 
     // Se pide al abrir: la URL firmada dura 5 minutos.
     useEffect(() => {
         let vigente = true
         getComprobanteUrlAction(pedido.id)
             .catch(() => ({ ok: false as const, error: "No se pudo abrir el comprobante." }))
-            .then((res) => { if (vigente) setEstado(res.ok ? { url: res.url, pdf: res.pdf } : res.error) })
+            .then((res) => { if (vigente) setEstado(res.ok ? { url: res.url, imagen: res.imagen } : res.error) })
         return () => { vigente = false }
     }, [pedido.id])
 
@@ -45,13 +46,13 @@ function ComprobanteModal({ pedido, onClose }: Readonly<{ pedido: PedidoStaff; o
         <Modal isOpen title={`Comprobante · Pedido #${pedido.id}`} onClose={onClose}>
             <div className="flex flex-col gap-3">
                 <p className="text-sm text-secondary">
-                    Debe ser una transferencia de <b className="text-white">{formatCOP(pedido.total)}</b> a la llave <b className="text-white">{pedido.llave_breb}</b>.
+                    Debe ser una transferencia de <b className="text-white">{formatCOP(pedido.total)}</b> a la llave <b className="text-white">{pedido.llave_breb}</b>{pedido.llave_nombre && <> ({pedido.llave_nombre})</>}.
                 </p>
                 {estado === null && <SkeletonBar className="h-64 w-full" />}
                 {typeof estado === "string" && <Alert variant="error" message={estado} />}
                 {estado && typeof estado === "object" && (
                     <>
-                        {!estado.pdf && (
+                        {estado.imagen && (
                             // eslint-disable-next-line @next/next/no-img-element -- URL firmada y temporal de Supabase Storage
                             <img src={estado.url} alt={`Comprobante del pedido ${pedido.id}`} className="max-h-[60vh] w-full rounded-xl border border-white/8 object-contain" />
                         )}
@@ -91,7 +92,7 @@ function RevisarModal({ dialogo, onClose }: Readonly<{ dialogo: { tipo: "aprobar
             <div className="flex flex-col gap-4">
                 <p className="text-sm text-secondary">
                     {aprobar
-                        ? `Confirma que recibiste ${formatCOP(dialogo.pedido.total)} en la llave ${dialogo.pedido.llave_breb}. El cliente verá sus datos de acceso de inmediato.`
+                        ? `Confirma que recibiste ${formatCOP(dialogo.pedido.total)} en la llave ${dialogo.pedido.llave_breb}${dialogo.pedido.llave_nombre ? ` (${dialogo.pedido.llave_nombre})` : ""}. El cliente verá sus datos de acceso de inmediato.`
                         : "Los perfiles vuelven a la Tienda y el cliente verá el pedido como rechazado con este motivo."}
                 </p>
                 {!aprobar && (
@@ -207,6 +208,8 @@ export default function PedidosClient({ pedidos }: Readonly<{ pedidos: PedidoSta
 
     return (
         <div className="flex flex-col gap-4">
+            {/* Pedidos nuevos y los revisados desde Telegram aparecen solos. */}
+            <AutoRefresh cadaMs={15_000} activo={pedidos !== undefined} />
             <Card padding="p-4" className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div role="tablist" aria-label="Estado del pedido" className="flex flex-wrap gap-2">
                     {FILTROS.map((f) => (

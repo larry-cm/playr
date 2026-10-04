@@ -12,16 +12,16 @@ import { TIPO_ACCESO } from "@/app/administrar/tienda/product-card"
 import type { CatalogoDisponibleItem } from "@action/tienda/get-catalogo-disponible-action"
 import { formatCOP } from "@lib/currency"
 import { MAX_PERFILES_PEDIDO } from "@lib/pedido"
-import PagoBrebModal from "@/app/administrar/tienda/pago-breb-modal"
+import PagoBrebModal, { type LlavePago } from "@/app/administrar/tienda/pago-breb-modal"
 
 interface TiendaClientProps {
     /** undefined = la página aún carga (loading.tsx) · null = error */
     initialCatalogo: CatalogoDisponibleItem[] | null | undefined
-    /** Llave Bre-B a la que se paga (la configura el admin en Ajustes). "" = no configurada · undefined = aún carga. */
-    llaveBreb: string | undefined
+    /** Llaves Bre-B a las que se puede pagar (las configura el admin en Ajustes). [] = ninguna · undefined = aún carga. */
+    llaves: LlavePago[] | undefined
 }
 
-export default function TiendaClient({ initialCatalogo, llaveBreb }: TiendaClientProps) {
+export default function TiendaClient({ initialCatalogo, llaves }: TiendaClientProps) {
     const router = useRouter()
     const [reintentando, startReintento] = useTransition()
     // Sin copia en estado: tras "Reintentar" (router.refresh) llega el catálogo nuevo por props.
@@ -61,7 +61,7 @@ export default function TiendaClient({ initialCatalogo, llaveBreb }: TiendaClien
     }
 
     const demasiados = selectedItems.length > MAX_PERFILES_PEDIDO
-    const puedePagar = selectedItems.length > 0 && !!llaveBreb && !demasiados
+    const puedePagar = selectedItems.length > 0 && !!llaves?.length && !demasiados
 
     if (catalogo === null) {
         return (
@@ -115,7 +115,7 @@ export default function TiendaClient({ initialCatalogo, llaveBreb }: TiendaClien
                         <p aria-live="polite">
                             {selectedItems.length} seleccionados · Total: <span className="text-white font-semibold">{formatCOP(total)}</span>
                         </p>
-                        {llaveBreb === "" && (
+                        {llaves?.length === 0 && (
                             <p className="mt-1 text-xs text-amber-400">
                                 Los pagos no están disponibles en este momento. Contacta a soporte.
                             </p>
@@ -127,7 +127,7 @@ export default function TiendaClient({ initialCatalogo, llaveBreb }: TiendaClien
                     <Button
                         variant="primary"
                         disabled={!puedePagar}
-                        title={llaveBreb === "" ? "No hay una llave Bre-B configurada" : undefined}
+                        title={llaves?.length === 0 ? "No hay una llave Bre-B configurada" : undefined}
                         leftIcon={<Wallet className="w-4 h-4" />}
                         onClick={() => setPagando(true)}
                     >
@@ -135,13 +135,13 @@ export default function TiendaClient({ initialCatalogo, llaveBreb }: TiendaClien
                     </Button>
                 </Card>
 
-                {llaveBreb && (
+                {!!llaves?.length && (
                     <PagoBrebModal
                         isOpen={pagando}
                         onClose={() => setPagando(false)}
                         items={selectedItems}
                         total={total}
-                        llave={llaveBreb}
+                        llaves={llaves}
                         onPedido={() => setSelectedIds(new Set())}
                     />
                 )}

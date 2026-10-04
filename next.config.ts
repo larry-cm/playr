@@ -2,9 +2,12 @@ import type { NextConfig } from "next"
 import fs from "fs"
 import path from "path"
 
+const isDev = process.env.NODE_ENV !== "production"
+
 // Next.js solo autocarga .env(.local); las credenciales del proveedor (.env.platform) y las del bot de
-// Telegram de pedidos (.env.telegram) viven separadas (ver CLAUDE.md), así que se inyectan a mano.
-for (const archivo of [".env.platform", ".env.telegram"]) {
+// Telegram de pedidos (.env.telegram) viven separadas (ver CLAUDE.md), así que se inyectan a mano. En desarrollo,
+// .env.telegram.dev (bot y grupo de pruebas) pisa a .env.telegram: lo que se prueba en local no llega a producción.
+for (const archivo of [".env.platform", ".env.telegram", ...(isDev ? [".env.telegram.dev"] : [])]) {
   const envPath = path.join(__dirname, archivo)
   if (!fs.existsSync(envPath)) continue
   for (const line of fs.readFileSync(envPath, "utf-8").split("\n")) {
@@ -13,15 +16,13 @@ for (const archivo of [".env.platform", ".env.telegram"]) {
   }
 }
 
-
-const isDev = process.env.NODE_ENV !== "production"
-
 // La Content-Security-Policy lleva un nonce por petición: la pone proxy.ts (ver @lib/csp).
+
 const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=()" },
   ...(isDev ? [] : [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" }]),
 ]
 

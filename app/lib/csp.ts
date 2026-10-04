@@ -27,7 +27,10 @@ export function cspHeader(nonce: string): string {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com data:",
     `img-src 'self' data: blob: ${supabaseOrigin}`.trim(),
-    `connect-src 'self' ${supabaseOrigin} ${supabaseWs}`.trim(),
+    // Notas de voz del chat: la vista previa local (blob:) y los audios firmados de Supabase Storage.
+    `media-src 'self' blob: ${supabaseOrigin}`.trim(),
+    // blob:: la forma de onda de la nota de voz se lee con fetch, también la de la vista previa antes de enviarla.
+    `connect-src 'self' blob: ${supabaseOrigin} ${supabaseWs}`.trim(),
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

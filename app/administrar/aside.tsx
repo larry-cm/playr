@@ -22,7 +22,7 @@ interface AsideProps {
 }
 
 const navItems = [
-    { name: "Administrar", href: "/administrar", icon: LayoutDashboard, roles: ["admin", "manager", "user"] },
+    { name: "Dashboard", href: "/administrar", icon: LayoutDashboard, roles: ["admin", "manager", "user"] },
     { name: "Productos", href: "/administrar/productos", icon: Tag, roles: ["admin", "manager"] },
     // Mismos iconos que el resumen de servicios del panel (view-manager-and-admin.tsx).
     { name: "Cuentas", href: "/administrar/cuentas", icon: Network, roles: ["admin", "manager"] },

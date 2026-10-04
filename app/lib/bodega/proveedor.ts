@@ -501,5 +501,29 @@ export async function leerPedidos(s: Sesion, maxPaginas = 20): Promise<PedidoPro
         m.set(nombre, (m.get(nombre) ?? 0) + 1)
         porPedido.set(l.pedidoId, m)
     }
-    return pedidos.map((p) => ({ ...p, productos: [...(porPedido.get(p.id) ?? [])].map(([nombre, cantidad]) => ({ nombre, cantidad })) }))
+    const out: PedidoProveedor[] = pedidos.map((p) => ({ ...p, productos: [...(porPedido.get(p.id) ?? [])].map(([nombre, cantidad]) => ({ nombre, cantidad })) }))
+
+    // Si el proveedor borró el producto, "Mis licencias" lo muestra como "Producto #ID", pero el pedido guarda el nombre que tenía
+    // al venderse: se completa desde su detalle. Solo esos pedidos (pocos), uno tras otro.
+    for (const p of out) {
+        if (p.productos.length && !p.productos.some((x) => PLACEHOLDER.test(x.nombre))) continue
+        const articulos = parseArticulosPedido((await pagina(s, `/mi-cuenta/view-order/${p.id}/`)).html)
+        if (!articulos.length) continue
+        const conocidos = new Set(p.productos.map((x) => x.nombre))
+        const libres = articulos.filter((n) => !conocidos.has(n))
+        p.productos = p.productos.length
+            ? p.productos.map((x) => (PLACEHOLDER.test(x.nombre) && libres.length ? { ...x, nombre: libres.shift() as string } : x))
+            : articulos.map((nombre) => ({ nombre, cantidad: 1 }))
+    }
+    return out
+}
+
+/** Nombre que pone WooCommerce cuando el producto de una licencia ya no existe. */
+const PLACEHOLDER = /^Producto #\d+$/i
+
+/** Nombres de los artículos del detalle de un pedido ("Mi cuenta" > pedido), sin la cantidad ("× 1"). */
+export function parseArticulosPedido(html: string): string[] {
+    return [...html.matchAll(/<td[^>]*product-name[^>]*>([\s\S]*?)<\/td>/gi)]
+        .map((m) => limpiar(m[1].replace(/<strong[^>]*product-quantity[\s\S]*?<\/strong>/gi, "")))
+        .filter(Boolean)
 }

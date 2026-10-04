@@ -8,16 +8,21 @@ export const getRoleUser = cache(async (): Promise<"user" | "admin" | "manager" 
 
     // El rol vive en security.user_role (no en user_metadata, que el usuario puede editar). La RLS solo
     // deja leer la fila propia y nadie la escribe desde el cliente: se asigna en el servidor.
-    const { data, error: roleError } = await supabase
-        .schema("security")
-        .from("user_role")
-        .select("role:role_id(nombre)")
-        .eq("auth_user_id", user.id)
-        .maybeSingle<{ role: { nombre: string } | null }>()
+    const [{ data, error: roleError }, { data: cliente }] = await Promise.all([
+        supabase
+            .schema("security")
+            .from("user_role")
+            .select("role:role_id(nombre)")
+            .eq("auth_user_id", user.id)
+            .maybeSingle<{ role: { nombre: string } | null }>(),
+        supabase.schema("security").from("client").select("exist").eq("id", user.id).maybeSingle<{ exist: boolean }>(),
+    ])
 
     if (roleError) {
         console.error("getRoleUser: fallo consultando security.user_role:", roleError)
     }
+    // Dado de baja: su token puede seguir vivo hasta que venza (1 h), pero la app ya no lo atiende.
+    if (cliente?.exist === false) return "error"
 
     const nombre = data?.role?.nombre
     // Antes caía a "admin" si faltaba el dato; default seguro ahora es "user" (mínimo privilegio).

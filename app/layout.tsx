@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { connection } from "next/server"
 import { Outfit } from "next/font/google"
 import "./globals.css"
 import SesionFetch from "@/app/sesion-fetch"
@@ -24,11 +25,13 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // La CSP lleva un nonce por petición (proxy.ts): una página prerenderada saldría sin él y sus scripts no correrían.
+  await connection()
   return (
     <html
       lang="es"

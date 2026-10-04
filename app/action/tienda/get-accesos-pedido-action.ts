@@ -22,13 +22,15 @@ type Fila = {
     pin: string | null
     email: string | null
     account_id: number
-    account: { email: string; access_type: string; platform: { nombre: string } }
+    account: { email: string; access_type: string; fecha_vencimiento: string | null; platform: { nombre: string } }
 }
 
 /**
  * Datos de acceso de un pedido APROBADO del cliente que llama. Primero se verifica con su sesión (RLS) que el pedido
  * es suyo y está aprobado; recién ahí se leen perfiles y contraseñas con service_role, porque el cliente no puede leer
  * profile/account. Las contraseñas salen igual que en el panel (resolverClaves): la editada o la vigente del proveedor.
+ * Solo se entregan los perfiles que el pedido conserva: ligados a él (vendido_pedido_id, se suelta si el perfil vuelve
+ * a la venta), activos, no suspendidos y con la cuenta sin vencer.
  */
 export async function getAccesosPedidoAction(pedidoId: number): Promise<AccesosResult> {
     if (!Number.isInteger(pedidoId)) return { ok: false, error: "Pedido no encontrado." }
@@ -37,6 +39,9 @@ export async function getAccesosPedidoAction(pedidoId: number): Promise<AccesosR
     const supabase = await createSupabase()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { ok: false, error: "Tu sesión expiró. Vuelve a iniciar sesión." }
+
+    const { data: cliente } = await supabase.schema("security").from("client").select("exist").eq("id", user.id).maybeSingle()
+    if (cliente?.exist === false) return { ok: false, error: "Tu cuenta está dada de baja. Contacta a soporte." }
 
     const { data: pedido } = await supabase
         .schema("business")
@@ -52,17 +57,23 @@ export async function getAccesosPedidoAction(pedidoId: number): Promise<AccesosR
     if (!admin) return { ok: false, error: "No se pudieron cargar los accesos. Contacta a soporte." }
 
     const ids = (pedido.pedido_item ?? []).map((i) => i.profile_id)
-    const { data, error } = await admin
+    const { data: filas, error } = await admin
         .schema("business")
         .from("profile")
-        .select("id,nombre_perfil,pin,email,account_id,account:account_id!inner(email,access_type,platform:platform_id!inner(nombre))")
+        .select("id,nombre_perfil,pin,email,account_id,account:account_id!inner(email,access_type,fecha_vencimiento,platform:platform_id!inner(nombre))")
         .in("id", ids)
+        .eq("vendido_pedido_id", pedido.id)
+        .eq("exist", true)
+        .in("estado", ["vendido", "en_soporte"])
         .order("id", { ascending: true })
         .returns<Fila[]>()
-    if (error || !data) {
+    if (error || !filas) {
         console.error("getAccesosPedidoAction:", error?.message)
         return { ok: false, error: "No se pudieron cargar los accesos. Inténtalo de nuevo." }
     }
+    const hoy = new Date().toLocaleDateString("en-CA", { timeZone: "America/Bogota" })
+    const data = filas.filter((f) => !f.account.fecha_vencimiento || f.account.fecha_vencimiento >= hoy)
+    if (data.length === 0) return { ok: false, error: "Este pedido ya no tiene accesos vigentes. Contacta a soporte." }
 
     // Una lectura de claves por cuenta (resolverClaves consulta el proveedor una sola vez por llamada).
     const porCuenta = new Map<number, Fila[]>()

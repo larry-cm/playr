@@ -8,7 +8,7 @@ import { validateEmail } from "@lib/validation"
  * cuenta, el correo y la contraseña, que comparten todos los perfiles de esa cuenta.
  */
 export const editPerfilSchema = z.object({
-    estado: z.enum(["disponible", "vendido", "suspendido", "en_soporte"], { message: "Selecciona un estado válido." }),
+    estado: z.enum(["disponible", "vendido", "suspendido", "en_soporte", "reservado"], { message: "Selecciona un estado válido." }),
     nombre_perfil: z.string().trim().min(1, "Ingresa el nombre del perfil.").max(50, "El nombre del perfil es muy largo."),
     pin: z
         .string()

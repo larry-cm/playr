@@ -31,3 +31,25 @@ export const getWhatsappAsesor = cache(async (): Promise<string> => {
     }
     return soloDigitos(whatsappAdvisorNumber)
 })
+
+/** Clave de la llave Bre-B a la que pagan los clientes en business.ajuste. */
+export const CLAVE_LLAVE_BREB = "llave_breb"
+
+/** Llave Bre-B del negocio ("" = no configurada: la Tienda no deja pagar). Sin respaldo en variables. Nunca lanza. */
+export const getLlaveBreb = cache(async (): Promise<string> => {
+    try {
+        const supabase = await createSupabase()
+        const { data, error } = await supabase
+            .schema("business")
+            .from("ajuste")
+            .select("valor")
+            .eq("clave", CLAVE_LLAVE_BREB)
+            .maybeSingle<{ valor: string }>()
+
+        if (error) console.error("getLlaveBreb: no se pudo leer business.ajuste:", error.message)
+        return (data?.valor ?? "").trim()
+    } catch (e) {
+        console.error("getLlaveBreb: no se pudo leer business.ajuste:", e)
+        return ""
+    }
+})

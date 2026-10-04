@@ -12,7 +12,7 @@ import { formatPhoneNumber, splitPhoneNumber } from "@lib/phone"
 import { validatePhone } from "@lib/validation"
 import { updateWhatsappAsesorAction } from "@action/admin/ajustes/update-whatsapp-action"
 
-/** Número de WhatsApp del asesor: a él llegan los mensajes de Soporte y los pedidos de la Tienda. */
+/** Número de WhatsApp del asesor: a él llegan los mensajes de Soporte. */
 export default function WhatsappCard({ telefonoActual }: Readonly<{ /** Solo dígitos; "" = no configurado. */ telefonoActual: string }>) {
     const router = useRouter()
     const inicial = splitPhoneNumber(telefonoActual)
@@ -40,7 +40,7 @@ export default function WhatsappCard({ telefonoActual }: Readonly<{ /** Solo dí
                 setError(res.error)
                 return
             }
-            setAviso("Número guardado. Soporte y la Tienda ya usan el nuevo número.")
+            setAviso("Número guardado. Soporte ya usa el nuevo número.")
             router.refresh()
         })
     }
@@ -50,7 +50,7 @@ export default function WhatsappCard({ telefonoActual }: Readonly<{ /** Solo dí
             <SectionHeader
                 icon={MessageCircle}
                 title="WhatsApp del asesor"
-                description="A este número llegan los mensajes de Soporte y los pedidos de la Tienda."
+                description="A este número llegan los mensajes de Soporte."
             />
 
             <div className="mt-6 border-t border-white/6" />
@@ -62,7 +62,7 @@ export default function WhatsappCard({ telefonoActual }: Readonly<{ /** Solo dí
                         <p className="mt-1 text-lg font-semibold text-white tabular-nums">{formatPhoneNumber(telefonoActual)}</p>
                     ) : (
                         <p className="mt-1 text-sm text-amber-400">
-                            Sin configurar: los clientes no pueden escribir a soporte ni pedir por WhatsApp.
+                            Sin configurar: los clientes no pueden escribir a soporte.
                         </p>
                     )}
                 </div>

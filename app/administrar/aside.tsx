@@ -1,6 +1,6 @@
 "use client"
 
-import { LayoutDashboard, LogOut, X, Store, Tag, Network, Monitor, Warehouse, Settings } from "lucide-react"
+import { LayoutDashboard, LogOut, X, Store, Tag, Network, Monitor, Warehouse, Settings, ShoppingBag, Receipt } from "lucide-react"
 import type { ReactNode, Ref } from "react"
 
 import { usePathname, useRouter } from "next/navigation"
@@ -28,7 +28,9 @@ const navItems = [
     { name: "Cuentas", href: "/administrar/cuentas", icon: Network, roles: ["admin", "manager"] },
     { name: "Perfiles", href: "/administrar/perfiles", icon: Monitor, roles: ["admin", "manager"] },
     { name: "Bodega", href: "/administrar/bodega", icon: Warehouse, roles: ["admin", "manager"] },
+    { name: "Pedidos", href: "/administrar/pedidos", icon: Receipt, roles: ["admin", "manager"] },
     { name: "Tienda", href: "/administrar/tienda", icon: Store, roles: ["user"] },
+    { name: "Mis compras", href: "/administrar/compras", icon: ShoppingBag, roles: ["user"] },
     { name: "Ajustes", href: "/administrar/ajustes", icon: Settings, roles: ["admin"] },
 ]
 export default function Aside({ sidebarOpen, setSidebarOpen, role, bell, ref, inert }: AsideProps) {

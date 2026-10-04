@@ -33,6 +33,8 @@ User request 2026-10-03; user chose "different accounts per tab" over "last logi
 
 - [x] T5 — Fix review-3 warnings (user request): transient Auth failures (esFallaTransitoria: retryable/5xx/429) never wipe the tab session on the login restore; setSession failure after login shows an error; hint cookie cleared on pagehide so a closed tab does not leave it. Route: inline. Risk: high.
 
+- [x] T6 — Bug reported by user: Chrome "Duplicate tab" kept the same session. Cause: a tab that started without a tab id (fresh login tab) never opened the BroadcastChannel responder, so its copies got no answer. Fix: the channel always opens; verification starts at module load (sesion-fetch). Route: inline. Risk: high.
+
 ## Acceptance criteria
 1. `pnpm lint`, `pnpm exec tsc --noEmit`, `pnpm build` pass.
 2. Tab A logged in as X, tab B (new) shows login; logging in B as Y leaves A on X.
@@ -50,6 +52,8 @@ User request 2026-10-03; user chose "different accounts per tab" over "last logi
 - T4: tsc OK, lint OK, build OK. Browser (next start :3107, agent-browser, 2 temp users created+deleted): URLs are /administrar/...; tab A=user A and tab B=user B; reloads load directly (navigation redirectCount 0); new tab typed URL → login; simulated duplicate (copied sessionStorage) → login without session while the original keeps its session; 2nd browser login kicks tab A on next nav with notice, tab B (other account) unaffected; logout clears tab storage. Finding: Chrome sends the reload request before pagehide → hint set in beforeunload.
 
 - T5: tsc OK, lint OK, build OK. Browser (temp users created+deleted): reload loads directly (redirectCount 0) and no hint cookie remains; after closing a logged-in tab no hint cookie remains and a new tab on /administrar gets login; Auth /user aborted on restore → session kept + "No se pudo verificar tu sesión" notice, then restored when Auth is back; Auth /user aborted during login → "Iniciaste sesión, pero no se pudo abrir en esta pestaña"; 2nd-browser kick still shows notice. Not simulable with agent-browser: HTTP 500/429 bodies (same code path via esFallaTransitoria).
+
+- T6: tsc OK, lint OK, build OK. Browser: fresh login tab (never reloaded) → copy via window.open (Chrome copies sessionStorage) lands on login without session; manual sessionStorage copy of a fresh tab → login without session; originals keep their sessions. Real Chrome "Duplicate" menu not automatable: pending user check.
 
 ## Delivery
 Forecast: ~350 authored lines. Strategy: ask-on-risk. Slices: single PR.

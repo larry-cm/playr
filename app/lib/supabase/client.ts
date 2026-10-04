@@ -50,20 +50,17 @@ function verificar(): Promise<void> {
   }
   const listo = () => { verificada = true }
 
-  if (!tabId || typeof BroadcastChannel === "undefined") {
+  if (typeof BroadcastChannel === "undefined") {
     if (!tabId) idNuevo()
     listo()
     return Promise.resolve()
   }
 
-  // El canal queda abierto mientras viva la página: así responde a sus copias.
+  // El canal queda abierto mientras viva la página, también en una pestaña nueva: así
+  // responde a sus copias.
   const canal = new BroadcastChannel("playr-pestanas")
   const yo = crypto.randomUUID()
   return new Promise((resolve) => {
-    const espera = setTimeout(() => {
-      listo()
-      resolve()
-    }, 250)
     canal.onmessage = ({ data }: MessageEvent<Mensaje>) => {
       if (data.tipo === "quien" && verificada && data.tabId === tabId) {
         canal.postMessage({ tipo: "yo", para: data.de } satisfies Mensaje)
@@ -76,7 +73,19 @@ function verificar(): Promise<void> {
         resolve()
       }
     }
-    canal.postMessage({ tipo: "quien", tabId: tabId!, de: yo } satisfies Mensaje)
+
+    // Pestaña nueva: no puede ser copia de nadie.
+    if (!tabId) {
+      idNuevo()
+      listo()
+      resolve()
+      return
+    }
+    const espera = setTimeout(() => {
+      listo()
+      resolve()
+    }, 250)
+    canal.postMessage({ tipo: "quien", tabId, de: yo } satisfies Mensaje)
   })
 }
 

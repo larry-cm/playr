@@ -1,12 +1,15 @@
 "use client"
 
 import { HINT_COOKIE, HINT_SEGUNDOS, TOKEN_HEADER } from "@lib/sesion-tab"
-import { tokenGuardado, tokenTab } from "@lib/supabase/client"
+import { pestanaLista, tokenGuardado, tokenTab } from "@lib/supabase/client"
 
 // Cada petición de la app a su propio servidor (navegación, server actions) lleva el
 // token de la sesión de esta pestaña (ver @lib/sesion-tab). Se instala al cargar el
 // módulo, antes de que el router de Next haga su primer fetch.
 function instalar() {
+    // Desde la carga: detecta si esta pestaña es una copia y responde a sus copias.
+    void pestanaLista()
+
     const original = window.fetch.bind(window)
 
     window.fetch = async (input, init) => {

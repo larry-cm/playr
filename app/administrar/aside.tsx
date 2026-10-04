@@ -38,6 +38,10 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role, bell, ref, in
     // El cliente solo tiene la Tienda: el logo lo lleva ahí.
     const inicio = role === "user" ? "/administrar/tienda" : "/administrar"
     const filteredItems = navItems.filter(item => !item.roles || item.roles.includes(role))
+    // El cliente solo tiene la Tienda: en escritorio el menú es un riel de iconos para dejarle el ancho a los productos.
+    // En móvil sigue siendo el panel completo que se abre y cierra.
+    const compact = role === "user"
+    const rail = (cls: string) => (compact ? cls : "")
 
     return (
         <aside
@@ -46,16 +50,17 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role, bell, ref, in
             inert={inert}
             className={[
                 "fixed inset-y-0 left-0 z-50 w-64 flex flex-col bg-background border-r border-white/6 p-4",
+                rail("lg:w-18 lg:px-3"),
                 "transition-transform duration-300 ease-in-out",
                 "lg:static lg:translate-x-0",
                 sidebarOpen ? "translate-x-0" : "-translate-x-full",
             ].join(" ")}
         >
             {/* Logo */}
-            <div className="flex items-center justify-between px-2 py-3 mb-8">
-                <Link href={inicio} className="flex items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+            <div className={`flex items-center justify-between px-2 py-3 mb-8 ${rail("lg:justify-center lg:px-0")}`}>
+                <Link href={inicio} title={compact ? "Playr" : undefined} className="flex items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
                     <Image src={logoPlayr} width="28" height="28" alt="Playr" />
-                    <span className="text-xl font-bold tracking-tight text-white">Playr</span>
+                    <span className={`text-xl font-bold tracking-tight text-white ${rail("lg:sr-only")}`}>Playr</span>
                 </Link>
                 <button
                     onClick={() => setSidebarOpen(false)}
@@ -79,13 +84,14 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role, bell, ref, in
                             href={item.href}
                             onClick={() => setSidebarOpen(false)}
                             aria-current={isActive ? "page" : undefined}
-                            className={`flex items-center gap-3 px-3 py-3 lg:py-2.5 rounded-xl text-sm font-medium transition-all duration-200 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent ${isActive
+                            title={compact ? item.name : undefined}
+                            className={`flex items-center gap-3 px-3 py-3 lg:py-2.5 rounded-xl text-sm font-medium transition-all duration-200 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent ${rail("lg:justify-center lg:px-0")} ${isActive
                                 ? "bg-accent/10 border border-accent/20 text-accent"
                                 : "text-secondary border border-transparent hover:text-white hover:bg-white/5"
                                 }`}
                         >
                             <Icon className="w-4 h-4 shrink-0" />
-                            {item.name}
+                            <span className={rail("lg:sr-only")}>{item.name}</span>
                         </Link>
                     )
                 })}
@@ -99,10 +105,11 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role, bell, ref, in
                         router.push("/")
                     }}
                     type="button"
-                    className="flex items-center gap-3 px-3 py-3 lg:py-2.5 w-full rounded-xl text-sm text-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent hover:text-white hover:bg-white/5 transition-all duration-200"
+                    title={compact ? "Cerrar sesión" : undefined}
+                    className={`flex items-center gap-3 px-3 py-3 lg:py-2.5 w-full rounded-xl text-sm text-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent hover:text-white hover:bg-white/5 transition-all duration-200 ${rail("lg:justify-center lg:px-0")}`}
                 >
                     <LogOut className="w-4 h-4 shrink-0" />
-                    Cerrar sesión
+                    <span className={rail("lg:sr-only")}>Cerrar sesión</span>
                 </button>
             </div>
         </aside>

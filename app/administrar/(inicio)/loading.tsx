@@ -9,5 +9,8 @@ import ComprasCard from "@/app/administrar/(inicio)/compras-card"
 import MargenCard from "@/app/administrar/(inicio)/margen-card"
 
 export default function AdministrarLoading() {
-    return <Inicio role={useRol()} resumen={<ViewManagerAndAdmin />} compras={<ComprasCard />} margen={<MargenCard />} />
+    const role = useRol()
+    // El cliente no tiene Dashboard: la página lo redirige a la Tienda, así que no se pinta nada.
+    if (role === "user") return null
+    return <Inicio role={role} resumen={<ViewManagerAndAdmin />} compras={<ComprasCard />} margen={<MargenCard />} />
 }

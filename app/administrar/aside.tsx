@@ -22,7 +22,7 @@ interface AsideProps {
 }
 
 const navItems = [
-    { name: "Dashboard", href: "/administrar", icon: LayoutDashboard, roles: ["admin", "manager", "user"] },
+    { name: "Dashboard", href: "/administrar", icon: LayoutDashboard, roles: ["admin", "manager"] },
     { name: "Productos", href: "/administrar/productos", icon: Tag, roles: ["admin", "manager"] },
     // Mismos iconos que el resumen de servicios del panel (view-manager-and-admin.tsx).
     { name: "Cuentas", href: "/administrar/cuentas", icon: Network, roles: ["admin", "manager"] },
@@ -35,6 +35,8 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role, bell, ref, in
     const pathname = usePathname()
     const router = useRouter()
 
+    // El cliente solo tiene la Tienda: el logo lo lleva ahí.
+    const inicio = role === "user" ? "/administrar/tienda" : "/administrar"
     const filteredItems = navItems.filter(item => !item.roles || item.roles.includes(role))
 
     return (
@@ -51,7 +53,7 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role, bell, ref, in
         >
             {/* Logo */}
             <div className="flex items-center justify-between px-2 py-3 mb-8">
-                <Link href="/administrar" className="flex items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+                <Link href={inicio} className="flex items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
                     <Image src={logoPlayr} width="28" height="28" alt="Playr" />
                     <span className="text-xl font-bold tracking-tight text-white">Playr</span>
                 </Link>

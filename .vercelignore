@@ -1,0 +1,14 @@
+# Lo que nunca se sube al deploy de Vercel (credenciales, estado local y herramientas de agentes).
+.env*
+/.claude/
+/.agents/
+/.engram/
+/.github/
+/.mcp.json
+/odd/
+/jobs/
+/supabase/
+/.next/
+/node_modules/
+/package-lock.json
+*.tsbuildinfo

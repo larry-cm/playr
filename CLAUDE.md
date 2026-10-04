@@ -34,7 +34,7 @@ pnpm lint
 Notas:
 - El proyecto usa pnpm, no npm/yarn.
 - El comando de desarrollo es `pnpm dev` y corre un servidor Next.js local.
-- `pnpm lint` ya se ejecutó y actualmente falla; ver sección de estado real al final.
+- `pnpm lint` y `pnpm build` pasan (ver sección 12).
 
 ## 3) Variables de entorno requeridas
 
@@ -43,6 +43,9 @@ El proyecto lee estas variables de entorno en `app/lib/const.ts`:
 ```bash
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+SUPABASE_SECRET_KEY            # solo servidor: crear usuarios, asignar roles, avisos (app/lib/supabase/admin.ts)
+NEXT_PUBLIC_SITE_URL           # URL pública; la usa el enlace de recuperar contraseña
+NEXT_PUBLIC_WHATSAPP_ADVISOR_NUMBER  # solo respaldo: el número del asesor lo edita el admin en /administrar/ajustes (business.ajuste, clave whatsapp_asesor; getWhatsappAsesor() en app/lib/ajustes.ts)
 ```
 
 Si faltan, la app no podrá conectarse a Supabase.
@@ -68,7 +71,6 @@ app/
     layout.tsx
     page.tsx
     view-manager-and-admin.tsx
-    view-user.tsx
     clientes/
       page.tsx
       table-client.tsx
@@ -130,22 +132,22 @@ Usar estos aliases en lugar de rutas relativas largas. Es el patrón esperado po
 - Si el login es correcto, redirige a `/administrar`.
 
 ### Roles
-- `getRoleUser()` en `app/action/get-role-action.ts` consultá `supabase.auth.getUser()` y devuelve:
-  - `user`
-  - `admin`
-  - `manager`
-  - `error`
-- El rol real se toma principalmente desde `user.user_metadata.role`.
+- `getRoleUser()` (`app/action/get-role-action.ts`, envuelto en React `cache()`) devuelve `user | admin | manager | error`. El rol vive en **`security.user_role`** (no en `user_metadata`, que el usuario puede editar); si falta, "user".
+- `business.es_staff()` (security definer) lee la misma tabla y es la base de toda la RLS.
+- **Nadie asigna roles desde el cliente**: `security.user_role`/`role` no tienen INSERT/UPDATE/DELETE para `authenticated`. Los asigna el servidor con `createSupabaseAdmin()` (clave secreta) después de verificar que quien llama es admin.
+- **Registro público cerrado** en Supabase Auth (`disable_signup`). Los usuarios los crea el staff en Clientes (`createCustomerAction` → `auth.admin.createUser`; contraseña escrita por el staff con las reglas de `validatePassword`; solo un admin puede crear admin/manager).
+
+### Sesión por pestaña y una sesión por cuenta
+- Cada pestaña tiene su propia sesión (pedido del usuario 2026-10-03: cuentas distintas por pestaña) y **la URL no lo muestra** (`/administrar/...` normal, pedido del usuario). La sesión de Supabase vive en el `sessionStorage` de la pestaña (`supabaseTab()` en `app/lib/supabase/client.ts`), no en cookies. Detalle en `app/lib/sesion-tab.ts`.
+- Viaje al servidor: `app/sesion-fetch.tsx` (montado en el layout raíz) agrega el header `x-playr-token` a todo fetch al mismo origen (navegación del router, server actions). En una carga completa (recargar, escribir la URL) la pestaña deja en `beforeunload` la cookie `playr-tab-token` (10 s), que `proxy.ts` consume y borra; en `pagehide` (la petición nueva ya salió) se borra, así una pestaña cerrada no se la deja a otra. `proxy.ts` valida el token con `getUser` y lo deja en el header; en el servidor `createSupabase()`/`getUsuario()` lo usan (sin refrescar nunca: eso lo hace la pestaña). Sin token, el servidor es anónimo (solo pasa la cookie PKCE de "olvidé mi contraseña").
+- Sin sesión válida en `/administrar`, `proxy.ts` manda al login guardando la ruta en la cookie `playr-volver`. El login renueva la sesión de la pestaña si la tiene y vuelve; si la cerraron, avisa "inició sesión en otro lugar". Una caída de Supabase Auth (red, 5xx, 429: `esFallaTransitoria`) nunca borra la sesión ni da ese aviso.
+- Pestaña nueva = sin sesión (pide login). Pestaña duplicada (copia el sessionStorage): `pestanaLista()` la detecta por `BroadcastChannel` y la deja sin sesión antes de tocar el refresh token.
+- Una cuenta, un solo lugar: el login (server action, devuelve la sesión a la pestaña) hace `signOut({ scope: "others" })`; si falla, avisa al staff con `notificar`.
 
 ### Rutas protegidas
-- El layout de dashboard en `app/administrar/layout.tsx` llama `getRoleUser()`.
-- El `Aside` filtra items de navegación por rol en `app/administrar/aside.tsx`.
-- El archivo `proxy.ts` también intenta proteger `/administrar` con un redirect si no hay usuario autenticado.
-
-Importante: hay una diferencia de modelo aquí:
-- `getRoleUser()` usa `user.user_metadata.role`
-- `proxy.ts` valida `data.user?.role === "authenticated"`
-Esto probablemente no está alineado y es una zona a revisar si aparece bug de permisos.
+- `proxy.ts` solo exige sesión en `/administrar` (`data.user.role === "authenticated"` es el rol JWT, no el de la app).
+- **Toda server action de `manager-and-admin` empieza con `if (!(await esStaff())) return …`** (`app/lib/auth.ts`) y toda página de staff redirige si el rol no es admin/manager. Las actions son endpoints POST públicos: ocultar el botón no protege nada.
+- RLS (migración `20260927200001_seguridad_rls_por_rol.sql`): `business.*` y `security.*` solo staff; datos del proveedor/mercado solo lectura (los escribe la Edge Function con service_role); el cliente solo ve su fila de rol/cliente y `business.catalogo_disponible` (vista con permisos del dueño, sin costos). El esquema viejo `main` quedó cerrado y fuera de la API (respaldo en `../playr-backups/main-2026-09-27/`).
 
 ## 7) Patrones de validación y server actions
 
@@ -180,9 +182,19 @@ El patrón esperado es recibir `FormData` o un objeto plano y devolver:
 ## 8) Dashboard y UI
 
 ### Panel principal
-- `app/administrar/page.tsx` decide si mostrar `ViewUser` o `ViewManagerAndAdmin` según el rol.
+- `app/administrar/(inicio)/page.tsx` es el Dashboard, solo para admin/manager. El cliente (rol `user`) no tiene Dashboard: su menú solo muestra **Tienda** y `/administrar` lo redirige a `/administrar/tienda` (pedido del usuario).
 - `app/administrar/view-manager-and-admin.tsx` representa el dashboard de administración con resumen de servicios.
-- `app/administrar/view-user.tsx` representa la vista del usuario final.
+
+### Dashboard (inicio, `/administrar`)
+- En el menú se llama **Dashboard** (la ruta sigue siendo `/administrar`).
+- Staff: Resumen de servicios + **Compras a proveedores** (`app/administrar/(inicio)/compras-card.tsx`), con el registro de compras guardado de Bodega (`getHistorialAction`, `business.historial_proveedor`). Si la última sincronización tiene más de 24 h, se sincroniza sola en segundo plano, igual que Bodega. Muestra rangos 30 días/90 días/12 meses/Todo (por día/semana/mes), indicadores (gastado vs. período anterior, pedidos, ticket promedio, mayor compra) y barras de gasto apiladas por **plataforma** (`plataformaDe()`, mismo criterio que `clasificar` del scraper, contra `business.platform`; COMBO = "Combos"; sin plataforma reconocida, el producto es su propio grupo con su nombre: nunca un grupo "Otras" sin identificar, pedido del usuario). La leyenda va dentro del gráfico y solo tiene nombre y color de cada plataforma (pedido del usuario: sin tabla); el tooltip detalla cada plataforma del período con sus productos y el precio del producto completo (nunca precio por pantalla); con el mouse (o un toque) sobre un tramo, ese tramo se resalta (los demás quedan atenuados pero visibles) y en el tooltip se resalta esa plataforma entre todas las del período. Colores: el **oficial de cada plataforma** (`COLOR_MARCA` en `compras-card.tsx`, pedido del usuario; Max aclarado para el fondo oscuro, Apple TV en blanco, Combos en amarillo); una plataforma sin color de marca toma el siguiente de la paleta categórica. Cada plataforma es su propia serie y siempre ocupa el mismo lugar en la pila (orden por gasto de todo el historial). El eje de dinero va de 0 a la barra más alta, sin margen extra (pedido del usuario). La agregación es pura y está en `app/lib/bodega/consumo.ts`: hora de Colombia, sin anulados. **Cada producto ya trae su precio completo** (un combo o una cuenta de 3 pantallas es UN producto con un solo precio; decisión del usuario 2026-10-03): `cantidad` del historial cuenta licencias entregadas, no productos, así que solo se muestra como "N pantallas" y nunca divide el precio. Las cuentas de una plataforma suman en esa plataforma; los combos (varias plataformas) en "Combos". El proveedor solo da el total del pedido, así que con un producto el precio es exacto y con varios (`preciosDe`) cada uno toma su precio de referencia (pedidos donde vino solo, el más cercano en el tiempo) y el resto va a los que no tienen; la suma de las líneas es siempre el total del pedido. En pantalla no se marca ningún precio como aproximado (pedido del usuario).
+- Staff: **Ganancia por compras** (`app/administrar/(inicio)/margen-card.tsx`, lógica pura `evolucionGanancia()` en `app/lib/bodega/margen.ts`), debajo de Compras a proveedores (una debajo de la otra, pedido del usuario). Selector de rango (`selector-rango.tsx`, el mismo de Compras a proveedores; las dos tarjetas arrancan en Todo). **Barras apiladas por período** (`gananciaPorPeriodo()`, mismos períodos que Compras vía `ejeDeTiempo()` de consumo.ts: día/semana/mes): abajo en naranja lo que pagamos, arriba en verde lo que ganamos, con el monto ganado escrito encima; la barra completa es el valor de venta (pedido del usuario: que se entienda cuál es la ganancia). Cada producto comprado al proveedor que corresponde a un producto activo del catálogo con `precio_venta` (misma plataforma + forma: pantalla/completa según el nombre del producto del proveedor; sin combos) suma lo pagado exacto (`preciosDe`: total del pedido si trae un producto, o `productos[].precio` leído del detalle del pedido si trae varios) y su precio de venta de hoy. Indicadores (sumas del rango): ganancia (con margen %), invertido (n.º de compras), valor de venta y ganancia por cada $1.000 invertidos; el tooltip lista las compras del período (pagado → venta). No hay registro de ventas a clientes: es la ganancia si cada compra se vende al precio del catálogo, no ventas reales.
+- Gráficos: Recharts envuelto al estilo shadcn/ui en `app/ui/chart.tsx` (`ChartContainer` + `ChartConfig`; cada serie se usa como `var(--color-<clave>)`; `marcasEje()` = marcas redondas del eje). No hay `components.json` ni `cn`: el componente se adaptó a mano al tema oscuro. Colores de marca de las plataformas en `app/lib/colores-plataforma.ts`.
+
+### Carga sin saltos (skeletons)
+- Cada ruta de `/administrar/*` tiene su `loading.tsx`, que renderiza **el mismo componente cliente** con los datos en `undefined` (= cargando): mismo marco, barra, filtros y filas (`SkeletonRows`/`SkeletonCards`/`SkeletonBar` de `app/ui/data-frame.tsx`, h-5 = una línea de text-sm). Nunca un esqueleto genérico.
+- El `PageHeader` de cada ruta vive en su `layout.tsx` (no en `page.tsx`), así no se repinta al llegar los datos.
+- El inicio está en el grupo `app/administrar/(inicio)/` para que su `loading.tsx` (que elige la vista por rol con `useRol()` de `dashboard-client.tsx`) no sea el fallback de las demás rutas.
 
 ### Tabla genérica
 El componente `app/ui/table.tsx` es central para CRUD en varias pantallas.
@@ -237,24 +249,12 @@ La normalización del teléfono se hace así:
 - Los nombres de archivos y componentes suelen estar en camelCase/pascalCase según el caso.
 - Las acciones del lado servidor llevan `"use server"` explícito.
 
-## 12) Estado real del proyecto (verificado)
+## 12) Estado real del proyecto (verificado 2026-09-27)
 
-Verifiqué esto con `pnpm lint`:
-
-- Resultado: falla con errores reales.
-- Conteo verificado: 11 errores y 4 warnings.
-
-Errores principales:
-- `app/ui/table.tsx`: uso de `any` en varios puntos y un problema de React hooks (`setState` directo en `useEffect`)
-- `app/action/manager-and-admin/customers/create-customer-action.ts`: `any`
-- `app/action/manager-and-admin/customers/edit-customer-action.ts`: `any`
-
-Warnings relevantes:
-- `delete-customer-action.ts` y `get-all-customers-action.ts`: variables `error` sin usar
-- `app/lib/supabase/middleware.ts`: `options` sin usar
-- `proxy.ts`: `error` asignado sin uso
-
-En resumen, el proyecto está funcionalmente en desarrollo y no está limpio de lint, así que cualquier cambio que se haga debería considerar este estado antes de cerrar tareas.
+- `pnpm lint`, `pnpm exec tsc --noEmit` y `pnpm build` pasan limpios. `supabase/functions/**` (Deno) está excluido de lint y de tsconfig; se prueba con `node supabase/functions/stock-price-watch/lib_test.ts`.
+- Auditoría de seguridad + UX aplicada (rama `fix/auditoria-seguridad-ux`): roles/RLS por rol (sección 6), headers de seguridad en `next.config.ts`, `error.tsx`/`loading.tsx`/`not-found.tsx`, títulos por ruta, accesibilidad de `Modal`/`SelectDropdown`/inputs.
+- Checks de `supabase/checks/` pasan (bodega_check ajustado a cuentas agrupadas por plataforma+correo). Si `db query --linked` da 401 (token vencido), correrlos con `psql` contra el pooler (puerto 5432) y la contraseña de la DB.
+- Pendiente de decidir: `registrar_licencias` no es idempotente en renovaciones (mismo correo+perfil, otro vencimiento: agrega el perfil otra vez sin guardar el vencimiento/clave nuevos) y agrupa Completa con Pantalla si comparten correo.
 
 ## 13) Sugerencias para trabajar sin perder contexto
 
@@ -285,16 +285,7 @@ Si se trabaja con este repo, conviene asumir que:
 
 ## 17) Sincronización automática del catálogo del proveedor (Edge Function + cron)
 
-`supabase/functions/stock-price-watch/` escanea tuproveedor2.com **sin navegador ni LLM** (login WordPress/Ultimate Member en `/login/` + paginación de `/tienda/` por HTTP plano) y sincroniza `business.*`: una fila en `extraction_run`, un `market_listing_snapshot` por producto y un `market_alert` por cada cambio (agotado / volvió stock / precio). No envía WhatsApp. Productos nuevos se insertan solos en `market_listing` (plataforma deducida por nombre; combos y no reconocidos quedan con `platform_id` null).
-
-- Cron: pg_cron job `stock-price-watch`, `*/30 * * * *` UTC (cada 30 min, en el :00 y el :30; 48 corridas al día; Colombia = UTC-5), creado por la migración `20260920120005_stock_watch_cron.sql` (originalmente cada 6 h) y cambiado a 30 min por `20260920170001_stock_watch_cron_30min.sql`. Llama a la función con pg_net y el header `x-cron-secret`.
-- Secrets de la función: `PLATFORM_URL`, `PLATFORM_STORE_PATH`, `PLATFORM_EMAIL`, `PLATFORM_PASSWORD`, `CRON_SECRET`. `CRON_SECRET` debe ser idéntico al secret `cron_secret` de Vault (si se rota uno, rotar el otro).
-- Desplegar siempre con `supabase functions deploy stock-price-watch --no-verify-jwt --project-ref tnwcnpzjlpophcqnqrxb`; sin `--no-verify-jwt` el cron recibe 401.
-- Identidad de producto = `clave()` en `lib.ts` (ignora mayúsculas, prefijo `z ` de combos, espacios y signos): el sitio y el seed difieren en eso. `lib.ts` es solo `fetch` + regex para poder probarlo fuera de Deno: `node supabase/functions/stock-price-watch/lib_test.ts`.
-- La función aborta sin escribir si el login falla, si los productos parseados no igualan el total publicado, o si el catálogo cae a menos de la mitad de la corrida anterior.
-- `market_alert.enviado_at` significa "momento de detección" (no hay envío). `extraction_run` solo guarda la fecha, no la hora.
-- Operación (ver estado, correr ya, pausar, cambiar horario): `Bobeda de Larry/Informe de productos/manual-tarea-diaria.md`.
-- Si una corrida falla (login, parseo, guardas, DB) deja un aviso `error` en la bandeja de notificaciones (sección 18). `?dry=1` nunca avisa.
+Detalle completo en `supabase/functions/stock-price-watch/CLAUDE.md` (se carga solo al trabajar en esa carpeta): cron cada 30 min, secrets, deploy con `--no-verify-jwt`, guardas y operación.
 
 ## 18) Notificaciones (campana + bandeja `business.notificacion`)
 
@@ -302,9 +293,9 @@ Bandeja de avisos **importantes** para admin/manager: fallas y advertencias del 
 
 - Tabla `business.notificacion`: `origen` (`scraping` | `plataforma`), `tipo` (`error` rojo | `advertencia` ámbar | `info` azul "Novedad" | `exito` verde "Disponible"; define color e icono), `titulo`, `mensaje`, `exist`, `created_at`. "Eliminar" = `exist=false` (soft-delete global, no por usuario): la fila queda en la DB y la UI no la muestra. Nadie hace DELETE ni INSERT directo (sin privilegio).
 - RLS: solo admin/manager leen y descartan (el rol `user` no ve nada). Único UPDATE permitido: `exist=false`.
-- Crear avisos siempre con `business.notificar(p_origen, p_tipo, p_titulo, p_mensaje)` (security definer): desde Next con `notificar()` de `app/lib/notify.ts` (nunca lanza), desde la Edge Function con `db.rpc("notificar", …)`. Descarta el aviso si ya hay uno idéntico (mismos 4 campos) sin eliminar, así una falla persistente no se acumula; si se elimina y la falla sigue, vuelve a avisar.
+- Crear avisos siempre con `business.notificar(p_origen, p_tipo, p_titulo, p_mensaje)` (security definer; solo inserta si llama staff o service_role, para un cliente no hace nada): desde Next con `notificar()` de `app/lib/notify.ts` (nunca lanza; usa la clave secreta si está, así avisa aunque la falla ocurra en una acción de cliente), desde la Edge Function con `db.rpc("notificar", …)`. Descarta el aviso si ya hay uno idéntico (mismos 4 campos) sin eliminar, así una falla persistente no se acumula; si se elimina y la falla sigue, vuelve a avisar.
 - Hoy emiten: `stock-price-watch` (corrida fallida, y los cambios del catálogo del proveedor en cada corrida: `advertencia` se agotó / `exito` volvió el stock (por producto = plataforma + Completa/Pantalla, hay stock si algún listing está disponible; los combos y no reconocidos cuentan cada uno por separado) y `info` productos nuevos; un aviso por tipo y corrida, nunca en la primera corrida; el detalle de todo cambio sigue en `market_alert`), el scraper de licencias de la app (`getLicenciasDisponiblesAction`, `createProductoAction`) y la Tienda (`getCatalogoDisponibleAction`).
-- UI: campana en `aside.tsx` (escritorio) y en el header móvil de `dashboard-client.tsx`; drawer lateral en `app/administrar/notificaciones.tsx` con buscador (sin tildes), filtros por tipo y origen, color por tipo y eliminar. Lee las 100 más recientes al cargar y al abrir (sin realtime).
+- UI: campana en `aside.tsx` (escritorio) y en el header móvil de `dashboard-client.tsx`; drawer lateral en `app/administrar/notificaciones.tsx` con buscador (sin tildes), filtro por tipo (sin filtro de origen: se muestran todos), color por tipo, eliminar una y "Limpiar todo" (confirmación en línea; `clearNotificacionesAction` hace soft-delete de todas hasta el id más nuevo cargado, así no borra lo que llegue mientras se confirma). Lee las 100 más recientes al cargar y al abrir (sin realtime).
 - Check ejecutable (RLS + dedupe; corre en una transacción con ROLLBACK y no deja filas): `supabase db query --linked -f supabase/checks/notificacion_check.sql`.
 
 ## 19) Inventario a demanda del proveedor
@@ -313,15 +304,6 @@ Bandeja de avisos **importantes** para admin/manager: fallas y advertencias del 
 
 ## 20) Bodega (compras al proveedor con el saldo de su monedero)
 
-`/administrar/bodega`, **solo admin/manager** (el rol `user` es redirigido y las server actions lo rechazan; RLS de `compra_proveedor` también). Muestra el **saldo real** del monedero (se lee de `/mi-cuenta/my-wallet/` en cada carga, nunca se guarda en la DB), los productos que el último escaneo del cron vio **en stock** (`market_listing_snapshot` del `extraction_run` más reciente) y permite **comprarlos**. Solo compra: la compra queda `pagada` con su número de pedido y aparece en el registro de compras; **no registra nada en el inventario** (decisión del usuario 2026-09-27: sin flujos de registro, botón «Registrar» ni estados de entrega). Misma tabla que Clientes (`app/ui/table.tsx`, que ganó las props opcionales `hideCreate`, `builtinActions` y `extraActions`).
+Detalle completo en `app/lib/bodega/CLAUDE.md` (se carga solo al trabajar en esa carpeta): alcance solo-compra, el sitio del proveedor, guardas de `comprar()`, DB, registro de compras, `BODEGA_SIMULAR` y verificación sin gastar.
 
-- Código: `app/lib/bodega/` (`entrega.ts` parseo puro de credenciales, lo usa Perfiles para la clave vigente · `proveedor.ts` cliente HTTP del sitio · `compra.ts` orquestador con todas las guardas · `db.ts` adaptador Supabase · `tipos.ts`/`schema.ts`), acciones en `app/action/manager-and-admin/bodega/`, UI en `app/administrar/bodega/`. `compra.ts` no importa Next ni supabase-js (todo entra por `deps`), así se prueba entero contra un proveedor simulado.
-- El sitio (verificado a mano el 2026-09-20): WooCommerce + TeraWallet. Único medio de pago = `wallet`. Buscar por nombre con un solo resultado **redirige (302) a la ficha**; la ficha trae el `id` (`name="add-to-cart"`), el precio y el stock máximo (`max` del input de cantidad). Agregar = `GET /tienda/?add-to-cart=ID&quantity=N`; el pedido se envía con `POST /?wc-ajax=checkout` (JSON `{result, redirect}`); el pedido queda "Completado" al instante y la entrega aparece en `/mi-cuenta/view-license-keys/` con el número de pedido de cada licencia. **El carrito es uno solo por cuenta y persistente.**
-- Guardas de `comprar()` (gasta plata real; ante la duda no paga): rol en el servidor · cantidad 1..`MAX_CANTIDAD`(10) · login en frío y producto/precio/stock/saldo **en vivo** (el precio que el manager confirmó debe ser el de ahora) · `iniciar_compra` (idempotencia por `request_id` + candado global: una sola compra `iniciada` a la vez) · el carrito debe estar **vacío** (no se toca lo ajeno) · el checkout debe mostrar exactamente ese ítem/cantidad/total, pago `wallet`, saldo suficiente y **ningún campo obligatorio extra** · máx. 60 s antes de pagar. Pago OK ⇒ `pagada` (estado final). Rechazo explícito del proveedor ⇒ `fallida`; respuesta dudosa (timeout, HTML) ⇒ `incierta` y **nunca se reintenta** el pago. Un error posterior al pago jamás se presenta como "no se pagó".
-- DB (migración `20260920190001_bodega.sql`): `business.compra_proveedor` (estados `iniciada|pagada|fallida|incierta` — `registrada`/`pendiente_registro` siguen en el enum pero Bodega ya no los usa; nadie escribe directo, solo `iniciar_compra`/`actualizar_compra`, `security definer` que exigen admin/manager con `business.es_staff()`). `registrar_licencias` (ya no la usa Bodega, solo `createProductoAction` en Productos) es atómica (todo o nada), cifra la clave (`pgp_sym_encrypt`, `ACCOUNT_ENC_KEY`), **no duplica** (clave natural plataforma+correo+perfil+vencimiento) y crea el `producto` que falte **sin `precio_venta`** (no sale en la Tienda hasta fijarlo en Productos; si estaba eliminado se revive también sin precio). `createProductoAction` usa la misma función (antes insertaba `profile.precio_venta`, columna que ya no existe, y no revisaba el error).
-- Registro de compras (arriba, junto a saldo y resumen): es **global**, todos los pedidos de la cuenta del proveedor (desde Bodega o a mano en el sitio), leídos en vivo por `getPedidosProveedorAction` → `leerPedidos()` (pagina `/mi-cuenta/orders/` y cruza con "Mis licencias" para saber los productos de cada pedido; no se guarda en la DB). Las compras fallidas/simuladas ya no se listan (no son pedidos); una `incierta` que sí se pagó aparece como pedido y además avisa en la campana. El Resumen muestra, en ese orden, gastado este mes, pedidos este mes (hora de Colombia, sin fallidos/cancelados/reembolsados) y disponibles para comprar.
-- Catálogo disponible: columna **Duración** leída del nombre del producto (`duracionDe()` en `app/lib/bodega/duracion.ts`: "3 MESES", "X2 MESES", "1 AÑO", "33 DIAS", "30 CREDITOS"; sin duración en el nombre = "1 mes", lo que duraron las cuentas ya entregadas) y filtros por plataforma y rango de precio fijo (`filtros-catalogo.tsx`, prop `filters` de la tabla genérica; cada opción lleva su conteo en una pastilla, `count` de `SelectDropdown`).
-- `BODEGA_SIMULAR=1` en el servidor (no lo controla el cliente): ejecuta todo el flujo contra el sitio real y **se detiene justo antes de pagar** (quita lo agregado; la compra queda `fallida` "Simulación"). Sirve para ensayar sin gastar.
-- Verificación sin gastar: `supabase db query --linked -f supabase/checks/bodega_check.sql` (permisos, idempotencia, candado, estados, registro; ROLLBACK, no deja filas; correrlo tras aplicar la migración). El flujo se probó contra un proveedor simulado con el marcado real (pago, rechazo, respuesta rota, doble envío, carrito ajeno, entrega tardía/irreconocible…) y las guardas de `comprar()` con mutation testing. **El POST de pago con dinero real nunca se ejecutó desde código**: la primera compra real la hace el manager desde el módulo.
-- Ojo: el rol `user` puede leer `market_listing*` directo por PostgREST (baseline "authenticated only" del proyecto; el costo del proveedor no es secreto para RLS) y varias actions viejas de `manager-and-admin` no verifican rol; las de Bodega sí. `pnpm build` falla por el tsconfig que incluye `supabase/functions/**` (Deno), preexistente.
-
+- Job nocturno del registro de compras: `jobs/historial-proveedor/` (servicio cron de Railway, `0 5 * * *` UTC = 00:00 Colombia; Node puro empaquetado con esbuild, sin Next). Variables y pasos de alta en su `README.md`. `jobs/**/dist/` está ignorado por git y por eslint.

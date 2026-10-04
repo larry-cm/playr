@@ -1,5 +1,6 @@
 "use server"
 
+import { esStaff } from "@lib/auth"
 import type { SimpleAccessType } from "@lib/access-type"
 
 export interface OfertaProveedorItem {
@@ -18,6 +19,8 @@ export interface OfertaProveedorItem {
  * su costo se calcula sumando el de cada ítem en vez de tipearlo a mano.
  */
 export async function getOfertaProveedorAction(): Promise<OfertaProveedorItem[]> {
+    if (!(await esStaff())) return []
+
     const { createSupabase } = await import("@lib/supabase/server")
     const supabase = await createSupabase()
     try {

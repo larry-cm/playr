@@ -5,30 +5,34 @@ import Card from "@ui/card"
 import { SectionHeader } from "@ui/page-header"
 import Button from "@ui/button"
 import { MessageCircle, CircleCheck } from "lucide-react"
-import { supabase } from "@lib/supabase/client"
+import { useSupabase } from "@/app/administrar/sesion-tab"
 
-const TELEFONO = "521234567890"
+/** Ancla de la tarjeta: el inicio del cliente enlaza aquí. */
+export const SOPORTE_ID = "soporte"
 
-export default function SoporteCard() {
+/**
+ * `telefonoAsesor`: número del asesor solo en dígitos (lo configura el admin en Ajustes; wa.me no acepta signos).
+ * "" = no configurado · undefined = la página aún carga (sin aviso de "no disponible" que luego desaparece).
+ */
+export default function SoporteCard({ telefonoAsesor }: Readonly<{ telefonoAsesor: string | undefined }>) {
+    const supabase = useSupabase()
     const [razon, setRazon] = useState("")
-    const [telefonoUsuario, setTelefonoUsuario] = useState<string | null>(null)
+    const [correo, setCorreo] = useState<string | null>(null)
 
+    // El correo va en el mensaje para que el asesor ubique al cliente sin preguntarle.
     useEffect(() => {
-        supabase.auth.getUser().then(({ data }) => {
-            const phone = data.user?.user_metadata?.telefono ?? null
-            setTelefonoUsuario(phone)
-        })
-    }, [])
+        supabase.auth.getUser().then(({ data }) => setCorreo(data.user?.email ?? null))
+    }, [supabase])
 
-    const telefono = telefonoUsuario ?? TELEFONO
-    const mensaje = `Razón de contacto: ${razon}\n\nCorreo del usuario: [----/new]`
-    const whatsappUrl = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`
-    const puedeEnviar = razon.trim().length > 0
+    const hayAsesor = !!telefonoAsesor
+    const mensaje = `Hola, necesito ayuda con mi cuenta de Playr.\n\nMotivo: ${razon.trim()}${correo ? `\n\nCorreo de mi cuenta: ${correo}` : ""}`
+    const whatsappUrl = `https://wa.me/${telefonoAsesor}?text=${encodeURIComponent(mensaje)}`
+    const puedeEnviar = hayAsesor && razon.trim().length > 0
 
     return (
         <Card className="h-full">
-            <div className="space-y-4">
-                <SectionHeader icon={MessageCircle} title="Contactar" />
+            <div id={SOPORTE_ID} className="scroll-mt-20 space-y-4">
+                <SectionHeader icon={MessageCircle} title="Contactar a soporte" />
 
                 <div className="space-y-2">
                     <p className="text-xs text-secondary font-medium">
@@ -36,11 +40,11 @@ export default function SoporteCard() {
                     </p>
                     <ul className="space-y-1.5">
                         <li className="flex items-start gap-2 text-xs text-secondary">
-                            <CircleCheck className="w-3.5 h-3.5 text-green-400 shrink-0 mt-0.5" />
+                            <CircleCheck className="w-3.5 h-3.5 text-green-400 shrink-0 mt-0.5" aria-hidden="true" />
                             Que la fecha del perfil no haya vencido
                         </li>
                         <li className="flex items-start gap-2 text-xs text-secondary">
-                            <CircleCheck className="w-3.5 h-3.5 text-green-400 shrink-0 mt-0.5" />
+                            <CircleCheck className="w-3.5 h-3.5 text-green-400 shrink-0 mt-0.5" aria-hidden="true" />
                             Que no hayas modificado contraseñas ni nombres de perfiles
                         </li>
                     </ul>
@@ -59,9 +63,16 @@ export default function SoporteCard() {
                         onChange={(e) => setRazon(e.target.value)}
                         placeholder="Describe brevemente tu motivo..."
                         rows={3}
-                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20 resize-none transition-colors"
+                        disabled={!hayAsesor}
+                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20 resize-none transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                     />
                 </div>
+
+                {telefonoAsesor === "" && (
+                    <p className="text-xs text-amber-400">
+                        El contacto por WhatsApp no está disponible en este momento. Inténtalo más tarde.
+                    </p>
+                )}
 
                 <Button
                     variant="primary"

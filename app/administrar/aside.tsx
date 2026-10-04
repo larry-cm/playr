@@ -1,11 +1,11 @@
 "use client"
 
-import { LayoutDashboard, LogOut, X, Store, Tag, Network, Monitor, Warehouse } from "lucide-react"
-import type { ReactNode } from "react"
+import { LayoutDashboard, LogOut, X, Store, Tag, Network, Monitor, Warehouse, Settings } from "lucide-react"
+import type { ReactNode, Ref } from "react"
 
 import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
-import { supabase } from "@lib/supabase/client"
+import { useRuta, useSupabase } from "@/app/administrar/sesion-tab"
 import logoPlayr from "@/public/favicon.svg"
 import Image from "next/image"
 
@@ -16,41 +16,59 @@ interface AsideProps {
     role: string;
     /** Campana de notificaciones (solo admin/manager). En móvil vive en el header, acá solo se muestra en escritorio. */
     bell?: ReactNode;
+    ref?: Ref<HTMLElement>;
+    /** En móvil, con el menú cerrado, lo saca del foco y del árbol de accesibilidad. */
+    inert?: boolean;
 }
 
 const navItems = [
-    { name: "Administrar", href: "/administrar", icon: LayoutDashboard, roles: ["admin", "manager", "user"] },
+    { name: "Dashboard", href: "/administrar", icon: LayoutDashboard, roles: ["admin", "manager"] },
     { name: "Productos", href: "/administrar/productos", icon: Tag, roles: ["admin", "manager"] },
     // Mismos iconos que el resumen de servicios del panel (view-manager-and-admin.tsx).
     { name: "Cuentas", href: "/administrar/cuentas", icon: Network, roles: ["admin", "manager"] },
     { name: "Perfiles", href: "/administrar/perfiles", icon: Monitor, roles: ["admin", "manager"] },
     { name: "Bodega", href: "/administrar/bodega", icon: Warehouse, roles: ["admin", "manager"] },
     { name: "Tienda", href: "/administrar/tienda", icon: Store, roles: ["user"] },
+    { name: "Ajustes", href: "/administrar/ajustes", icon: Settings, roles: ["admin"] },
 ]
-export default function Aside({ sidebarOpen, setSidebarOpen, role, bell }: AsideProps) {
+export default function Aside({ sidebarOpen, setSidebarOpen, role, bell, ref, inert }: AsideProps) {
     const pathname = usePathname()
     const router = useRouter()
+    const ruta = useRuta()
+    const supabase = useSupabase()
+    const actual = pathname
 
+    // El cliente solo tiene la Tienda: el logo lo lleva ahí.
+    const inicio = role === "user" ? "/administrar/tienda" : "/administrar"
     const filteredItems = navItems.filter(item => !item.roles || item.roles.includes(role))
+    // El cliente solo tiene la Tienda: en escritorio el menú es un riel de iconos para dejarle el ancho a los productos.
+    // En móvil sigue siendo el panel completo que se abre y cierra.
+    const compact = role === "user"
+    const rail = (cls: string) => (compact ? cls : "")
 
     return (
         <aside
+            ref={ref}
+            id="menu-lateral"
+            inert={inert}
             className={[
                 "fixed inset-y-0 left-0 z-50 w-64 flex flex-col bg-background border-r border-white/6 p-4",
+                rail("lg:w-18 lg:px-3"),
                 "transition-transform duration-300 ease-in-out",
                 "lg:static lg:translate-x-0",
                 sidebarOpen ? "translate-x-0" : "-translate-x-full",
             ].join(" ")}
         >
             {/* Logo */}
-            <div className="flex items-center justify-between px-2 py-3 mb-8">
-                <Link href="/administrar" className="flex items-center gap-2.5">
+            <div className={`flex items-center justify-between px-2 py-3 mb-8 ${rail("lg:justify-center lg:px-0")}`}>
+                <Link href={inicio} title={compact ? "Playr" : undefined} className="flex items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
                     <Image src={logoPlayr} width="28" height="28" alt="Playr" />
-                    <span className="text-xl font-bold tracking-tight text-white">Playr</span>
+                    <span className={`text-xl font-bold tracking-tight text-white ${rail("lg:sr-only")}`}>Playr</span>
                 </Link>
                 <button
                     onClick={() => setSidebarOpen(false)}
-                    className="lg:hidden p-1.5 rounded-lg hover:bg-white/5 transition-colors"
+                    type="button"
+                    className="lg:hidden p-3 -mr-2 rounded-lg hover:bg-white/5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                     aria-label="Cerrar menú"
                 >
                     <X className="w-4 h-4 text-secondary" />
@@ -62,19 +80,21 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role, bell }: Aside
             <nav className="flex-1 min-h-0 overflow-y-auto space-y-1">
                 {filteredItems.map((item) => {
                     const Icon = item.icon
-                    const isActive = pathname === item.href
+                    const isActive = actual === item.href
                     return (
                         <Link
                             key={item.href}
-                            href={item.href}
+                            href={ruta(item.href)}
                             onClick={() => setSidebarOpen(false)}
-                            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${isActive
+                            aria-current={isActive ? "page" : undefined}
+                            title={compact ? item.name : undefined}
+                            className={`flex items-center gap-3 px-3 py-3 lg:py-2.5 rounded-xl text-sm font-medium transition-all duration-200 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent ${rail("lg:justify-center lg:px-0")} ${isActive
                                 ? "bg-accent/10 border border-accent/20 text-accent"
                                 : "text-secondary border border-transparent hover:text-white hover:bg-white/5"
                                 }`}
                         >
                             <Icon className="w-4 h-4 shrink-0" />
-                            {item.name}
+                            <span className={rail("lg:sr-only")}>{item.name}</span>
                         </Link>
                     )
                 })}
@@ -84,13 +104,16 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role, bell }: Aside
             <div className="pt-4 mt-4 border-t border-white/6">
                 <button
                     onClick={async () => {
+                        // Borra la sesión de esta pestaña (su sessionStorage) y la cierra en Supabase.
                         await supabase.auth.signOut()
                         router.push("/")
                     }}
-                    className="flex items-center gap-3 px-3 py-2.5 w-full rounded-xl text-sm text-secondary hover:text-white hover:bg-white/5 transition-all duration-200"
+                    type="button"
+                    title={compact ? "Cerrar sesión" : undefined}
+                    className={`flex items-center gap-3 px-3 py-3 lg:py-2.5 w-full rounded-xl text-sm text-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent hover:text-white hover:bg-white/5 transition-all duration-200 ${rail("lg:justify-center lg:px-0")}`}
                 >
                     <LogOut className="w-4 h-4 shrink-0" />
-                    Cerrar sesión
+                    <span className={rail("lg:sr-only")}>Cerrar sesión</span>
                 </button>
             </div>
         </aside>

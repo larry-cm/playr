@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation"
+import { rutaServidor } from "@lib/supabase/server"
 import { getRoleUser } from "@action/get-role-action"
 import { getBodegaCatalogoAction } from "@action/manager-and-admin/bodega/get-bodega-action"
+import { getHistorialAction } from "@action/manager-and-admin/bodega/historial-action"
 import BodegaClient from "@/app/administrar/bodega/bodega-client"
-import PageHeader from "@ui/page-header"
 
 // Una compra abre sesión, verifica y paga en el proveedor (varias peticiones HTTP encadenadas): puede pasar del límite por
 // defecto de algunos hosts serverless. También cubre las server actions que se invocan desde esta página.
@@ -10,16 +11,12 @@ export const maxDuration = 60
 
 export default async function PageAdministrarBodega() {
     const role = await getRoleUser()
-    if (role !== "admin" && role !== "manager") redirect("/administrar")
+    if (role !== "admin" && role !== "manager") redirect(await rutaServidor("/administrar"))
 
-    // El catálogo sale de la base (rápido) y llega resuelto en el primer render; el saldo y el registro de pedidos se leen del
-    // sitio del proveedor (más lento) y los pide el cliente, así la página no espera por ellos.
-    const catalogo = await getBodegaCatalogoAction()
+    // Catálogo y registro de compras salen de la base (rápido, en paralelo: aquí son llamadas de servidor, no server actions
+    // encoladas) y llegan resueltos en el primer render. El saldo se lee del sitio del proveedor (lento) y lo pide el cliente,
+    // que después sincroniza el registro con el sitio solo si tiene más de un día.
+    const [catalogo, historial] = await Promise.all([getBodegaCatalogoAction(), getHistorialAction()])
 
-    return (
-        <section className="flex flex-col gap-4">
-            <PageHeader title="Bodega" description="Compra stock al proveedor con el saldo de su monedero." />
-            <BodegaClient initialCatalogo={catalogo} simulacion={process.env.BODEGA_SIMULAR === "1"} />
-        </section>
-    )
+    return <BodegaClient initialCatalogo={catalogo} initialHistorial={historial} simulacion={process.env.BODEGA_SIMULAR === "1"} />
 }

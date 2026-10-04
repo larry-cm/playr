@@ -501,5 +501,48 @@ export async function leerPedidos(s: Sesion, maxPaginas = 20): Promise<PedidoPro
         m.set(nombre, (m.get(nombre) ?? 0) + 1)
         porPedido.set(l.pedidoId, m)
     }
-    return pedidos.map((p) => ({ ...p, productos: [...(porPedido.get(p.id) ?? [])].map(([nombre, cantidad]) => ({ nombre, cantidad })) }))
+    const out: PedidoProveedor[] = pedidos.map((p) => ({ ...p, productos: [...(porPedido.get(p.id) ?? [])].map(([nombre, cantidad]) => ({ nombre, cantidad })) }))
+
+    // El detalle del pedido guarda cada artículo con el nombre que tenía al venderse y SU precio exacto. Se lee (uno tras otro,
+    // pocos pedidos) cuando hace falta:
+    //   * el proveedor borró el producto: "Mis licencias" lo muestra como "Producto #ID" y el nombre real sale del detalle;
+    //   * el pedido trae varios productos: "Mis pedidos" solo da el total, el precio de cada uno sale del detalle.
+    // Con un solo producto el total del pedido ya es su precio exacto: no se lee el detalle.
+    for (const p of out) {
+        const placeholder = p.productos.some((x) => PLACEHOLDER.test(x.nombre))
+        if (p.productos.length === 1 && !placeholder) continue
+        const articulos = parseArticulosPedido((await pagina(s, `/mi-cuenta/view-order/${p.id}/`)).html)
+        if (!articulos.length) continue
+        const conocidos = new Set(p.productos.map((x) => x.nombre))
+        const libres = articulos.filter((a) => !conocidos.has(a.nombre)).map((a) => a.nombre)
+        const productos = p.productos.length
+            ? p.productos.map((x) => (PLACEHOLDER.test(x.nombre) && libres.length ? { ...x, nombre: libres.shift() as string } : x))
+            : articulos.map((a) => ({ nombre: a.nombre, cantidad: 1 }))
+        const precioDe = new Map(articulos.map((a) => [a.nombre, a.total]))
+        p.productos = productos.map((x) => (precioDe.has(x.nombre) ? { ...x, precio: precioDe.get(x.nombre) } : x))
+        // el producto pudo cambiar de nombre después de la venta (el detalle guarda el de entonces): si queda uno solo sin
+        // emparejar de cada lado, es el mismo
+        const sinPrecio = p.productos.filter((x) => x.precio === undefined)
+        const usados = new Set(p.productos.map((x) => x.nombre))
+        const sobrantes = articulos.filter((a) => !usados.has(a.nombre))
+        if (sinPrecio.length === 1 && sobrantes.length === 1) sinPrecio[0].precio = sobrantes[0].total
+    }
+    return out
+}
+
+/** Nombre que pone WooCommerce cuando el producto de una licencia ya no existe. */
+const PLACEHOLDER = /^Producto #\d+$/i
+
+/**
+ * Artículos del detalle de un pedido ("Mi cuenta" > pedido): nombre (sin la cantidad "× 1") y total de la línea (lo pagado por
+ * ese artículo, cantidad incluida). Los artículos repetidos se suman.
+ */
+export function parseArticulosPedido(html: string): { nombre: string; total: number }[] {
+    const out = new Map<string, number>()
+    for (const m of html.matchAll(/<td[^>]*product-name[^>]*>([\s\S]*?)<\/td>\s*<td[^>]*product-total[^>]*>([\s\S]*?)<\/td>/gi)) {
+        // mismo nombre que en "Mis licencias": sin la cantidad y sin el "z " que el proveedor antepone a los combos
+        const nombre = limpiar(m[1].replace(/<strong[^>]*product-quantity[\s\S]*?<\/strong>/gi, "")).replace(/^z\s+(?=COMBO\b)/i, "")
+        if (nombre) out.set(nombre, (out.get(nombre) ?? 0) + parsePrecio(limpiar(m[2])))
+    }
+    return [...out].map(([nombre, total]) => ({ nombre, total }))
 }

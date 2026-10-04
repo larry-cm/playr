@@ -1,34 +1,10 @@
-import { createServerClient } from "@supabase/ssr"
-import { type NextRequest, NextResponse } from "next/server"
+import { createClient } from "@supabase/supabase-js"
 import { supabaseUrl, supabaseKey } from "@lib/const"
 
-export const createClient = (request: NextRequest) => {
-  let supabaseResponse = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  })
-
-  const supabase = createServerClient(
-    supabaseUrl!,
-    supabaseKey!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({
-            request,
-          })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          )
-        },
-      },
-    },
-  )
-
-  return { supabase, supabaseResponse }
-}
+// Cliente con el token de una pestaña (ver @lib/sesion-tab): la RLS ve a ese usuario.
+// Nunca refresca la sesión (eso lo hace la pestaña), así dos peticiones no se pisan el
+// refresh token. Sin next/headers: lo usa también proxy.ts.
+export const createSupabaseConToken = (token: string) => createClient(supabaseUrl!, supabaseKey!, {
+  global: { headers: { Authorization: `Bearer ${token}` } },
+  auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+})

@@ -56,3 +56,6 @@ supabase/.branches/
 
 # memoria local de engram
 .engram/
+
+# job nocturno de Railway: bundle de esbuild
+jobs/**/dist/

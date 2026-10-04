@@ -3,6 +3,7 @@
 import { getRoleUser } from "@action/get-role-action"
 import { bodegaDb } from "@lib/bodega/db"
 import { comprar } from "@lib/bodega/compra"
+import { fusionarHistorial } from "@lib/bodega/historial"
 import { cfgProveedor } from "@lib/bodega/proveedor"
 import { comprarSchema, firstErrorOfBodega } from "@lib/bodega/schema"
 import type { ResultadoCompraUI } from "@lib/bodega/tipos"
@@ -46,6 +47,27 @@ export async function comprarBodegaAction(formData: {
 
     if (!r.ok) return error(r.error, { estado: r.estado, precioActual: r.precioActual, saldo: r.saldo })
     if (r.simulado) return { ok: true, nivel: "info", mensaje: r.mensaje, saldo: r.saldo, simulado: true, estado: r.compra.estado }
+
+    // El pedido pagado entra ya al registro guardado, sin esperar a la sincronización con el sitio (que después lo corrige si
+    // hace falta). Si esto falla la compra igual se hizo: solo se avisa en la campana.
+    const pedido = r.compra.pedido_proveedor
+    if (pedido !== null) {
+        try {
+            const listing = await bodegaDb(supabase).listing(r.compra.listing_id)
+            const nombre = (listing?.nombre ?? `Producto ${r.compra.listing_id}`).replace(/^z\s+(?=COMBO\b)/i, "")
+            const cantidad = r.compra.cantidad
+            await fusionarHistorial(supabase, cfg, [{
+                id: pedido,
+                fecha: new Date().toISOString(),
+                estado: "Completado",
+                total: r.compra.total,
+                articulos: cantidad,
+                productos: [{ nombre, cantidad }],
+            }], false)
+        } catch (e) {
+            await notificar({ origen: "plataforma", tipo: "advertencia", titulo: `El pedido #${pedido} no se guardó en el registro de compras`, mensaje: e })
+        }
+    }
 
     const mensaje = ["Compra realizada.", r.mensaje, ...r.advertencias].join(" ")
     return { ok: true, nivel: r.advertencias.length > 0 ? "warning" : "success", mensaje, saldo: r.saldo, estado: r.compra.estado }

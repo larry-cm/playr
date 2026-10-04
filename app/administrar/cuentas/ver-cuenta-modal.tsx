@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useId, useState } from "react"
 import Link from "next/link"
+import { useRuta } from "@/app/administrar/sesion-tab"
 import { ArrowUpRight, ChevronDown } from "lucide-react"
 import Modal from "@ui/modal"
 import Button from "@ui/button"
@@ -15,12 +16,13 @@ import { formatCOP } from "@lib/currency"
 import { formatDateOnly } from "@lib/date"
 import { capitalizar } from "@lib/text"
 
-function Campo({ label, value, placeholder = "--", error }: Readonly<{ label: string; value: string; placeholder?: string; error?: string }>) {
+/** Campo de solo lectura con copiar. `secret`: la contraseña se ve oculta hasta pulsar "Mostrar". */
+function Campo({ label, value, placeholder = "--", error, secret = false }: Readonly<{ label: string; value: string; placeholder?: string; error?: string; secret?: boolean }>) {
+    const id = useId()
     return (
         <div className="flex flex-col gap-1">
-            <label className="text-xs text-secondary font-medium">{label}</label>
-            <CopyInput className="bg-white/3" value={value} placeholder={placeholder} readOnly copyLabel="Copiar" successLabel="Copiado" />
-            {error && <p className="text-xs text-red-400">{error}</p>}
+            <label htmlFor={id} className="text-xs text-secondary font-medium">{label}</label>
+            <CopyInput id={id} className="bg-white/3" value={value} placeholder={placeholder} readOnly secret={secret && value !== ""} copyLabel={`Copiar ${label.toLowerCase()}`} successLabel="Copiado" error={error} />
         </div>
     )
 }
@@ -59,7 +61,7 @@ function PerfilItem({ perfil, clave, abierto, onToggle }: Readonly<{ perfil: Per
             {abierto && (
                 <div className="grid grid-cols-1 gap-3 border-t border-white/8 px-4 py-3 sm:grid-cols-2">
                     <Campo label="Correo" value={perfil.email} />
-                    <Campo label="Contraseña" {...campoClave(clave)} />
+                    <Campo label="Contraseña" secret {...campoClave(clave)} />
                     <Campo label="Perfil" value={capitalizar(perfil.nombre_perfil)} />
                     <Campo label="PIN" value={perfil.pin ?? ""} />
                 </div>
@@ -78,6 +80,7 @@ interface VerCuentaModalProps {
  * abrir (el padre lo monta con key por cuenta, así cada apertura arranca limpia): la contraseña se lee en vivo del proveedor (tarda unos segundos) y es la misma para todos los perfiles de la cuenta.
  */
 export default function VerCuentaModal({ cuenta, onClose }: Readonly<VerCuentaModalProps>) {
+    const ruta = useRuta()
     const [perfiles, setPerfiles] = useState<PerfilDeCuenta[] | null | "cargando">("cargando")
     const [clave, setClave] = useState<ClavePerfil | "cargando">("cargando")
     const [clavesPerfil, setClavesPerfil] = useState<Record<number, ClavePerfil> | "cargando">("cargando")
@@ -123,6 +126,7 @@ export default function VerCuentaModal({ cuenta, onClose }: Readonly<VerCuentaMo
                         <Campo label="Correo" value={cuenta.email} />
                         <Campo
                             label="Contraseña"
+                            secret
                             value={clave !== "cargando" && clave.ok ? clave.password : ""}
                             placeholder={clave === "cargando" ? "Consultando al proveedor..." : "--"}
                             error={clave !== "cargando" && !clave.ok ? clave.error : undefined}
@@ -146,7 +150,7 @@ export default function VerCuentaModal({ cuenta, onClose }: Readonly<VerCuentaMo
                                     </button>
                                 )}
                                 <Link
-                                    href={`/administrar/perfiles?cuenta=${cuenta.id}`}
+                                    href={ruta(`/administrar/perfiles?cuenta=${cuenta.id}`)}
                                     className="group inline-flex items-center gap-1 text-secondary transition hover:text-accent"
                                 >
                                     Abrir en Perfiles

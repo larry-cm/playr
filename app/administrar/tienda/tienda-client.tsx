@@ -1,39 +1,45 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useTransition } from "react"
+import { useRouter } from "next/navigation"
 import Card from "@ui/card"
 import Button from "@ui/button"
 import { SearchInput } from "@ui/data-frame"
-import Select from "@ui/select"
-import { AlertCircle, MessageCircle } from "lucide-react"
+import { AlertCircle, MessageCircle, RefreshCw } from "lucide-react"
 import ProductGrid from "@/app/administrar/tienda/product-grid"
+import { FiltrosActivos, FiltrosCompactos, FiltrosPanel, SIN_FILTRO, hayFiltro, pasaFiltroTienda, type FiltroTienda } from "@/app/administrar/tienda/tienda-filtros"
+import { TIPO_ACCESO } from "@/app/administrar/tienda/product-card"
 import type { CatalogoDisponibleItem } from "@action/tienda/get-catalogo-disponible-action"
 import { formatCOP } from "@lib/currency"
-import { whatsappAdvisorNumber } from "@lib/const"
 
-export default function TiendaClient({ initialCatalogo }: { initialCatalogo: CatalogoDisponibleItem[] | null }) {
-    const [catalogo] = useState<CatalogoDisponibleItem[] | null>(initialCatalogo)
+interface TiendaClientProps {
+    /** undefined = la página aún carga (loading.tsx) · null = error */
+    initialCatalogo: CatalogoDisponibleItem[] | null | undefined
+    /** Número del asesor solo en dígitos (lo configura el admin en Ajustes). "" = no configurado · undefined = aún carga. */
+    telefonoAsesor: string | undefined
+}
+
+export default function TiendaClient({ initialCatalogo, telefonoAsesor }: TiendaClientProps) {
+    const router = useRouter()
+    const [reintentando, startReintento] = useTransition()
+    // Sin copia en estado: tras "Reintentar" (router.refresh) llega el catálogo nuevo por props.
+    const catalogo = initialCatalogo
     const [search, setSearch] = useState("")
-    const [categoria, setCategoria] = useState("")
+    const [filtro, setFiltro] = useState<FiltroTienda>(SIN_FILTRO)
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
 
-    const categorias = useMemo(() => {
-        if (!catalogo) return []
-        return Array.from(new Set(catalogo.map((item) => item.categoria))).sort()
-    }, [catalogo])
-
-    const visibleItems = useMemo(() => {
+    // Primero el buscador; sobre lo que queda, los filtros cuentan cuántos productos dejaría cada opción.
+    const porBusqueda = useMemo(() => {
         if (!catalogo) return []
         const term = search.trim().toLowerCase()
-        return catalogo.filter((item) => {
-            const matchesSearch =
-                term.length === 0 ||
-                item.perfil_nombre.toLowerCase().includes(term) ||
-                item.platform_nombre.toLowerCase().includes(term)
-            const matchesCategoria = categoria.length === 0 || item.categoria === categoria
-            return matchesSearch && matchesCategoria
-        })
-    }, [catalogo, search, categoria])
+        if (term.length === 0) return catalogo
+        return catalogo.filter((item) =>
+            item.perfil_nombre.toLowerCase().includes(term) ||
+            item.platform_nombre.toLowerCase().includes(term) ||
+            TIPO_ACCESO[item.access_type].toLowerCase().includes(term))
+    }, [catalogo, search])
+
+    const visibleItems = useMemo(() => porBusqueda.filter((item) => pasaFiltroTienda(item, filtro)), [porBusqueda, filtro])
 
     const selectedItems = useMemo(() => {
         if (!catalogo) return []
@@ -51,15 +57,15 @@ export default function TiendaClient({ initialCatalogo }: { initialCatalogo: Cat
         })
     }
 
-    const puedeEnviar = selectedItems.length > 0
+    const hayAsesor = !!telefonoAsesor
+    const puedeEnviar = selectedItems.length > 0 && hayAsesor
 
     const lineasSeleccion = selectedItems
-        .map((item, i) => `${i + 1}. ${item.platform_nombre} - ${item.perfil_nombre} - ${formatCOP(item.precio_venta)}`)
+        .map((item, i) => `${i + 1}. ${item.platform_nombre} - ${TIPO_ACCESO[item.access_type]} - ${item.perfil_nombre} - ${formatCOP(item.precio_venta)}`)
         .join("\n")
 
     const mensaje = `Hola, quiero contratar estos perfiles:\n\n${lineasSeleccion}\n\nTotal: ${formatCOP(total)}`
 
-    const telefonoAsesor = (whatsappAdvisorNumber ?? "").replace(/\D/g, "")
     const whatsappUrl = `https://wa.me/${telefonoAsesor}?text=${encodeURIComponent(mensaje)}`
 
     if (catalogo === null) {
@@ -72,50 +78,69 @@ export default function TiendaClient({ initialCatalogo }: { initialCatalogo: Cat
                     Error al cargar la tienda
                 </h3>
                 <p className="text-sm text-white/60 max-w-md">
-                    Tuvimos un problema al obtener la información. Por favor intenta de nuevo más tarde o verifica la conexión.
+                    Tuvimos un problema al obtener la información. Verifica la conexión e inténtalo de nuevo.
                 </p>
+                <Button variant="secondary" className="mt-4" isLoading={reintentando} onClick={() => startReintento(() => router.refresh())} leftIcon={<RefreshCw className="h-4 w-4" />}>
+                    Reintentar
+                </Button>
             </Card>
         )
     }
 
     return (
-        <div className="flex flex-col gap-4">
-            <div className="flex flex-col sm:flex-row gap-3">
-                {/* Mismo buscador que las tablas del panel. El Input de formularios reserva espacio para mensajes y descuadraba la fila. */}
-                <SearchInput value={search} onChange={setSearch} placeholder="Buscar por perfil o plataforma..." className="flex-1" />
-                <div className="sm:w-56">
-                    <Select
-                        placeholder="Todas las categorías"
-                        value={categoria}
-                        onChange={(e) => setCategoria(e.target.value)}
-                        options={categorias.map((c) => ({ value: c, label: c }))}
-                    />
+        // Escritorio (xl): panel de filtros fijo a la izquierda y los productos a la derecha. Debajo de xl, filtros compactos arriba.
+        <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[17rem_minmax(0,1fr)] xl:items-start xl:gap-6">
+            <aside aria-label="Filtros" className="hidden xl:sticky xl:top-0 xl:block xl:max-h-[calc(100dvh-4rem)] xl:overflow-y-auto xl:rounded-2xl xl:[scrollbar-width:thin]">
+                <Card padding="p-5">
+                    <FiltrosPanel todos={catalogo} base={porBusqueda} value={filtro} onChange={setFiltro} />
+                </Card>
+            </aside>
+
+            <div className="flex min-w-0 flex-col gap-4">
+                <Card padding="p-4 sm:p-6" className="flex flex-col gap-4 xl:hidden">
+                    {/* Mismo buscador que las tablas del panel. El Input de formularios reserva espacio para mensajes y descuadraba la fila. */}
+                    <SearchInput value={search} onChange={setSearch} placeholder="Buscar por perfil o plataforma..." className="w-full" />
+                    <FiltrosCompactos todos={catalogo} base={porBusqueda} visibles={visibleItems.length} value={filtro} onChange={setFiltro} />
+                </Card>
+
+                <div className="hidden flex-col gap-3 xl:flex">
+                    <SearchInput value={search} onChange={setSearch} placeholder="Buscar por perfil o plataforma..." className="w-full" />
+                    <FiltrosActivos todos={catalogo} visibles={visibleItems.length} value={filtro} onChange={setFiltro} />
                 </div>
+
+                <ProductGrid
+                    items={catalogo === undefined ? undefined : visibleItems}
+                    selectedIds={selectedIds}
+                    onToggle={toggleSelected}
+                    onLimpiar={search || hayFiltro(filtro) ? () => { setSearch(""); setFiltro(SIN_FILTRO) } : undefined}
+                />
+
+                <Card className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="text-sm text-secondary">
+                        <p aria-live="polite">
+                            {selectedItems.length} seleccionados · Total: <span className="text-white font-semibold">{formatCOP(total)}</span>
+                        </p>
+                        {telefonoAsesor === "" && (
+                            <p className="mt-1 text-xs text-amber-400">
+                                Los pedidos por WhatsApp no están disponibles en este momento. Contacta a soporte desde el inicio.
+                            </p>
+                        )}
+                    </div>
+                    <Button
+                        variant="primary"
+                        disabled={!puedeEnviar}
+                        title={telefonoAsesor === "" ? "No hay un número de asesor configurado" : undefined}
+                        leftIcon={<MessageCircle className="w-4 h-4" />}
+                        onClick={() => {
+                            if (puedeEnviar) {
+                                window.open(whatsappUrl, "_blank", "noopener,noreferrer")
+                            }
+                        }}
+                    >
+                        Pedir por WhatsApp
+                    </Button>
+                </Card>
             </div>
-
-            <ProductGrid
-                items={visibleItems}
-                selectedIds={selectedIds}
-                onToggle={toggleSelected}
-            />
-
-            <Card className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                <p className="text-sm text-secondary">
-                    {selectedItems.length} seleccionados · Total: <span className="text-white font-semibold">{formatCOP(total)}</span>
-                </p>
-                <Button
-                    variant="primary"
-                    disabled={!puedeEnviar}
-                    leftIcon={<MessageCircle className="w-4 h-4" />}
-                    onClick={() => {
-                        if (puedeEnviar) {
-                            window.open(whatsappUrl, "_blank", "noopener,noreferrer")
-                        }
-                    }}
-                >
-                    Pedir por WhatsApp
-                </Button>
-            </Card>
         </div>
     )
 }

@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react"
 import Table from "@ui/table"
-import type { MutationResult } from "@ui/table"
+import type { CreateField, MutationResult } from "@ui/table"
 import Card from "@ui/card"
-import { AlertCircle } from "lucide-react"
+import Button from "@ui/button"
+import { AlertCircle, RefreshCw } from "lucide-react"
+import { validatePassword } from "@lib/validation"
 import { getAllCustomersAction } from "@action/manager-and-admin/customers/get-all-customers-action"
 import { editCustomerAction } from "@action/manager-and-admin/customers/edit-customer-action"
 import { deleteCustomerAction } from "@action/manager-and-admin/customers/delete-customer-action"
@@ -12,11 +14,22 @@ import { createCustomerAction } from "@action/manager-and-admin/customers/create
 
 type CustomerRow = Record<string, unknown>
 
-export default function TableClient() {
+// Referencia fija: la tabla adopta los datos nuevos cuando cambia la referencia de `data`.
+const SIN_FILAS: CustomerRow[] = []
+
+interface TableClientProps {
+    /** Solo un admin puede crear managers y administradores; un manager solo crea clientes. */
+    esAdmin: boolean
+    /** Solo el esqueleto (loading.tsx): la tabla queda cargando y no se piden los clientes. */
+    esqueleto?: boolean
+}
+
+export default function TableClient({ esAdmin, esqueleto = false }: Readonly<TableClientProps>) {
     // undefined = cargando · null = error · array = datos listos
     const [customers, setCustomers] = useState<CustomerRow[] | null | undefined>(undefined)
 
     useEffect(() => {
+        if (esqueleto) return
         let active = true
         getAllCustomersAction().then((rows) => {
             if (active) setCustomers(rows)
@@ -24,7 +37,34 @@ export default function TableClient() {
         return () => {
             active = false
         }
-    }, [])
+    }, [esqueleto])
+
+    const reintentar = () => {
+        setCustomers(undefined)
+        getAllCustomersAction()
+            .then(setCustomers)
+            .catch(() => setCustomers(null))
+    }
+
+    // Se piden solo al crear. La server action los lee como formData["Contraseña"] y formData["Rol"].
+    const createFields: CreateField[] = [
+        {
+            key: "Contraseña",
+            label: "Contraseña",
+            type: "password",
+            validate: validatePassword,
+            hint: "Entre 6 y 20 caracteres, con mayúscula, minúscula y un carácter especial (@$!%*?&).",
+        },
+        {
+            key: "Rol",
+            label: "Rol",
+            type: "select",
+            options: [
+                { value: "user", label: "Cliente" },
+                ...(esAdmin ? [{ value: "manager", label: "Manager" }, { value: "admin", label: "Administrador" }] : []),
+            ],
+        },
+    ]
 
     const saveEditCustomer = async (formData: CustomerRow): Promise<MutationResult<CustomerRow>> => {
         const error = await editCustomerAction({
@@ -32,7 +72,6 @@ export default function TableClient() {
             email: formData["Correo"],
             name: formData["Nombre"],
             phone: formData["Teléfono"],
-            createAt: formData["Fecha de Creación"]
         })
         if (error) return { ok: false, error }
         return { ok: true }
@@ -60,8 +99,11 @@ export default function TableClient() {
                     Error al cargar los clientes
                 </h3>
                 <p className="text-sm text-white/60 max-w-md">
-                    Tuvimos un problema al obtener la información. Por favor intenta de nuevo más tarde o verifica la conexión.
+                    Tuvimos un problema al obtener la información. Verifica la conexión e inténtalo de nuevo.
                 </p>
+                <Button variant="secondary" className="mt-4" onClick={reintentar} leftIcon={<RefreshCw className="h-4 w-4" />}>
+                    Reintentar
+                </Button>
             </Card>
         )
     }
@@ -71,9 +113,11 @@ export default function TableClient() {
             {/* La fecha la genera la base de datos: se muestra, pero no se edita ni se pide al crear. */}
             <Table
                 header={["Nombre", "Correo", "Teléfono", "Fecha de Creación"]}
-                data={customers ?? []}
+                data={customers ?? SIN_FILAS}
                 loading={customers === undefined}
                 readOnlyColumns={["Fecha de Creación"]}
+                entityName="cliente"
+                createFields={createFields}
                 onEditSave={saveEditCustomer}
                 onDelete={deleteCustomer}
                 onCreateSave={createCustomer} />

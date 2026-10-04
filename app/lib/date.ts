@@ -28,3 +28,26 @@ export function formatColombianDate(dateString: string): string {
         return "error"
     }
 }
+
+/**
+ * Instante (timestamptz / ISO con zona) -> "dd/mm/aaaa, hh:mm" en hora de Colombia (24 h), sin depender de la zona del
+ * servidor ni del navegador. "--" si no es una fecha válida.
+ */
+export function formatColombianDateTime(value: string): string {
+    const date = new Date(value)
+    if (isNaN(date.getTime())) return "--"
+    const parts = Object.fromEntries(
+        new Intl.DateTimeFormat("es-CO", {
+            timeZone: "America/Bogota",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            hourCycle: "h23",
+        })
+            .formatToParts(date)
+            .map((p) => [p.type, p.value]),
+    )
+    return `${parts.day}/${parts.month}/${parts.year}, ${parts.hour}:${parts.minute}`
+}

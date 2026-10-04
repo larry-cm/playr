@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Bell, CircleAlert, PackageCheck, PackagePlus, RefreshCw, Search, Trash2, TriangleAlert, X } from "lucide-react"
 import Alert from "@ui/alert"
+import Button from "@ui/button"
 import Input from "@ui/input"
 import { getNotificacionesAction } from "@action/manager-and-admin/notificaciones/get-notificaciones-action"
 import type { NotificacionRow } from "@action/manager-and-admin/notificaciones/get-notificaciones-action"
 import { deleteNotificacionAction } from "@action/manager-and-admin/notificaciones/delete-notificacion-action"
+import { clearNotificacionesAction } from "@action/manager-and-admin/notificaciones/clear-notificaciones-action"
 
 type Tipo = NotificacionRow["tipo"]
 type Origen = NotificacionRow["origen"]
@@ -139,9 +141,20 @@ export function useNotificaciones(enabled: boolean, pollMs = POLL_MS, leer = get
         return error
     }
 
+    const clear = async () => {
+        const hastaId = items.reduce((m, n) => Math.max(m, n.id), 0)
+        if (!hastaId) return null
+        const error = await clearNotificacionesAction({ hastaId })
+        if (!error) {
+            items.forEach((n) => eliminadas.current.add(n.id))
+            setItems((prev) => prev.filter((n) => n.id > hastaId))
+        }
+        return error
+    }
+
     const sinVer = items.filter((n) => n.id > visto).length
 
-    return { items, sinVer, isOpen, open, close, remove, refresh: cargar }
+    return { items, sinVer, isOpen, open, close, remove, clear, refresh: cargar }
 }
 
 export function NotificacionesBell({ count, onClick }: { count: number; onClick: () => void }) {
@@ -149,12 +162,12 @@ export function NotificacionesBell({ count, onClick }: { count: number; onClick:
         <button
             type="button"
             onClick={onClick}
-            className="relative p-2 rounded-xl hover:bg-white/5 transition-colors"
+            className="relative p-3 lg:p-2 rounded-xl hover:bg-white/5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             aria-label={count > 0 ? `Notificaciones (${count} sin ver)` : "Notificaciones"}
         >
             <Bell className="w-5 h-5 text-secondary" />
             {count > 0 && (
-                <span className="absolute top-0.5 right-0.5 min-w-4 h-4 px-1 rounded-full bg-accent text-[10px] leading-4 font-semibold text-white text-center">
+                <span className="absolute top-1.5 right-1.5 lg:top-0.5 lg:right-0.5 min-w-4 h-4 px-1 rounded-full bg-accent text-[10px] leading-4 font-semibold text-white text-center">
                     {count > 99 ? "99+" : count}
                 </span>
             )}
@@ -203,16 +216,19 @@ interface DrawerProps {
     onClose: () => void
     /** Devuelve el mensaje de error, o null si se eliminó. */
     onDelete: (id: number) => Promise<string | null>
+    /** Elimina toda la bandeja. Devuelve el mensaje de error, o null si se limpió. */
+    onClear: () => Promise<string | null>
     /** Relee la bandeja. Devuelve false si falló. */
     onRefresh: () => Promise<boolean>
 }
 
-export default function NotificacionesDrawer({ open, items, onClose, onDelete, onRefresh }: DrawerProps) {
+export default function NotificacionesDrawer({ open, items, onClose, onDelete, onClear, onRefresh }: DrawerProps) {
     const [search, setSearch] = useState("")
     const [tipo, setTipo] = useState<Tipo | "">("")
-    const [origen, setOrigen] = useState<Origen | "">("")
     const [deletingId, setDeletingId] = useState<number | null>(null)
     const [refreshing, setRefreshing] = useState(false)
+    const [confirmClear, setConfirmClear] = useState(false)
+    const [clearing, setClearing] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const searchRef = useRef<HTMLInputElement>(null)
 
@@ -228,6 +244,7 @@ export default function NotificacionesDrawer({ open, items, onClose, onDelete, o
         return () => {
             document.removeEventListener("keydown", onKey)
             document.body.style.overflow = ""
+            setConfirmClear(false)
             previo?.focus()
         }
     }, [open, onClose])
@@ -238,10 +255,9 @@ export default function NotificacionesDrawer({ open, items, onClose, onDelete, o
             items.filter(
                 (n) =>
                     (!tipo || n.tipo === tipo) &&
-                    (!origen || n.origen === origen) &&
                     (!term || plano(n.titulo).includes(term) || plano(n.mensaje).includes(term)),
             ),
-        [items, tipo, origen, term],
+        [items, tipo, term],
     )
 
     const actualizar = async () => {
@@ -258,6 +274,16 @@ export default function NotificacionesDrawer({ open, items, onClose, onDelete, o
         const err = await onDelete(id)
         setDeletingId(null)
         if (err) setError(err)
+    }
+
+    const limpiar = async () => {
+        setClearing(true)
+        setError(null)
+        const err = await onClear()
+        setClearing(false)
+        setConfirmClear(false)
+        if (err) setError(err)
+        else searchRef.current?.focus({ preventScroll: true }) // el pie desaparece: el foco no puede quedar en el aire
     }
 
     return (
@@ -321,15 +347,6 @@ export default function NotificacionesDrawer({ open, items, onClose, onDelete, o
                             { value: "exito", label: "Disponibles" },
                         ]}
                     />
-                    <FilterRow
-                        label="Origen"
-                        value={origen}
-                        onChange={setOrigen}
-                        options={[
-                            { value: "scraping", label: "Scraping" },
-                            { value: "plataforma", label: "Plataforma" },
-                        ]}
-                    />
                 </div>
 
                 {/* fuera del área con scroll: si la lista está scrolleada el error no puede quedar fuera de vista */}
@@ -387,6 +404,55 @@ export default function NotificacionesDrawer({ open, items, onClose, onDelete, o
                         </ul>
                     )}
                 </div>
+
+                {/* Pie fijo: "Limpiar todo" borra la bandeja entera (no solo lo filtrado). Confirmación en el mismo pie y no con
+                    <Modal>: el modal (z-50) quedaría debajo del drawer (z-60). */}
+                {items.length > 0 && (
+                    <footer
+                        className={`shrink-0 border-t px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-colors ${confirmClear ? "border-red-500/20 bg-red-500/5" : "border-white/6"}`}
+                    >
+                        {confirmClear ? (
+                            <div
+                                role="alertdialog"
+                                aria-labelledby="limpiar-titulo"
+                                aria-describedby="limpiar-desc"
+                                className="flex flex-col gap-3"
+                                // ESC cancela la confirmación sin cerrar el drawer (su listener está en document)
+                                onKeyDown={(e) => {
+                                    if (e.key !== "Escape" || clearing) return
+                                    e.stopPropagation()
+                                    setConfirmClear(false)
+                                }}
+                            >
+                                <div className="flex items-start gap-3">
+                                    <TriangleAlert className="mt-0.5 w-5 h-5 shrink-0 text-red-400" aria-hidden="true" />
+                                    <div>
+                                        <p id="limpiar-titulo" className="text-sm font-medium text-white">
+                                            ¿Estás seguro de eliminar todas las notificaciones?
+                                        </p>
+                                        <p id="limpiar-desc" className="mt-0.5 text-xs text-secondary">
+                                            {items.length === 1
+                                                ? "Se borrará la notificación de la bandeja y no podrás recuperarla."
+                                                : `Se borrarán las ${items.length} notificaciones de la bandeja y no podrás recuperarlas.`}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <Button variant="secondary" onClick={() => setConfirmClear(false)} disabled={clearing} autoFocus>
+                                        Cancelar
+                                    </Button>
+                                    <Button variant="danger" onClick={limpiar} isLoading={clearing}>
+                                        Eliminar todas
+                                    </Button>
+                                </div>
+                            </div>
+                        ) : (
+                            <Button variant="ghost" className="w-full" leftIcon={<Trash2 className="w-4 h-4" />} onClick={() => setConfirmClear(true)}>
+                                Limpiar todo
+                            </Button>
+                        )}
+                    </footer>
+                )}
             </div>
         </div>
     )

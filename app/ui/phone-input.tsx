@@ -2,12 +2,13 @@
 import { countries, getCountryByCode } from "@lib/countries"
 import { TriangleAlert, Phone } from "lucide-react"
 import SelectDropdown from "@ui/select-dropdown"
-import type { ChangeEvent } from "react"
+import { useId, type ChangeEvent } from "react"
 import type { ValidationState } from "@ui/input"
 
 const countryOptions = countries.map((c) => ({
   value: c.code,
   label: "",
+  srLabel: `${c.country} (${c.code})`,
   icon: <span className="leading-none">{c.flag}</span>,
 }))
 
@@ -24,6 +25,10 @@ const textByValidation: Record<ValidationState, string> = {
 }
 
 interface PhoneInputProps {
+  id?: string;
+  /** name del campo del número (el indicativo siempre va como "celular_codigo"). */
+  name?: string;
+  autoComplete?: string;
   codeValue?: string;
   numberValue?: string;
   onCodeChange?: (value: string) => void;
@@ -31,14 +36,20 @@ interface PhoneInputProps {
   onBlur?: React.FocusEventHandler<HTMLInputElement>;
   codeError?: string | string[];
   numberError?: string | string[];
+  /** Ayuda neutra bajo el campo (sin ícono de advertencia). */
   message?: string | string[];
   label?: string;
+  /** Nombre accesible del número cuando no hay `label` visible. */
+  ariaLabel?: string;
   numberPlaceholder?: string;
   required?: boolean;
   validation?: ValidationState;
 }
 
 export default function PhoneInput({
+  id,
+  name = "celular_numero",
+  autoComplete = "tel-national",
   codeValue = "+57",
   numberValue = "",
   onCodeChange,
@@ -47,11 +58,15 @@ export default function PhoneInput({
   codeError,
   numberError,
   label = "Celular",
+  ariaLabel,
   numberPlaceholder = "123 456 7890",
   required,
   message,
   validation,
 }: PhoneInputProps) {
+  const autoId = useId()
+  const inputId = id ?? autoId
+  const messagesId = `${inputId}-mensajes`
   const country = getCountryByCode(codeValue)
   const maxDigits = country?.maxDigits ?? 10
 
@@ -71,9 +86,10 @@ export default function PhoneInput({
     ...(Array.isArray(numberError) ? numberError : numberError ? [numberError] : []),
   ]
 
-  const validationState = validation ?? "idle"
+  const isError = allErrors.length > 0
+  const validationState = isError ? "invalid" : validation ?? "idle"
   const textClass = textByValidation[validationState]
-  const messages = allErrors.length > 0
+  const messages = isError
     ? allErrors
     : message
       ? Array.isArray(message)
@@ -84,13 +100,14 @@ export default function PhoneInput({
   return (
     <div className="flex flex-col gap-1.5">
       {label && (
-        <label className="text-sm font-medium text-secondary">{label}{required && <span className="text-accent ml-0.5">*</span>}</label>
+        <label htmlFor={inputId} className="text-sm font-medium text-secondary">{label}{required && <span className="text-accent ml-0.5" aria-hidden="true">*</span>}</label>
       )}
       <div className="flex gap-2">
         <div className="w-18 shrink-0">
           <SelectDropdown
             options={countryOptions}
             value={codeValue}
+            ariaLabel={`País: ${country?.country ?? codeValue}`}
             onChange={(val) => {
               onCodeChange?.(val)
               const newCountry = getCountryByCode(val)
@@ -112,24 +129,31 @@ export default function PhoneInput({
 
         <div className="relative flex-1">
           <div className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none shrink-0">
-            <Phone className="w-4 h-4" />
+            <Phone className="w-4 h-4" aria-hidden="true" />
           </div>
           <input
-            name="celular_numero"
+            id={inputId}
+            name={name}
             type="tel"
+            inputMode="numeric"
+            autoComplete={autoComplete}
             value={numberValue}
             onChange={handleNumberChange}
             onBlur={onBlur}
             placeholder={numberPlaceholder}
             maxLength={maxDigits}
-            className={`w-full bg-white/5 border rounded-xl py-2.5 pl-10 pr-3.5 text-sm text-white placeholder-muted outline-none transition-all duration-200 focus:border-accent focus:ring-1 focus:ring-accent/40 ${borderByValidation[validation ?? "idle"]}`}
+            aria-label={label ? undefined : ariaLabel ?? "Número de celular"}
+            aria-required={required || undefined}
+            aria-invalid={isError || validation === "invalid" || undefined}
+            aria-describedby={messages.length > 0 ? messagesId : undefined}
+            className={`w-full bg-white/5 border rounded-xl py-2.5 pl-10 pr-3.5 text-sm text-white placeholder-muted outline-none transition-all duration-200 focus:border-accent focus:ring-1 focus:ring-accent/40 ${borderByValidation[validationState]}`}
           />
         </div>
       </div>
-      <div className="flex flex-col gap-0.5 mt-0.5 min-h-5">
+      <div id={messagesId} className="flex flex-col gap-0.5 mt-0.5 min-h-5">
         {messages.map((msg, i) => (
           <p key={i} className={`${textClass} text-xs flex items-center gap-1`}>
-            <TriangleAlert className="w-3 h-3 shrink-0" />
+            {isError && <TriangleAlert className="w-3 h-3 shrink-0" aria-hidden="true" />}
             {msg}
           </p>
         ))}

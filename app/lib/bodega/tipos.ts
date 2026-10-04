@@ -20,9 +20,19 @@ export interface BodegaProducto {
 
 export interface BodegaCatalogo {
     productos: BodegaProducto[]
-    /** Fecha (YYYY-MM-DD) del escaneo del que salen los productos. El cron solo guarda la fecha, no la hora. */
+    /** Fecha (YYYY-MM-DD, día de Colombia) del escaneo del que salen los productos. */
     escaneo: string | null
+    /** Momento exacto (ISO) de ese escaneo; null en las corridas anteriores a la migración 20260927210001 (solo se sabe la fecha). */
+    escaneoEn: string | null
 }
+
+/**
+ * Lectura EN VIVO del proveedor al abrir el modal de compra (solo lectura: no toca el carrito). stock: 0 = agotado ahora;
+ * null = hay stock pero el sitio no informa cuántas unidades.
+ */
+export type ConsultaEnVivo =
+    | { ok: true; precio: number; stock: number | null; saldo: number; leidoEn: string }
+    | { ok: false; error: string }
 
 /** Un pedido de la cuenta del proveedor, se haya hecho desde Bodega o a mano en su sitio. */
 export interface PedidoProveedor {
@@ -33,8 +43,21 @@ export interface PedidoProveedor {
     estado: string
     total: number
     articulos: number
-    /** Productos del pedido (de "Mis licencias"), sin repetir. Vacío si el pedido no tiene licencias. */
-    productos: { nombre: string; cantidad: number }[]
+    /**
+     * Productos del pedido (de "Mis licencias"), sin repetir. Vacío si el pedido no tiene licencias. `cantidad` = licencias
+     * entregadas. `precio` = lo pagado exacto por ese producto, del detalle del pedido (solo en pedidos con varios productos; con
+     * uno, su precio es el total del pedido).
+     */
+    productos: { nombre: string; cantidad: number; precio?: number }[]
+    /** Lo calcula la base al guardarlo: "plataforma" = compra hecha desde Bodega · "proveedor" = hecho a mano en el sitio. */
+    origen?: "plataforma" | "proveedor"
+}
+
+/** Registro de compras guardado en la base para la cuenta del proveedor configurada. */
+export interface HistorialProveedor {
+    pedidos: PedidoProveedor[]
+    /** ISO de la última sincronización completa con el sitio; null = nunca se sincronizó. */
+    sincronizadoEn: string | null
 }
 
 export interface SaldoProveedor {

@@ -98,13 +98,13 @@ export default function FiltrosCatalogo({ items, value, onChange, mobile }: Read
     return (
         <div className={mobile ? "grid grid-cols-2 gap-3" : "flex items-center gap-3"}>
             <div className={mobile ? "min-w-0" : "w-56"}>
-                <SelectDropdown options={plataformas} value={value.plataforma} onChange={(plataforma) => onChange({ ...value, plataforma })} />
+                <SelectDropdown ariaLabel="Filtrar por plataforma" options={plataformas} value={value.plataforma} onChange={(plataforma) => onChange({ ...value, plataforma })} />
             </div>
             <div className={mobile ? "min-w-0" : "w-52"}>
-                <SelectDropdown options={precios} value={value.precio} onChange={(precio) => onChange({ ...value, precio })} />
+                <SelectDropdown ariaLabel="Filtrar por precio" options={precios} value={value.precio} onChange={(precio) => onChange({ ...value, precio })} />
             </div>
             <div className={mobile ? "min-w-0" : "w-48"}>
-                <SelectDropdown options={duraciones} value={value.duracion} onChange={(duracion) => onChange({ ...value, duracion })} />
+                <SelectDropdown ariaLabel="Filtrar por duración" options={duraciones} value={value.duracion} onChange={(duracion) => onChange({ ...value, duracion })} />
             </div>
             {activo && (
                 <button

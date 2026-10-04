@@ -1,5 +1,6 @@
 "use server"
 
+import { esStaff } from "@lib/auth"
 import type { AccessType, SimpleAccessType } from "@lib/access-type"
 
 export interface ProductoComboItem {
@@ -32,6 +33,8 @@ type ComboItemEmbed = {
 }
 
 export async function getAllProductosAction(): Promise<ProductoRow[] | null> {
+    if (!(await esStaff())) return null
+
     const { createSupabase } = await import("@lib/supabase/server")
     const supabase = await createSupabase()
     try {

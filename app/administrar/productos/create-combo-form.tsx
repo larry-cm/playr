@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import Input from "@ui/input"
 import SelectDropdown from "@ui/select-dropdown"
 import Button from "@ui/button"
@@ -14,6 +14,8 @@ import { formatCOP } from "@lib/currency"
 const ofertaKey = (o: { platform_id: number; access_type: string }) => `${o.platform_id}:${o.access_type}`
 
 interface ItemDraft {
+    /** Id local estable de la fila (no el índice): al quitar una fila, las demás conservan su estado y su foco. */
+    uid: number
     key: string
     cantidad: string
 }
@@ -35,7 +37,8 @@ interface CreateComboFormProps {
 export default function CreateComboForm({ oferta, isPending, onPendingChange, onSuccess, onError, onCancel }: CreateComboFormProps) {
     const [nombre, setNombre] = useState("")
     const [precioVenta, setPrecioVenta] = useState("")
-    const [items, setItems] = useState<ItemDraft[]>([{ key: "", cantidad: "1" }, { key: "", cantidad: "1" }])
+    const [items, setItems] = useState<ItemDraft[]>([{ uid: 0, key: "", cantidad: "1" }, { uid: 1, key: "", cantidad: "1" }])
+    const nextUid = useRef(2)
 
     const ofertaByKey = new Map(oferta.map((o) => [ofertaKey(o), o]))
     const elegidas = items.map((item) => ofertaByKey.get(item.key)).filter((o) => o !== undefined)
@@ -62,7 +65,10 @@ export default function CreateComboForm({ oferta, isPending, onPendingChange, on
     const setItem = (index: number, patch: Partial<ItemDraft>) =>
         setItems((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)))
 
-    const addItem = () => setItems((prev) => [...prev, { key: "", cantidad: "1" }])
+    const addItem = () => {
+        const uid = nextUid.current++
+        setItems((prev) => [...prev, { uid, key: "", cantidad: "1" }])
+    }
     const removeItem = (index: number) => setItems((prev) => prev.filter((_, i) => i !== index))
 
     const submit = async () => {
@@ -94,7 +100,7 @@ export default function CreateComboForm({ oferta, isPending, onPendingChange, on
                         cantidad: item.cantidad,
                     }
                 }),
-        })
+        }).catch(() => "No se pudo crear el combo. Inténtalo de nuevo.")
         onPendingChange(false)
 
         if (typeof result === "string") {
@@ -108,10 +114,11 @@ export default function CreateComboForm({ oferta, isPending, onPendingChange, on
         <>
             <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
-                    <label className="text-xs text-secondary font-medium">
-                        Nombre del combo<span className="text-accent ml-0.5">*</span>
+                    <label htmlFor="crear-combo-nombre" className="text-xs text-secondary font-medium">
+                        Nombre del combo<span className="text-accent ml-0.5" aria-hidden="true">*</span>
                     </label>
                     <Input
+                        id="crear-combo-nombre"
                         className="bg-white/3"
                         value={nombre}
                         onChange={(e) => setNombre(e.target.value)}
@@ -130,9 +137,10 @@ export default function CreateComboForm({ oferta, isPending, onPendingChange, on
                         </p>
                     )}
                     {items.map((item, index) => (
-                        <div key={index} className="flex items-start gap-2">
+                        <div key={item.uid} className="flex items-start gap-2">
                             <div className="flex-1 min-w-0">
                                 <SelectDropdown
+                                    ariaLabel={`Plataforma ${index + 1}`}
                                     placeholder="Selecciona una plataforma"
                                     value={item.key}
                                     onChange={(value) => setItem(index, { key: value })}
@@ -143,7 +151,7 @@ export default function CreateComboForm({ oferta, isPending, onPendingChange, on
                                 type="number"
                                 min="1"
                                 max="20"
-                                aria-label="Cantidad"
+                                aria-label={`Cantidad de la plataforma ${index + 1}`}
                                 value={item.cantidad}
                                 onChange={(e) => setItem(index, { cantidad: e.target.value })}
                                 className="w-20 shrink-0 rounded-xl border border-white/10 bg-white/5 py-2.5 px-3 text-sm text-white outline-none transition focus:border-accent focus:ring-1 focus:ring-accent/40"
@@ -152,7 +160,7 @@ export default function CreateComboForm({ oferta, isPending, onPendingChange, on
                                 type="button"
                                 onClick={() => removeItem(index)}
                                 disabled={items.length <= 2}
-                                aria-label="Quitar"
+                                aria-label={`Quitar la plataforma ${index + 1}`}
                                 title="Quitar"
                                 className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-red-400/20 bg-red-500/10 text-red-400 transition-all duration-200 hover:border-red-400/30 hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-40"
                             >
@@ -178,15 +186,16 @@ export default function CreateComboForm({ oferta, isPending, onPendingChange, on
                 </div>
 
                 <div className="flex flex-col gap-1">
-                    <label className="text-xs text-secondary font-medium">
-                        Precio de venta<span className="text-accent ml-0.5">*</span>
+                    <label htmlFor="crear-combo-precio" className="text-xs text-secondary font-medium">
+                        Precio de venta<span className="text-accent ml-0.5" aria-hidden="true">*</span>
                     </label>
                     <Input
+                        id="crear-combo-precio"
                         className="bg-white/3"
-                        type="number"
-                        min="0"
+                        type="text"
+                        inputMode="numeric"
                         value={precioVenta}
-                        onChange={(e) => setPrecioVenta(e.target.value)}
+                        onChange={(e) => setPrecioVenta(e.target.value.replace(/\D/g, ""))}
                         required
                     />
                 </div>

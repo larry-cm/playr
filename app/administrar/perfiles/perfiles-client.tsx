@@ -1,16 +1,18 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
+import { useRuta } from "@/app/administrar/sesion-tab"
 import Card from "@ui/card"
 import Button from "@ui/button"
 import Input from "@ui/input"
 import CopyInput from "@ui/copy-input"
+import PasswordInput from "@ui/password-input"
 import SelectDropdown from "@ui/select-dropdown"
 import Modal from "@ui/modal"
 import Alert from "@ui/alert"
-import { AlertCircle, Eye, Pencil, Trash2 } from "lucide-react"
-import { ActionsCell, ActionsTh, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, TableFrame, Td, Th } from "@ui/data-frame"
+import { AlertCircle, Eye, Pencil, RefreshCw, Trash2 } from "lucide-react"
+import { ActionsCell, ActionsTh, EmptyRow, IconAction, MobileAction, MobileCard, MobileEmpty, MobileFrame, ROW_CLASS, SearchInput, SkeletonCards, SkeletonRows, TableFrame, Td, Th } from "@ui/data-frame"
 import type { PerfilRow } from "@action/manager-and-admin/perfiles/get-all-perfiles-action"
 import { editPerfilAction } from "@action/manager-and-admin/perfiles/edit-perfil-action"
 import { deletePerfilAction } from "@action/manager-and-admin/perfiles/delete-perfil-action"
@@ -27,17 +29,30 @@ const estadoOptions = (Object.keys(estadoLabel) as PerfilRow["estado"][]).map((v
     label: estadoLabel[value],
 }))
 
+const COLUMNAS = ["Plataforma", "Correo", "Perfil", "Estado", "Vencimiento"]
+
 interface PerfilesClientProps {
-    initialPerfiles: PerfilRow[] | null
+    /** undefined = la página aún carga (loading.tsx) · null = error */
+    initialPerfiles: PerfilRow[] | null | undefined
     /** Cuenta con la que abre el filtro de correo (viene de Cuentas → "Ver perfiles"); null = todas. */
     initialCuentaId?: number | null
 }
 
 export default function PerfilesClient({ initialPerfiles, initialCuentaId = null }: PerfilesClientProps) {
+    const ruta = useRuta()
     const router = useRouter()
-    const [perfiles, setPerfiles] = useState<PerfilRow[] | null>(initialPerfiles)
+    const [perfiles, setPerfiles] = useState<PerfilRow[] | null | undefined>(initialPerfiles)
+    // Cuando el servidor manda datos nuevos (Reintentar, o el revalidatePath de una acción) mandan esos.
+    const [prevInitial, setPrevInitial] = useState(initialPerfiles)
+    if (initialPerfiles !== prevInitial) {
+        setPrevInitial(initialPerfiles)
+        setPerfiles(initialPerfiles)
+    }
     const [alert, setAlert] = useState<{ variant: "success" | "error"; message: string } | null>(null)
+    /** Error de la operación del modal abierto: se muestra dentro del modal, no detrás del fondo. */
+    const [modalError, setModalError] = useState<string | null>(null)
     const [isPending, setIsPending] = useState(false)
+    const [reintentando, startReintento] = useTransition()
 
     const [editingId, setEditingId] = useState<number | null>(null)
     const [editEstado, setEditEstado] = useState<PerfilRow["estado"]>("disponible")
@@ -62,10 +77,12 @@ export default function PerfilesClient({ initialPerfiles, initialCuentaId = null
         )
     }, [perfiles, search, filtro])
 
-    // La URL refleja la cuenta elegida: así el enlace de Cuentas y un recargo abren con el mismo filtro de correo.
+    // La URL refleja la cuenta elegida: así el enlace de Cuentas y un recargo abren con el mismo filtro de correo. Todos los
+    // perfiles ya están cargados y se filtran aquí, así que basta con reescribir la URL (history.replaceState, que Next
+    // integra con su router) sin router.replace, que volvería a renderizar la página en el servidor.
     const cambiarFiltro = (nuevo: Filtro) => {
         if (nuevo.cuenta !== filtro.cuenta) {
-            router.replace(nuevo.cuenta ? `/administrar/perfiles?cuenta=${nuevo.cuenta}` : "/administrar/perfiles", { scroll: false })
+            window.history.replaceState(null, "", ruta(nuevo.cuenta ? `/administrar/perfiles?cuenta=${nuevo.cuenta}` : "/administrar/perfiles"))
         }
         setFiltro(nuevo)
     }
@@ -103,7 +120,18 @@ export default function PerfilesClient({ initialPerfiles, initialCuentaId = null
         void cargarClave(row)
     }
 
+    const openDelete = (id: number) => {
+        setModalError(null)
+        setDeletingId(id)
+    }
+
+    const cancelDelete = () => {
+        setDeletingId(null)
+        setModalError(null)
+    }
+
     const openEdit = (row: PerfilRow) => {
+        setModalError(null)
         setEditingId(row.id)
         setEditEstado(row.estado)
         setEditNombre(row.nombre_perfil)
@@ -113,8 +141,13 @@ export default function PerfilesClient({ initialPerfiles, initialCuentaId = null
         void cargarClave(row)
     }
 
-    const cancelEdit = () => setEditingId(null)
+    const cancelEdit = () => {
+        setEditingId(null)
+        setModalError(null)
+    }
 
+    // Editar y eliminar actualizan la tabla en local, sin router.refresh(): las acciones ya revalidan Cuentas y la Tienda
+    // (revalidatePath), que es donde importa el estado del perfil.
     const saveEdit = async () => {
         if (editingId === null || isPending) return
         const id = editingId
@@ -125,12 +158,14 @@ export default function PerfilesClient({ initialPerfiles, initialCuentaId = null
         const email = editEmail.trim().toLowerCase()
 
         setIsPending(true)
+        setModalError(null)
         setAlert(null)
         const error = await editPerfilAction({ id, estado: editEstado, nombre_perfil: editNombre, pin: editPin, email, password })
+            .catch(() => "No se pudo guardar el perfil. Inténtalo de nuevo.")
         setIsPending(false)
 
         if (error) {
-            setAlert({ variant: "error", message: error })
+            setModalError(error)
             return
         }
 
@@ -145,26 +180,25 @@ export default function PerfilesClient({ initialPerfiles, initialCuentaId = null
         if (password !== undefined) setClaves((prev) => ({ ...prev, [row.id]: { ok: true, password } }))
         setAlert({ variant: "success", message: "Perfil actualizado correctamente." })
         setEditingId(null)
-        // El estado decide si el perfil sigue en la Tienda: refrescar los server components.
-        router.refresh()
     }
 
     const confirmDelete = async () => {
         if (deletingId === null || isPending) return
+        const id = deletingId
         setIsPending(true)
+        setModalError(null)
         setAlert(null)
-        const error = await deletePerfilAction({ id: deletingId })
+        const error = await deletePerfilAction({ id }).catch(() => "No se pudo eliminar el perfil. Inténtalo de nuevo.")
         setIsPending(false)
 
         if (error) {
-            setAlert({ variant: "error", message: error })
+            setModalError(error)
             return
         }
 
-        setPerfiles((prev) => (prev ?? []).filter((row) => row.id !== deletingId))
+        setPerfiles((prev) => (prev ?? []).filter((row) => row.id !== id))
         setAlert({ variant: "success", message: "Perfil eliminado correctamente." })
         setDeletingId(null)
-        router.refresh()
     }
 
     if (perfiles === null) {
@@ -175,8 +209,11 @@ export default function PerfilesClient({ initialPerfiles, initialCuentaId = null
                 </div>
                 <h3 className="text-lg font-semibold text-white mb-1">Error al cargar los perfiles</h3>
                 <p className="text-sm text-white/60 max-w-md">
-                    Tuvimos un problema al obtener la información. Por favor intenta de nuevo más tarde o verifica la conexión.
+                    Tuvimos un problema al obtener la información. Verifica la conexión e inténtalo de nuevo.
                 </p>
+                <Button variant="secondary" className="mt-4" isLoading={reintentando} onClick={() => startReintento(() => router.refresh())} leftIcon={<RefreshCw className="h-4 w-4" />}>
+                    Reintentar
+                </Button>
             </Card>
         )
     }
@@ -184,14 +221,14 @@ export default function PerfilesClient({ initialPerfiles, initialCuentaId = null
     return (
         <div className="flex flex-col gap-4">
             {alert && (
-                <Alert variant={alert.variant} message={alert.message} onDismiss={() => setAlert(null)} />
+                <Alert variant={alert.variant} message={alert.message} onDismiss={() => setAlert(null)} autoDismissMs={alert.variant === "success" ? 5000 : undefined} />
             )}
 
             {/* Marco, densidad y alto compartidos con el resto de tablas del panel (app/ui/data-frame.tsx). */}
             <TableFrame toolbar={toolbar(false)}>
                 <thead>
                     <tr>
-                        {["Plataforma", "Correo", "Perfil", "Estado", "Vencimiento"].map((column) => (
+                        {COLUMNAS.map((column) => (
                             <Th key={column}>{column}</Th>
                         ))}
                         <ActionsTh />
@@ -199,7 +236,9 @@ export default function PerfilesClient({ initialPerfiles, initialCuentaId = null
                 </thead>
 
                 <tbody>
-                    {filteredPerfiles.length === 0 ? (
+                    {perfiles === undefined ? (
+                        <SkeletonRows columns={COLUMNAS.length} actions={3} />
+                    ) : filteredPerfiles.length === 0 ? (
                         <EmptyRow colSpan={6}>{perfiles?.length ? "Ningún perfil coincide con la búsqueda o los filtros." : "No hay perfiles comprados todavía."}</EmptyRow>
                     ) : (
                         filteredPerfiles.map((row) => (
@@ -213,9 +252,9 @@ export default function PerfilesClient({ initialPerfiles, initialCuentaId = null
                                 </Td>
                                 <Td className="whitespace-nowrap">{formatDateOnly(row.fecha_vencimiento)}</Td>
                                 <ActionsCell>
-                                    <IconAction icon={Eye} label="Ver" onClick={() => openView(row)} />
-                                    <IconAction icon={Pencil} label="Editar" onClick={() => openEdit(row)} />
-                                    <IconAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => setDeletingId(row.id)} />
+                                    <IconAction icon={Eye} label={`Ver perfil ${capitalizar(row.nombre_perfil)} de ${capitalizar(row.platform_nombre)}`} title="Ver" onClick={() => openView(row)} />
+                                    <IconAction icon={Pencil} label={`Editar perfil ${capitalizar(row.nombre_perfil)} de ${capitalizar(row.platform_nombre)}`} title="Editar" onClick={() => openEdit(row)} />
+                                    <IconAction icon={Trash2} label={`Eliminar perfil ${capitalizar(row.nombre_perfil)} de ${capitalizar(row.platform_nombre)}`} title="Eliminar" tone="danger" onClick={() => openDelete(row.id)} />
                                 </ActionsCell>
                             </tr>
                         ))
@@ -224,7 +263,9 @@ export default function PerfilesClient({ initialPerfiles, initialCuentaId = null
             </TableFrame>
 
             <MobileFrame toolbar={toolbar(true)}>
-                {filteredPerfiles.length === 0 ? (
+                {perfiles === undefined ? (
+                    <SkeletonCards labels={COLUMNAS} actions={3} />
+                ) : filteredPerfiles.length === 0 ? (
                     <MobileEmpty>{perfiles?.length ? "Ningún perfil coincide con la búsqueda o los filtros." : "No hay perfiles comprados todavía."}</MobileEmpty>
                 ) : (
                     filteredPerfiles.map((row) => (
@@ -241,7 +282,7 @@ export default function PerfilesClient({ initialPerfiles, initialCuentaId = null
                                 <>
                                     <MobileAction icon={Eye} label="Ver" onClick={() => openView(row)} />
                                     <MobileAction icon={Pencil} label="Editar" onClick={() => openEdit(row)} />
-                                    <MobileAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => setDeletingId(row.id)} />
+                                    <MobileAction icon={Trash2} label="Eliminar" tone="danger" onClick={() => openDelete(row.id)} />
                                 </>
                             }
                         />
@@ -260,11 +301,21 @@ export default function PerfilesClient({ initialPerfiles, initialCuentaId = null
                             ["Contraseña", campoClave(viewingRow).value, campoClave(viewingRow).placeholder, campoClave(viewingRow).error],
                             ["Estado", estadoLabel[viewingRow.estado]],
                             ["Vencimiento", formatDateOnly(viewingRow.fecha_vencimiento)],
-                        ].map(([label, value, placeholder = "--", error]) => (
+                        ].map(([label, value, placeholder = "--", error], i) => (
                             <div key={label} className="flex flex-col gap-1">
-                                <label className="text-xs text-secondary font-medium">{label}</label>
-                                <CopyInput className="bg-white/3" value={value ?? ""} placeholder={placeholder} readOnly copyLabel="Copiar" successLabel="Copiado" />
-                                {error && <p className="text-xs text-red-400">{error}</p>}
+                                <label htmlFor={`ver-perfil-${i}`} className="text-xs text-secondary font-medium">{label}</label>
+                                {/* La contraseña se ve oculta hasta pulsar "Mostrar"; copiar copia el valor real. */}
+                                <CopyInput
+                                    id={`ver-perfil-${i}`}
+                                    className="bg-white/3"
+                                    value={value ?? ""}
+                                    placeholder={placeholder}
+                                    readOnly
+                                    secret={label === "Contraseña" && Boolean(value)}
+                                    copyLabel={`Copiar ${label?.toLowerCase()}`}
+                                    successLabel="Copiado"
+                                    error={error}
+                                />
                             </div>
                         ))}
 
@@ -275,40 +326,47 @@ export default function PerfilesClient({ initialPerfiles, initialCuentaId = null
                 )}
             </Modal>
 
-            <Modal isOpen={editingId !== null} title="Editar perfil" onClose={cancelEdit}>
+            <Modal isOpen={editingId !== null} title="Editar perfil" onClose={cancelEdit} dismissible={!isPending}>
                 {editingRow && (
                     <div className="flex flex-col gap-3">
+                        {modalError && <Alert variant="error" message={modalError} />}
                         <div className="flex flex-col gap-1">
                             <label className="text-xs text-secondary font-medium">Plataforma</label>
                             <Input className="bg-white/3 cursor-not-allowed opacity-60" value={`${capitalizar(editingRow.platform_nombre)} · ${accessTypeLabel[editingRow.access_type]}`} disabled />
                         </div>
                         <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">Correo</label>
-                            <Input className="bg-white/3" type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
+                            <label htmlFor="editar-perfil-correo" className="text-xs text-secondary font-medium">Correo</label>
+                            <Input id="editar-perfil-correo" className="bg-white/3" type="email" autoComplete="off" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
                         </div>
                         <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">Contraseña</label>
-                            <Input
-                                className="bg-white/3"
+                            <label htmlFor="editar-perfil-clave" className="text-xs text-secondary font-medium">Contraseña</label>
+                            {/* Oculta por defecto, con botón para mostrarla. */}
+                            <PasswordInput
+                                id="editar-perfil-clave"
+                                name="clave-perfil"
+                                label=""
+                                autoComplete="off"
                                 value={editPassword ?? campoClave(editingRow).value}
                                 placeholder={campoClave(editingRow).placeholder}
                                 onChange={(e) => setEditPassword(e.target.value)}
+                                error={editPassword === null ? campoClave(editingRow).error : undefined}
                             />
-                            {campoClave(editingRow).error && editPassword === null && <p className="text-xs text-red-400">{campoClave(editingRow).error}</p>}
                         </div>
                         {/* Correo y contraseña propios de este perfil (app/lib/claves.ts): no tocan a los demás de la cuenta. */}
                         <p className="-mt-1 text-xs text-secondary">Mientras no los edites, el correo es el de la cuenta y la contraseña la del proveedor; al editarlos quedan solo para este perfil.</p>
                         <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">Nombre del perfil</label>
-                            <Input className="bg-white/3" value={editNombre} onChange={(e) => setEditNombre(e.target.value)} />
+                            <label htmlFor="editar-perfil-nombre" className="text-xs text-secondary font-medium">Nombre del perfil</label>
+                            <Input id="editar-perfil-nombre" className="bg-white/3" value={editNombre} onChange={(e) => setEditNombre(e.target.value)} />
                         </div>
                         <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">PIN</label>
-                            <Input className="bg-white/3" inputMode="numeric" value={editPin} onChange={(e) => setEditPin(e.target.value.replace(/\D/g, ""))} placeholder="Sin PIN" />
+                            <label htmlFor="editar-perfil-pin" className="text-xs text-secondary font-medium">PIN</label>
+                            <Input id="editar-perfil-pin" className="bg-white/3" inputMode="numeric" autoComplete="off" value={editPin} onChange={(e) => setEditPin(e.target.value.replace(/\D/g, ""))} placeholder="Sin PIN" />
                         </div>
                         <div className="flex flex-col gap-1">
-                            <label className="text-xs text-secondary font-medium">Estado</label>
+                            <label htmlFor="editar-perfil-estado" className="text-xs text-secondary font-medium">Estado</label>
                             <SelectDropdown
+                                id="editar-perfil-estado"
+                                ariaLabel="Estado"
                                 value={editEstado}
                                 onChange={(value) => setEditEstado(value as PerfilRow["estado"])}
                                 options={estadoOptions}
@@ -318,7 +376,7 @@ export default function PerfilesClient({ initialPerfiles, initialCuentaId = null
 
                         <div className="flex items-center justify-end gap-2 mt-2">
                             <Button variant="ghost" onClick={cancelEdit} disabled={isPending}>Cancelar</Button>
-                            <Button variant="primary" onClick={saveEdit} disabled={isPending}>
+                            <Button variant="primary" onClick={saveEdit} isLoading={isPending}>
                                 {isPending ? "Guardando..." : "Guardar"}
                             </Button>
                         </div>
@@ -326,11 +384,22 @@ export default function PerfilesClient({ initialPerfiles, initialCuentaId = null
                 )}
             </Modal>
 
-            <Modal isOpen={deletingId !== null} title="Confirmar eliminación" onClose={() => setDeletingId(null)}>
-                <div className="text-sm text-white/90">¿Eliminar este perfil? Dejará de estar disponible para la venta.</div>
+            <Modal isOpen={deletingId !== null} title="Eliminar perfil" onClose={cancelDelete} dismissible={!isPending}>
+                <div className="flex flex-col gap-3">
+                    {modalError && <Alert variant="error" message={modalError} />}
+                    <p className="text-sm text-white/90">
+                        {(() => {
+                            const row = perfiles?.find((r) => r.id === deletingId)
+                            return row ? (
+                                <>¿Eliminar el perfil <strong className="font-semibold text-white">{capitalizar(row.nombre_perfil)}</strong> de {capitalizar(row.platform_nombre)} ({row.cuenta_email})?</>
+                            ) : "¿Eliminar este perfil?"
+                        })()}{" "}
+                        Dejará de estar disponible para la venta.
+                    </p>
+                </div>
                 <div className="flex items-center justify-end gap-2 mt-4">
-                    <Button variant="ghost" onClick={() => setDeletingId(null)} disabled={isPending}>Cancelar</Button>
-                    <Button variant="primary" onClick={confirmDelete} disabled={isPending}>
+                    <Button variant="ghost" onClick={cancelDelete} disabled={isPending}>Cancelar</Button>
+                    <Button variant="danger" onClick={confirmDelete} isLoading={isPending}>
                         {isPending ? "Eliminando..." : "Eliminar"}
                     </Button>
                 </div>

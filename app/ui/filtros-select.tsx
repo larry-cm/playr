@@ -67,6 +67,7 @@ export default function FiltrosSelect<T>({ campos, items, value, onChange, mobil
                 <div key={campo.key} className={mobile ? (campo.ancho ? "order-first col-span-2 min-w-0" : "min-w-0") : `min-w-0 flex-1 ${campo.width}`}>
                     <SelectDropdown
                         options={opciones(campo)}
+                        ariaLabel={campo.todas}
                         value={value[campo.key] ?? ""}
                         onChange={(v) => onChange({ ...value, [campo.key]: v })}
                     />

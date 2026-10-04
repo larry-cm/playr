@@ -18,6 +18,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Deno (Edge Functions): otro runtime y otro estilo; se verifica con su propio test.
+    "supabase/functions/**",
+    // Bundle generado del job de Railway (jobs/historial-proveedor/dist, ignorado por git).
+    "jobs/**/dist/**",
   ]),
 ])
 

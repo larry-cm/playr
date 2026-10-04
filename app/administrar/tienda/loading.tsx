@@ -2,5 +2,5 @@
 import TiendaClient from "@/app/administrar/tienda/tienda-client"
 
 export default function Loading() {
-    return <TiendaClient initialCatalogo={undefined} telefonoAsesor={undefined} />
+    return <TiendaClient initialCatalogo={undefined} llaveBreb={undefined} />
 }

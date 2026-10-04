@@ -55,6 +55,8 @@ export async function editPerfilAction(formData: {
     if (error) {
         console.error("editPerfilAction: profile update", error)
         if (error.code === "23505") return "Ya existe un perfil con ese nombre en esta cuenta."
+        // P0001 = guarda de perfiles reservados por un pago por verificar (trigger profile_guarda_reservado).
+        if (error.code === "P0001") return error.message
         // 42703/PGRST204 = faltan las columnas de datos propios (migración 20260927140001 sin aplicar)
         if (error.code === "42703" || error.code === "PGRST204") return "Falta aplicar en la base de datos la migración de datos propios por perfil."
         return "Error al actualizar el perfil."

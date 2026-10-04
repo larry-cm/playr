@@ -7,6 +7,7 @@ export const estadoLabel: Record<PerfilRow["estado"], string> = {
     vendido: "Vendido",
     suspendido: "Suspendido",
     en_soporte: "En soporte",
+    reservado: "Reservado (pago por verificar)",
 }
 
 export const estadoColor: Record<PerfilRow["estado"], string> = {
@@ -14,6 +15,7 @@ export const estadoColor: Record<PerfilRow["estado"], string> = {
     vendido: "var(--color-accent)",
     suspendido: "#f87171",
     en_soporte: "#fbbf24",
+    reservado: "#60a5fa",
 }
 
 /** Filtros de Perfiles (misma forma que los de Cuentas). "cuenta" filtra por el id de la cuenta y se muestra con su correo. */

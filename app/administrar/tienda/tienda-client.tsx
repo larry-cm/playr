@@ -5,21 +5,23 @@ import { useRouter } from "next/navigation"
 import Card from "@ui/card"
 import Button from "@ui/button"
 import { SearchInput } from "@ui/data-frame"
-import { AlertCircle, MessageCircle, RefreshCw } from "lucide-react"
+import { AlertCircle, RefreshCw, Wallet } from "lucide-react"
 import ProductGrid from "@/app/administrar/tienda/product-grid"
 import { FiltrosActivos, FiltrosCompactos, FiltrosPanel, SIN_FILTRO, hayFiltro, pasaFiltroTienda, type FiltroTienda } from "@/app/administrar/tienda/tienda-filtros"
 import { TIPO_ACCESO } from "@/app/administrar/tienda/product-card"
 import type { CatalogoDisponibleItem } from "@action/tienda/get-catalogo-disponible-action"
 import { formatCOP } from "@lib/currency"
+import { MAX_PERFILES_PEDIDO } from "@lib/pedido"
+import PagoBrebModal from "@/app/administrar/tienda/pago-breb-modal"
 
 interface TiendaClientProps {
     /** undefined = la página aún carga (loading.tsx) · null = error */
     initialCatalogo: CatalogoDisponibleItem[] | null | undefined
-    /** Número del asesor solo en dígitos (lo configura el admin en Ajustes). "" = no configurado · undefined = aún carga. */
-    telefonoAsesor: string | undefined
+    /** Llave Bre-B a la que se paga (la configura el admin en Ajustes). "" = no configurada · undefined = aún carga. */
+    llaveBreb: string | undefined
 }
 
-export default function TiendaClient({ initialCatalogo, telefonoAsesor }: TiendaClientProps) {
+export default function TiendaClient({ initialCatalogo, llaveBreb }: TiendaClientProps) {
     const router = useRouter()
     const [reintentando, startReintento] = useTransition()
     // Sin copia en estado: tras "Reintentar" (router.refresh) llega el catálogo nuevo por props.
@@ -27,6 +29,7 @@ export default function TiendaClient({ initialCatalogo, telefonoAsesor }: Tienda
     const [search, setSearch] = useState("")
     const [filtro, setFiltro] = useState<FiltroTienda>(SIN_FILTRO)
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+    const [pagando, setPagando] = useState(false)
 
     // Primero el buscador; sobre lo que queda, los filtros cuentan cuántos productos dejaría cada opción.
     const porBusqueda = useMemo(() => {
@@ -57,16 +60,8 @@ export default function TiendaClient({ initialCatalogo, telefonoAsesor }: Tienda
         })
     }
 
-    const hayAsesor = !!telefonoAsesor
-    const puedeEnviar = selectedItems.length > 0 && hayAsesor
-
-    const lineasSeleccion = selectedItems
-        .map((item, i) => `${i + 1}. ${item.platform_nombre} - ${TIPO_ACCESO[item.access_type]} - ${item.perfil_nombre} - ${formatCOP(item.precio_venta)}`)
-        .join("\n")
-
-    const mensaje = `Hola, quiero contratar estos perfiles:\n\n${lineasSeleccion}\n\nTotal: ${formatCOP(total)}`
-
-    const whatsappUrl = `https://wa.me/${telefonoAsesor}?text=${encodeURIComponent(mensaje)}`
+    const demasiados = selectedItems.length > MAX_PERFILES_PEDIDO
+    const puedePagar = selectedItems.length > 0 && !!llaveBreb && !demasiados
 
     if (catalogo === null) {
         return (
@@ -120,26 +115,36 @@ export default function TiendaClient({ initialCatalogo, telefonoAsesor }: Tienda
                         <p aria-live="polite">
                             {selectedItems.length} seleccionados · Total: <span className="text-white font-semibold">{formatCOP(total)}</span>
                         </p>
-                        {telefonoAsesor === "" && (
+                        {llaveBreb === "" && (
                             <p className="mt-1 text-xs text-amber-400">
-                                Los pedidos por WhatsApp no están disponibles en este momento. Contacta a soporte desde el inicio.
+                                Los pagos no están disponibles en este momento. Contacta a soporte.
                             </p>
+                        )}
+                        {demasiados && (
+                            <p className="mt-1 text-xs text-amber-400">Puedes pagar hasta {MAX_PERFILES_PEDIDO} perfiles por pedido.</p>
                         )}
                     </div>
                     <Button
                         variant="primary"
-                        disabled={!puedeEnviar}
-                        title={telefonoAsesor === "" ? "No hay un número de asesor configurado" : undefined}
-                        leftIcon={<MessageCircle className="w-4 h-4" />}
-                        onClick={() => {
-                            if (puedeEnviar) {
-                                window.open(whatsappUrl, "_blank", "noopener,noreferrer")
-                            }
-                        }}
+                        disabled={!puedePagar}
+                        title={llaveBreb === "" ? "No hay una llave Bre-B configurada" : undefined}
+                        leftIcon={<Wallet className="w-4 h-4" />}
+                        onClick={() => setPagando(true)}
                     >
-                        Pedir por WhatsApp
+                        Pagar con Bre-B
                     </Button>
                 </Card>
+
+                {llaveBreb && (
+                    <PagoBrebModal
+                        isOpen={pagando}
+                        onClose={() => setPagando(false)}
+                        items={selectedItems}
+                        total={total}
+                        llave={llaveBreb}
+                        onPedido={() => setSelectedIds(new Set())}
+                    />
+                )}
             </div>
         </div>
     )

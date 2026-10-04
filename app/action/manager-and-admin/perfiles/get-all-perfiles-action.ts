@@ -12,7 +12,7 @@ export interface PerfilRow {
     cuenta_email: string
     nombre_perfil: string
     pin: string | null
-    estado: "disponible" | "vendido" | "suspendido" | "en_soporte"
+    estado: "disponible" | "vendido" | "suspendido" | "en_soporte" | "reservado"
     fecha_vencimiento: string | null
 }
 

@@ -3,3 +3,6 @@ export const capitalizar = (texto: string) => {
     const t = texto.trim().toLocaleLowerCase("es")
     return t.charAt(0).toLocaleUpperCase("es") + t.slice(1)
 }
+
+/** Para buscar sin importar tildes ni mayúsculas: "Pedro Gómez" -> "pedro gomez". */
+export const quitarTildes = (texto: string) => texto.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase()

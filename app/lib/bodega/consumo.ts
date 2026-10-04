@@ -106,9 +106,9 @@ export function plataformaDe(nombre: string, plataformas: string[]): string {
 const productosDe = (p: PedidoProveedor) => p.productos.length || p.articulos
 
 /** Precio de cada producto según los pedidos que lo traen SOLO (ahí el total del pedido es su precio exacto), con su fecha. */
-type Referencias = Map<string, { t: number; precio: number }[]>
+export type Referencias = Map<string, { t: number; precio: number }[]>
 
-function referencias(pedidos: PedidoProveedor[]): Referencias {
+export function referencias(pedidos: PedidoProveedor[]): Referencias {
     const refs: Referencias = new Map()
     for (const p of pedidos) {
         if (p.productos.length !== 1) continue
@@ -134,6 +134,11 @@ function referencia(refs: Referencias, nombre: string, t: number): number | null
  */
 export function preciosDe(p: PedidoProveedor, refs: Referencias = new Map()): { nombre: string; pantallas: number; precio: number; estimado: boolean }[] {
     if (p.productos.length <= 1) return p.productos.map((x) => ({ nombre: x.nombre, pantallas: x.cantidad, precio: p.total, estimado: false }))
+    // precio exacto de cada producto, leído del detalle del pedido al sincronizar
+    if (p.productos.every((x) => x.precio !== undefined)) {
+        return p.productos.map((x) => ({ nombre: x.nombre, pantallas: x.cantidad, precio: x.precio as number, estimado: false }))
+    }
+    // pedidos guardados antes de leer el detalle: se estima con precios de referencia (la próxima sincronización los corrige)
     const t = Date.parse(p.fecha)
     const lineas = p.productos.map((x) => ({ ...x, ref: referencia(refs, x.nombre, t) }))
     const conocido = lineas.reduce((s, l) => s + (l.ref ?? 0), 0)
@@ -155,6 +160,21 @@ function desdeRango(rango: Rango, ahora: Date): number | null {
     }
     const dias = rango === "30d" ? 30 : 90
     return inicioPeriodo(local(ahora.getTime() - (dias - 1) * DIA), "dia").getTime() - BOGOTA
+}
+
+/**
+ * Eje de tiempo de un rango, igual al de calcularConsumo: los períodos continuos (también los vacíos) desde el inicio del rango
+ * (o desde `primeroMs` en "Todo") hasta hoy, y la clave del período de una fecha. Lo usa también la tarjeta de ganancia.
+ */
+export function ejeDeTiempo(rango: Rango, primeroMs: number | null, ahora = new Date()) {
+    const g = GRANULARIDAD[rango]
+    const desde = desdeRango(rango, ahora)
+    const periodos: { key: string; corta: string; larga: string }[] = []
+    const fin = inicioPeriodo(local(ahora.getTime()), g)
+    for (let d = inicioPeriodo(local(desde ?? primeroMs ?? ahora.getTime()), g); d <= fin; d = siguiente(d, g)) {
+        periodos.push({ key: iso(d), ...etiquetas(d, g) })
+    }
+    return { granularidad: g, desde, periodos, claveDe: (ms: number) => iso(inicioPeriodo(local(ms), g)) }
 }
 
 /** `plataformas`: nombres de business.platform, para agrupar cada producto en su plataforma. */

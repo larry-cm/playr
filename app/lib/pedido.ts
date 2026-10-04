@@ -23,8 +23,8 @@ const EXTENSION: Record<string, string> = {
 export const COMPROBANTE_TIPOS = Object.keys(EXTENSION)
 /** "image/*" hace que el celular ofrezca la galería; las extensiones cubren HEIC donde el navegador no le pone tipo. */
 export const COMPROBANTE_ACCEPT = ["image/*", ...COMPROBANTE_TIPOS, ".heic", ".heif"].join(",")
-/** Máximo de perfiles por pedido (business.crear_pedido). */
-export const MAX_PERFILES_PEDIDO = 20
+/** Máximo de perfiles por pedido (business.crear_pedido; decisión del usuario 2026-10-04: 1 pedido pendiente con hasta 5). */
+export const MAX_PERFILES_PEDIDO = 5
 
 const POR_EXTENSION: Record<string, string> = { ...Object.fromEntries(Object.entries(EXTENSION).map(([t, e]) => [e, t])), jpeg: "image/jpeg" }
 
@@ -50,6 +50,15 @@ export function validateComprobante(file: File | null | undefined): string | nul
 /** Ruta del comprobante en el bucket: la carpeta es el usuario (la RLS de storage solo deja subir a la propia). */
 export function rutaComprobante(userId: string, file: File): string {
     return `${userId}/${Date.now()}-${crypto.randomUUID()}.${EXTENSION[tipoComprobante(file)] ?? "bin"}`
+}
+
+const RUTA_ARCHIVO = new RegExp(`^\\d{13}-[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}\\.(${Object.values(EXTENSION).join("|")})$`)
+
+/** true si la ruta tiene la forma que arma rutaComprobante y está en la carpeta de ese usuario. */
+export function esRutaComprobante(userId: string, ruta: unknown): ruta is string {
+    if (typeof ruta !== "string") return false
+    const partes = ruta.split("/")
+    return partes.length === 2 && partes[0] === userId && RUTA_ARCHIVO.test(partes[1])
 }
 
 /** El navegador y Telegram (sendPhoto) muestran estas imágenes; HEIC/HEIF y PDF van como archivo para abrir o descargar. */

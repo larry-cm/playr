@@ -78,7 +78,10 @@ export default function PagoBrebModal({ isOpen, onClose, items, total, llaves, o
             const ruta = rutaComprobante(user.id, archivo)
             const { error: errSubida } = await supabase.storage.from("comprobantes").upload(ruta, archivo, { contentType: tipoComprobante(archivo), upsert: false })
             if (errSubida) {
-                setError("No se pudo subir el comprobante. Revisa tu conexión e inténtalo de nuevo.")
+                // La RLS del bucket corta a los 5 comprobantes sin pedido en un día (cada intento fallido deja uno).
+                setError(/row-level security/i.test(errSubida.message)
+                    ? "Ya subiste varios comprobantes hoy sin completar el pedido. Escríbenos por el chat con el asesor y te ayudamos."
+                    : "No se pudo subir el comprobante. Revisa tu conexión e inténtalo de nuevo.")
                 return
             }
             const res = await crearPedidoAction(items.map((i) => i.profile_id), ruta, total, llave.id)

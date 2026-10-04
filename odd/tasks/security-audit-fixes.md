@@ -33,11 +33,11 @@ User request 2026-10-04: "procede con los más críticos a los más leves, todo 
 - [x] T1 — Upgrade next to >=16.3.6 (+ sharp/postcss transitive). Route: inline. Risk: medium.
 - [x] T2 — Deleted customer: ban + signOut in Auth on delete; check `client.exist` in getRoleUser. Route: inline. Risk: high.
 - [x] T3 — `vendido_pedido_id` column + accesos filter. Route: inline. Risk: high.
-- [ ] T4 — crear_pedido: per-customer advisory lock, 1 pending, 5 profiles, `client.exist` check. WAITS other session. Risk: high.
-- [ ] T5 — Auth hardening: own rate limit + app password policy DONE (code + migration 230002); Auth config PATCH pending (prod apply step). Risk: high.
-- [ ] T6 — Alert spam: validate receipt path server-side, notify only if object exists; catalog action early return without session. Partly WAITS other session. Risk: medium.
+- [x] T4 — crear_pedido: per-customer advisory lock, 1 pending, 5 profiles, `client.exist` check. WAITS other session. Risk: high.
+- [x] T5 — Auth hardening: own rate limit + app password policy DONE (code + migration 230002); Auth config PATCH pending (prod apply step). Risk: high.
+- [x] T6 — Alert spam: validate receipt path server-side, notify only if object exists; catalog action early return without session. Partly WAITS other session. Risk: medium.
 - [x] T7 — CSP per user decision. Risk: medium.
-- [ ] T8 — Lows: revoke view write grants + default privileges; reservado trigger on exist/account_id; Telegram chat id check; generic auth errors; upload quota/cleanup; enc key. Risk: medium.
+- [x] T8 — Lows: revoke view write grants + default privileges; reservado trigger on exist/account_id; Telegram chat id check; generic auth errors; upload quota/cleanup; enc key. Risk: medium.
 
 ## Acceptance criteria
 1. `pnpm audit --prod` shows no critical/high in next.
@@ -57,10 +57,14 @@ User request 2026-10-04: "procede con los más críticos a los más leves, todo 
 - T8 (partial): migration 20261005100003 (view grants, reservado guard on exist/account_id, comprobantes orphan cap 5/day) + checks/endurecer_permisos_check.sql OK; generic auth errors; catalog action returns early without session.
 - RDD (candidate b7657e9, high, 3 lenses): approved, 0 blockers. Warnings fixed after ack: en_soporte backfill; atomic attempt reservation (auth_intentar with per-email advisory lock); no lockout by email alone (5 per email+IP, 30 per IP, 50 per email global + staff alert); checks/auth_intento_check.sql + account_id case. All 3 SQL checks OK. Pending: receipt-cap message in pago-breb-modal (file owned by chat session) → wait phase.
 - Migrations renamed 20261004230001-3 → 20261005100001-3 (chat session created its own 20261004230001).
-- Pending prod apply: 3 migrations (blocked: remote has chat migrations not in git), Auth config PATCH, deploy after migrations (accesos needs the column).
+- Commit 0233a9b (first batch). Merged develop (chat-asesor) in acf7294: CSP conflict resolved keeping media-src/connect-src blob: rules in app/lib/csp.ts.
+- T4: migration 20261005100004 (client exist check, per-customer advisory lock, 1 pending, max 5 profiles; MAX_PERFILES_PEDIDO=5) + checks/crear_pedido_limites_check.sql OK. Existing pedido_check stays compatible (second order only after the first is rejected).
+- T6: crear-pedido-action validates receipt path shape/owner (esRutaComprobante), total bounds, and notifies only if the object exists.
+- T8: Telegram callbacks only from cfg.chatId; chat bucket quota migration 20261005100005 + checks/chat_cuota_check.sql OK; RLS-cap messages in pago-breb-modal and chat-compositor; enc key → Vault (migration 20261005100006, business.enc_key(), 6 functions without key param, TS callers no longer send it) + checks/enc_key_vault_check.sql OK (delegated writer; parent re-ran all 6 checks OK, tsc/lint OK).
+- Pending prod apply (in order): create Vault secret account_enc_key with the current ACCOUNT_ENC_KEY value; db push of 20261005100001-6; Auth config PATCH (min 10, lower_upper_letters_digits_symbols, secure password change); deploy code (merge to master). Then optionally remove ACCOUNT_ENC_KEY from Vercel/.env.
 
 ## Delivery
 Forecast: ~400-600 authored lines. Strategy: ask-on-risk.
 
 ## Next step
-Wait for the chat-asesor session to finish; then T4, T6 (crear-pedido-action path validation), Telegram chat id, chat bucket quota, Vault key, on top of its crear_pedido.
+RDD on the second batch; user approval to commit; then production apply in the order above (each step needs explicit confirmation).

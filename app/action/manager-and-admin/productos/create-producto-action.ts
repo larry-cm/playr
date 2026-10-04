@@ -23,8 +23,7 @@ export async function createProductoAction(formData: {
     const base = process.env.PLATFORM_URL
     const email = process.env.PLATFORM_EMAIL
     const password = process.env.PLATFORM_PASSWORD
-    const encKey = process.env.ACCOUNT_ENC_KEY
-    if (!base || !email || !password || !encKey) return "Falta configuración del proveedor en el servidor."
+    if (!base || !email || !password) return "Falta configuración del proveedor en el servidor."
 
     const { createSupabase } = await import("@lib/supabase/server")
     const supabase = await createSupabase()
@@ -118,7 +117,6 @@ export async function createProductoAction(formData: {
             vence: fechaISO(l.validoHasta),
             costo: oferta?.costo ?? null,
         })),
-        p_enc_key: encKey,
     })
     if (registroError) {
         // sin stock registrado no se deja el producto creado: se deshace para que el manager pueda reintentar

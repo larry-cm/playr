@@ -97,6 +97,12 @@ async function atender(cfg: TelegramCfg, cq: CallbackQuery) {
         await responder("No tienes permiso para revisar pedidos.", true)
         return
     }
+    // Los botones de pedidos solo valen en el grupo del equipo: un callback desde otro chat (mensaje reenviado o
+    // armado a mano) no aprueba nada.
+    if (String(cq.message?.chat.id) !== cfg.chatId) {
+        await responder("Revisa los pedidos desde el grupo del equipo.", true)
+        return
+    }
 
     const match = /^(ap|re|ap!|re!|no):(\d+)$/.exec(cq.data ?? "")
     if (!match) {

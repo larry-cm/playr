@@ -1,6 +1,7 @@
 "use server"
 
 import { notificar } from "@lib/notify"
+import { getRoleUser } from "@action/get-role-action"
 
 const TITULO_FALLA = "No se pudo cargar el catálogo de la Tienda"
 
@@ -15,6 +16,8 @@ export interface CatalogoDisponibleItem {
 }
 
 export async function getCatalogoDisponibleAction(): Promise<CatalogoDisponibleItem[] | null> {
+    // Sin sesión válida no se consulta ni se avisa: si no, cualquiera desde internet dispararía la falla en la campana.
+    if ((await getRoleUser()) === "error") return null
     const { createSupabase } = await import("@lib/supabase/server")
     const supabase = await createSupabase()
     try {

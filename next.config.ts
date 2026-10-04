@@ -16,37 +16,9 @@ for (const archivo of [".env.platform", ".env.telegram", ...(isDev ? [".env.tele
   }
 }
 
-// El navegador solo habla con la propia app y con Supabase (REST/Auth y Realtime
-// por WebSocket). Las fuentes de next/font se sirven desde el propio dominio;
-// los enlaces a wa.me son navegaciones y no pasan por CSP.
-const supabaseOrigin = (() => {
-  try {
-    return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").origin
-  } catch {
-    return ""
-  }
-})()
-const supabaseWs = supabaseOrigin.replace(/^http/, "ws")
-
-const contentSecurityPolicy = [
-  "default-src 'self'",
-  // Next inyecta scripts inline para hidratar; React en desarrollo usa eval.
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' https://fonts.gstatic.com data:",
-  "img-src 'self' data: blob: https:",
-  // Notas de voz del chat: la vista previa local (blob:) y los audios firmados de Supabase Storage.
-  `media-src 'self' blob: ${supabaseOrigin}`.trim(),
-  // blob:: la forma de onda de la nota de voz se lee con fetch, también la de la vista previa antes de enviarla.
-  `connect-src 'self' blob: ${supabaseOrigin} ${supabaseWs}`.trim(),
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "object-src 'none'",
-].join("; ")
+// La Content-Security-Policy lleva un nonce por petición: la pone proxy.ts (ver @lib/csp).
 
 const securityHeaders = [
-  { key: "Content-Security-Policy", value: contentSecurityPolicy },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },

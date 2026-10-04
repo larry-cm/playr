@@ -43,9 +43,7 @@ export async function editPerfilAction(formData: {
     // Volver a poner el correo de la cuenta = dejar de tener uno propio (vuelve a heredar).
     if (email !== (perfil.email ?? emailCuenta)) cambios.email = email === emailCuenta.toLowerCase() ? null : email
     if (password !== undefined) {
-        const encKey = process.env.ACCOUNT_ENC_KEY
-        if (!encKey) return "Falta ACCOUNT_ENC_KEY en el servidor: no se puede guardar la contraseña."
-        const { data: cifrada, error: errCifrado } = await db.rpc("encrypt_account_password", { password, enc_key: encKey })
+        const { data: cifrada, error: errCifrado } = await db.rpc("encrypt_account_password", { password })
         if (errCifrado || typeof cifrada !== "string") return "No se pudo cifrar la contraseña."
         cambios.password_enc = cifrada
         cambios.password_editada_at = new Date().toISOString()

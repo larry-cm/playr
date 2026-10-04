@@ -1,16 +1,14 @@
 "use server"
 
-import { esStaff, SIN_PERMISO } from "@lib/auth"
+import { puedeGestionarUsuario } from "@lib/auth"
 import { customerBaseSchema, firstErrorOf, normalizePhone } from "@lib/customer-schema"
 
 export async function editCustomerAction(formData: { id?: unknown; email?: unknown; name?: unknown; phone?: unknown }) {
-    if (!(await esStaff())) return SIN_PERMISO
+    const noPuede = await puedeGestionarUsuario(formData?.id)
+    if (noPuede) return noPuede
 
     const text = (value: unknown) => (typeof value === "string" ? value : "")
     const [id, email, name, phone] = [formData.id, formData.email, formData.name, formData.phone].map(text)
-    if (!id) {
-        return "Id no encontrado"
-    }
 
     // Mismo esquema que al crear: editar no puede ser la puerta de atrás.
     const data = customerBaseSchema.safeParse({

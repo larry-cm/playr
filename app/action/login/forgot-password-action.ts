@@ -3,6 +3,7 @@
 import { z } from "zod"
 import { createSupabase } from "@lib/supabase/server"
 import { translateAuthError } from "@lib/supabase/auth-errors"
+import { DEMASIADOS_INTENTOS, intentar } from "@lib/limite-auth"
 
 const schema = z.object({
     email: z
@@ -54,6 +55,10 @@ export const forgotPasswordAction = async (initialState: ForgotPasswordState, fo
             errors: {},
             message: "No se pudo enviar el enlace. Intenta más tarde.",
         } satisfies ForgotPasswordState
+    }
+
+    if ((await intentar("recuperar", data.data.email)).bloqueado) {
+        return { success: false, errors: {}, message: DEMASIADOS_INTENTOS } satisfies ForgotPasswordState
     }
 
     const supabase = await createSupabase()

@@ -120,7 +120,10 @@ export default function ChatCompositor({ clienteId, etiqueta, placeholder, encab
         const mime = mimeAdjunto(b.archivo.type)
         const path = rutaAdjunto(carpeta, mime)
         const { error: errSubida } = await supabase.storage.from("chat").upload(path, b.archivo, { contentType: mime, upsert: false })
-        if (errSubida) return "No se pudo subir el archivo. Revisa tu conexión e inténtalo de nuevo."
+        // La RLS del bucket pone un tope diario de archivos por cliente (business.chat_puede_subir).
+        if (errSubida) return /row-level security/i.test(errSubida.message)
+            ? "Llegaste al máximo de archivos por hoy. Puedes seguir escribiendo mensajes de texto."
+            : "No se pudo subir el archivo. Revisa tu conexión e inténtalo de nuevo."
         return { path, tipo: b.tipo }
     }
 

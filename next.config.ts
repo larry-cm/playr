@@ -2,9 +2,12 @@ import type { NextConfig } from "next"
 import fs from "fs"
 import path from "path"
 
+const isDev = process.env.NODE_ENV !== "production"
+
 // Next.js solo autocarga .env(.local); las credenciales del proveedor (.env.platform) y las del bot de
-// Telegram de pedidos (.env.telegram) viven separadas (ver CLAUDE.md), así que se inyectan a mano.
-for (const archivo of [".env.platform", ".env.telegram"]) {
+// Telegram de pedidos (.env.telegram) viven separadas (ver CLAUDE.md), así que se inyectan a mano. En desarrollo,
+// .env.telegram.dev (bot y grupo de pruebas) pisa a .env.telegram: lo que se prueba en local no llega a producción.
+for (const archivo of [".env.platform", ".env.telegram", ...(isDev ? [".env.telegram.dev"] : [])]) {
   const envPath = path.join(__dirname, archivo)
   if (!fs.existsSync(envPath)) continue
   for (const line of fs.readFileSync(envPath, "utf-8").split("\n")) {
@@ -12,9 +15,6 @@ for (const archivo of [".env.platform", ".env.telegram"]) {
     if (match) process.env[match[1]] = match[2]
   }
 }
-
-
-const isDev = process.env.NODE_ENV !== "production"
 
 // El navegador solo habla con la propia app y con Supabase (REST/Auth y Realtime
 // por WebSocket). Las fuentes de next/font se sirven desde el propio dominio;
@@ -35,7 +35,10 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data: blob: https:",
-  `connect-src 'self' ${supabaseOrigin} ${supabaseWs}`.trim(),
+  // Notas de voz del chat: la vista previa local (blob:) y los audios firmados de Supabase Storage.
+  `media-src 'self' blob: ${supabaseOrigin}`.trim(),
+  // blob:: la forma de onda de la nota de voz se lee con fetch, también la de la vista previa antes de enviarla.
+  `connect-src 'self' blob: ${supabaseOrigin} ${supabaseWs}`.trim(),
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -47,7 +50,7 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=()" },
   ...(isDev ? [] : [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" }]),
 ]
 

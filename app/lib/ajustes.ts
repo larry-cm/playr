@@ -1,55 +1,41 @@
 // Solo servidor: lee con la sesión del request (cookies). Los componentes cliente reciben el valor por props.
 import { cache } from "react"
 import { createSupabase } from "@lib/supabase/server"
-import { whatsappAdvisorNumber } from "@lib/const"
 
-/** Clave del número del asesor en business.ajuste. */
-export const CLAVE_WHATSAPP_ASESOR = "whatsapp_asesor"
-
-/** Solo dígitos (wa.me no acepta signos). "" = no configurado. */
-const soloDigitos = (valor: string | null | undefined) => (valor ?? "").replace(/\D/g, "")
+export interface LlaveBreb {
+    id: number
+    /** Para que el cliente la reconozca: "Nequi", "Bancolombia"… */
+    nombre: string
+    llave: string
+    /** Inactiva = el cliente no la ve. */
+    activa: boolean
+    /** La que el cliente ve ya seleccionada al pagar (a lo sumo una, siempre visible). */
+    predeterminada: boolean
+    /** QR que generó la app del banco para esta llave (bucket público 'llaves-qr'); null = sin QR. */
+    qr_url: string | null
+}
 
 /**
- * Número de WhatsApp del asesor (solo dígitos, "" si no hay). Lo configura el admin en Ajustes; si no hay fila, la tabla
- * aún no existe (migración sin aplicar) o la lectura falla, cae a NEXT_PUBLIC_WHATSAPP_ADVISOR_NUMBER. Nunca lanza.
+ * Llaves Bre-B a las que pagan los clientes (business.llave_breb): la predeterminada primero y el resto en el orden en
+ * que se agregaron. La RLS decide qué llega: el cliente ve solo las activas, el admin todas. [] = ninguna (la Tienda no
+ * deja pagar). Nunca lanza.
  */
-export const getWhatsappAsesor = cache(async (): Promise<string> => {
+export const getLlavesBreb = cache(async (): Promise<LlaveBreb[]> => {
     try {
         const supabase = await createSupabase()
         const { data, error } = await supabase
             .schema("business")
-            .from("ajuste")
-            .select("valor")
-            .eq("clave", CLAVE_WHATSAPP_ASESOR)
-            .maybeSingle<{ valor: string }>()
-
-        if (error) console.error("getWhatsappAsesor: no se pudo leer business.ajuste:", error.message)
-        const guardado = soloDigitos(data?.valor)
-        if (guardado) return guardado
+            .from("llave_breb")
+            .select("id,nombre,llave,activa,predeterminada,qr_path")
+            .order("predeterminada", { ascending: false })
+            .order("id")
+        if (error) console.error("getLlavesBreb: no se pudo leer business.llave_breb:", error.message)
+        return (data ?? []).map(({ qr_path, ...l }) => ({
+            ...l,
+            qr_url: qr_path ? supabase.storage.from("llaves-qr").getPublicUrl(qr_path).data.publicUrl : null,
+        }))
     } catch (e) {
-        console.error("getWhatsappAsesor: no se pudo leer business.ajuste:", e)
-    }
-    return soloDigitos(whatsappAdvisorNumber)
-})
-
-/** Clave de la llave Bre-B a la que pagan los clientes en business.ajuste. */
-export const CLAVE_LLAVE_BREB = "llave_breb"
-
-/** Llave Bre-B del negocio ("" = no configurada: la Tienda no deja pagar). Sin respaldo en variables. Nunca lanza. */
-export const getLlaveBreb = cache(async (): Promise<string> => {
-    try {
-        const supabase = await createSupabase()
-        const { data, error } = await supabase
-            .schema("business")
-            .from("ajuste")
-            .select("valor")
-            .eq("clave", CLAVE_LLAVE_BREB)
-            .maybeSingle<{ valor: string }>()
-
-        if (error) console.error("getLlaveBreb: no se pudo leer business.ajuste:", error.message)
-        return (data?.valor ?? "").trim()
-    } catch (e) {
-        console.error("getLlaveBreb: no se pudo leer business.ajuste:", e)
-        return ""
+        console.error("getLlavesBreb: no se pudo leer business.llave_breb:", e)
+        return []
     }
 })

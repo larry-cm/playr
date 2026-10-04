@@ -2,7 +2,7 @@
 
 import { Mail } from "lucide-react"
 import { type LoginState, loginAction } from "@action/login/login-action"
-import { unstable_rethrow } from "next/navigation"
+import { unstable_rethrow, useRouter } from "next/navigation"
 import { type FormEvent, useActionState, useEffect, useRef, useState } from "react"
 import { validateEmail } from "@lib/validation"
 import Alert from "@ui/alert"
@@ -12,6 +12,8 @@ import Input, { type ValidationState } from "@ui/input"
 import Link from "next/link"
 import PasswordInput from "@ui/password-input"
 import PlayrLogo from "@ui/playr-logo"
+import { esFallaTransitoria, rutaSegura, VOLVER_COOKIE } from "@lib/sesion-tab"
+import { supabaseTabListo, tokenGuardado } from "@lib/supabase/client"
 
 type Field = "email" | "password"
 
@@ -34,7 +36,11 @@ function getValidation(touched: boolean, error: string | undefined): ValidationS
   return touched ? "valid" : "idle"
 }
 
-export default function LoginForm() {
+export default function LoginForm({ volver }: Readonly<{ volver?: string }>) {
+  const router = useRouter()
+  const [sesionCerrada, setSesionCerrada] = useState(false)
+  // Falla al abrir o recuperar la sesión de la pestaña (no del formulario).
+  const [aviso, setAviso] = useState<string | null>(null)
   const [state, action, isLoading] = useActionState(submitLogin, initialState)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -60,6 +66,42 @@ export default function LoginForm() {
   const passwordShown = fieldError("password", passwordError)
 
   const focusField = (field: Field) => document.getElementById(field)?.focus()
+
+  // La sesión es de esta pestaña: se guarda en su sessionStorage y entra al panel.
+  useEffect(() => {
+    if (!state.session) return
+    const session = state.session
+    supabaseTabListo()
+      .then((supabase) => supabase.auth.setSession(session))
+      .then(({ error }) => {
+        if (error) throw error
+        setAviso(null)
+        router.replace(rutaSegura(volver))
+      })
+      .catch((error: unknown) => {
+        console.error("login: no se pudo guardar la sesión de la pestaña:", error)
+        setAviso("Iniciaste sesión, pero no se pudo abrir en esta pestaña. Intenta de nuevo.")
+      })
+  }, [state, router, volver])
+
+  // Si la pestaña ya tiene sesión (al recargar con el token vencido, proxy.ts la manda
+  // aquí), se renueva y vuelve a donde estaba. Si la cerraron porque la cuenta entró en
+  // otro lugar, se borra y se avisa.
+  useEffect(() => {
+    document.cookie = `${VOLVER_COOKIE}=; path=/; max-age=0`
+    supabaseTabListo().then(async (supabase) => {
+      if (!tokenGuardado()) return
+      const { data, error } = await supabase.auth.getUser()
+      if (data.user) return router.replace(rutaSegura(volver))
+      // Supabase no respondió: la sesión puede seguir siendo válida, no se borra.
+      if (esFallaTransitoria(error)) {
+        setAviso("No se pudo verificar tu sesión. Revisa tu conexión y recarga la página.")
+        return
+      }
+      await supabase.auth.signOut({ scope: "local" })
+      setSesionCerrada(true)
+    })
+  }, [router, volver])
 
   // Tras una respuesta fallida, el foco va al primer campo con error o, si no, al aviso.
   useEffect(() => {
@@ -98,6 +140,18 @@ export default function LoginForm() {
               Ingresa tus credenciales para acceder a tu cuenta
             </p>
           </div>
+
+          {aviso && !state.message && (
+            <div className="mb-6">
+              <Alert variant="error" message={aviso} />
+            </div>
+          )}
+
+          {sesionCerrada && !aviso && !state.message && (
+            <div className="mb-6">
+              <Alert variant="warning" message="Tu cuenta inició sesión en otro lugar. Vuelve a ingresar para continuar aquí." />
+            </div>
+          )}
 
           {state.message && (
             <div ref={alertRef} tabIndex={-1} className="mb-6 outline-none">

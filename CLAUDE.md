@@ -137,6 +137,13 @@ Usar estos aliases en lugar de rutas relativas largas. Es el patrón esperado po
 - **Nadie asigna roles desde el cliente**: `security.user_role`/`role` no tienen INSERT/UPDATE/DELETE para `authenticated`. Los asigna el servidor con `createSupabaseAdmin()` (clave secreta) después de verificar que quien llama es admin.
 - **Registro público cerrado** en Supabase Auth (`disable_signup`). Los usuarios los crea el staff en Clientes (`createCustomerAction` → `auth.admin.createUser`; contraseña escrita por el staff con las reglas de `validatePassword`; solo un admin puede crear admin/manager).
 
+### Sesión por pestaña y una sesión por cuenta
+- Cada pestaña tiene su propia sesión (pedido del usuario 2026-10-03: cuentas distintas por pestaña) y **la URL no lo muestra** (`/administrar/...` normal, pedido del usuario). La sesión de Supabase vive en el `sessionStorage` de la pestaña (`supabaseTab()` en `app/lib/supabase/client.ts`), no en cookies. Detalle en `app/lib/sesion-tab.ts`.
+- Viaje al servidor: `app/sesion-fetch.tsx` (montado en el layout raíz) agrega el header `x-playr-token` a todo fetch al mismo origen (navegación del router, server actions). En una carga completa (recargar, escribir la URL) la pestaña deja en `beforeunload` la cookie `playr-tab-token` (10 s), que `proxy.ts` consume y borra; en `pagehide` (la petición nueva ya salió) se borra, así una pestaña cerrada no se la deja a otra. `proxy.ts` valida el token con `getUser` y lo deja en el header; en el servidor `createSupabase()`/`getUsuario()` lo usan (sin refrescar nunca: eso lo hace la pestaña). Sin token, el servidor es anónimo (solo pasa la cookie PKCE de "olvidé mi contraseña").
+- Sin sesión válida en `/administrar`, `proxy.ts` manda al login guardando la ruta en la cookie `playr-volver`. El login renueva la sesión de la pestaña si la tiene y vuelve; si la cerraron, avisa "inició sesión en otro lugar". Una caída de Supabase Auth (red, 5xx, 429: `esFallaTransitoria`) nunca borra la sesión ni da ese aviso.
+- Pestaña nueva = sin sesión (pide login). Pestaña duplicada (copia el sessionStorage): `pestanaLista()` la detecta por `BroadcastChannel` y la deja sin sesión antes de tocar el refresh token.
+- Una cuenta, un solo lugar: el login (server action, devuelve la sesión a la pestaña) hace `signOut({ scope: "others" })`; si falla, avisa al staff con `notificar`.
+
 ### Rutas protegidas
 - `proxy.ts` solo exige sesión en `/administrar` (`data.user.role === "authenticated"` es el rol JWT, no el de la app).
 - **Toda server action de `manager-and-admin` empieza con `if (!(await esStaff())) return …`** (`app/lib/auth.ts`) y toda página de staff redirige si el rol no es admin/manager. Las actions son endpoints POST públicos: ocultar el botón no protege nada.

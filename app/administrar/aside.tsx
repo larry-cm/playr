@@ -5,7 +5,7 @@ import type { ReactNode, Ref } from "react"
 
 import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
-import { supabase } from "@lib/supabase/client"
+import { useRuta, useSupabase } from "@/app/administrar/sesion-tab"
 import logoPlayr from "@/public/favicon.svg"
 import Image from "next/image"
 
@@ -34,6 +34,9 @@ const navItems = [
 export default function Aside({ sidebarOpen, setSidebarOpen, role, bell, ref, inert }: AsideProps) {
     const pathname = usePathname()
     const router = useRouter()
+    const ruta = useRuta()
+    const supabase = useSupabase()
+    const actual = pathname
 
     // El cliente solo tiene la Tienda: el logo lo lleva ahí.
     const inicio = role === "user" ? "/administrar/tienda" : "/administrar"
@@ -77,11 +80,11 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role, bell, ref, in
             <nav className="flex-1 min-h-0 overflow-y-auto space-y-1">
                 {filteredItems.map((item) => {
                     const Icon = item.icon
-                    const isActive = pathname === item.href
+                    const isActive = actual === item.href
                     return (
                         <Link
                             key={item.href}
-                            href={item.href}
+                            href={ruta(item.href)}
                             onClick={() => setSidebarOpen(false)}
                             aria-current={isActive ? "page" : undefined}
                             title={compact ? item.name : undefined}
@@ -101,6 +104,7 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role, bell, ref, in
             <div className="pt-4 mt-4 border-t border-white/6">
                 <button
                     onClick={async () => {
+                        // Borra la sesión de esta pestaña (su sessionStorage) y la cierra en Supabase.
                         await supabase.auth.signOut()
                         router.push("/")
                     }}

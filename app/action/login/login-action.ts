@@ -1,8 +1,9 @@
 "use server"
 
 import { z } from "zod"
-import { createSupabase } from "@lib/supabase/server"
-import { redirect } from "next/navigation"
+import { createClient } from "@supabase/supabase-js"
+import { supabaseUrl, supabaseKey } from "@lib/const"
+import { notificar } from "@lib/notify"
 import { translateAuthError } from "@lib/supabase/auth-errors"
 
 // Al iniciar sesión solo se exige que haya datos: las reglas de complejidad son
@@ -33,6 +34,8 @@ export type LoginState = {
     success: boolean
     errors?: Record<string, string[] | undefined>
     message?: string
+    /** Login correcto: la pestaña guarda esta sesión en su sessionStorage (ver @lib/sesion-tab). */
+    session?: { access_token: string, refresh_token: string }
 }
 
 export const loginAction = async (initialState: LoginState, formData: FormData) => {
@@ -47,19 +50,37 @@ export const loginAction = async (initialState: LoginState, formData: FormData) 
             errors: z.flattenError(data.error).fieldErrors,
         } satisfies LoginState
     }
-    const supabase = await createSupabase()
-    const { error } = await supabase.auth.signInWithPassword({
+    // Sin cookies: la sesión es solo de la pestaña que inicia sesión, que la recibe abajo.
+    const supabase = createClient(supabaseUrl!, supabaseKey!, {
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    })
+    const { data: auth, error } = await supabase.auth.signInWithPassword({
         email: data.data.email,
         password: data.data.password,
     })
 
-    if (error) {
+    if (error || !auth.session) {
         return {
             success: false,
             errors: {},
-            message: translateAuthError(error.message),
+            message: translateAuthError(error?.message ?? ""),
         } satisfies LoginState
     }
 
-    redirect("/administrar")
+    // Una cuenta, un solo lugar: se cierran sus demás sesiones (otras pestañas u
+    // otros navegadores), que vuelven al login en su siguiente petición.
+    // Si falla, el login sigue (no se bloquea al usuario) pero queda el aviso para el staff.
+    const { error: cierreError } = await supabase.auth.signOut({ scope: "others" })
+    if (cierreError) {
+        console.error("login: no se cerraron las otras sesiones:", cierreError.message)
+        await notificar({
+            origen: "plataforma",
+            tipo: "advertencia",
+            titulo: "No se cerraron las otras sesiones",
+            mensaje: `${data.data.email} inició sesión, pero sus otras sesiones siguen abiertas: ${cierreError.message}`,
+        })
+    }
+
+    const { access_token, refresh_token } = auth.session
+    return { success: true, session: { access_token, refresh_token } } satisfies LoginState
 }

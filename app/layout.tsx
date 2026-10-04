@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { Outfit } from "next/font/google"
 import "./globals.css"
+import SesionFetch from "@/app/sesion-fetch"
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -33,7 +34,10 @@ export default function RootLayout({
       lang="es"
       className={`${outfit.className} h-full antialiased bg-background`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <SesionFetch />
+        {children}
+      </body>
     </html>
   )
 }

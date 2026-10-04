@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation"
+import { rutaServidor } from "@lib/supabase/server"
 import { getRoleUser } from "@action/get-role-action"
 import { getBodegaCatalogoAction } from "@action/manager-and-admin/bodega/get-bodega-action"
 import { getHistorialAction } from "@action/manager-and-admin/bodega/historial-action"
@@ -10,7 +11,7 @@ export const maxDuration = 60
 
 export default async function PageAdministrarBodega() {
     const role = await getRoleUser()
-    if (role !== "admin" && role !== "manager") redirect("/administrar")
+    if (role !== "admin" && role !== "manager") redirect(await rutaServidor("/administrar"))
 
     // Catálogo y registro de compras salen de la base (rápido, en paralelo: aquí son llamadas de servidor, no server actions
     // encoladas) y llegan resueltos en el primer render. El saldo se lee del sitio del proveedor (lento) y lo pide el cliente,

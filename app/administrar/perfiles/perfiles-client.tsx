@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
+import { useRuta } from "@/app/administrar/sesion-tab"
 import Card from "@ui/card"
 import Button from "@ui/button"
 import Input from "@ui/input"
@@ -38,6 +39,7 @@ interface PerfilesClientProps {
 }
 
 export default function PerfilesClient({ initialPerfiles, initialCuentaId = null }: PerfilesClientProps) {
+    const ruta = useRuta()
     const router = useRouter()
     const [perfiles, setPerfiles] = useState<PerfilRow[] | null | undefined>(initialPerfiles)
     // Cuando el servidor manda datos nuevos (Reintentar, o el revalidatePath de una acción) mandan esos.
@@ -80,7 +82,7 @@ export default function PerfilesClient({ initialPerfiles, initialCuentaId = null
     // integra con su router) sin router.replace, que volvería a renderizar la página en el servidor.
     const cambiarFiltro = (nuevo: Filtro) => {
         if (nuevo.cuenta !== filtro.cuenta) {
-            window.history.replaceState(null, "", nuevo.cuenta ? `/administrar/perfiles?cuenta=${nuevo.cuenta}` : "/administrar/perfiles")
+            window.history.replaceState(null, "", ruta(nuevo.cuenta ? `/administrar/perfiles?cuenta=${nuevo.cuenta}` : "/administrar/perfiles"))
         }
         setFiltro(nuevo)
     }

@@ -9,7 +9,7 @@ import Alert from "@ui/alert"
 import CopyInput from "@ui/copy-input"
 import { formatCOP } from "@lib/currency"
 import { COMPROBANTE_ACCEPT, rutaComprobante, validateComprobante } from "@lib/pedido"
-import { supabase } from "@lib/supabase/client"
+import { supabaseTabListo } from "@lib/supabase/client"
 import { crearPedidoAction } from "@action/tienda/crear-pedido-action"
 import { TIPO_ACCESO } from "@/app/administrar/tienda/product-card"
 import type { CatalogoDisponibleItem } from "@action/tienda/get-catalogo-disponible-action"
@@ -52,6 +52,7 @@ export default function PagoBrebModal({ isOpen, onClose, items, total, llave, on
 
         setEnviando(true)
         try {
+            const supabase = await supabaseTabListo()
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) {
                 setError("Tu sesión expiró. Vuelve a iniciar sesión.")

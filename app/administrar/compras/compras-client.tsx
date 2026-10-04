@@ -1,9 +1,9 @@
 "use client"
 
-import { useId, useState, useTransition } from "react"
+import { useCallback, useId, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { AlertCircle, ChevronDown, KeyRound, RefreshCw, ShoppingBag } from "lucide-react"
+import { AlertCircle, ChevronDown, KeyRound, MessageCircle, RefreshCw, ShoppingBag } from "lucide-react"
 import Card from "@ui/card"
 import Button from "@ui/button"
 import Alert from "@ui/alert"
@@ -15,6 +15,8 @@ import { formatColombianDateTime } from "@lib/date"
 import { accessTypeLabel, type AccessType } from "@lib/access-type"
 import type { MiPedido } from "@action/tienda/get-mis-pedidos-action"
 import { getAccesosPedidoAction, type AccesoPerfil } from "@action/tienda/get-accesos-pedido-action"
+import ChatAsesor from "@/app/administrar/compras/chat-asesor"
+import AutoRefresh from "@ui/auto-refresh"
 
 export function EstadoPedidoBadge({ estado }: Readonly<{ estado: MiPedido["estado"] }>) {
     const e = ESTADO_PEDIDO[estado]
@@ -47,7 +49,7 @@ function Acceso({ acceso }: Readonly<{ acceso: AccesoPerfil }>) {
     )
 }
 
-function PedidoCard({ pedido }: Readonly<{ pedido: MiPedido }>) {
+function PedidoCard({ pedido, onChat }: Readonly<{ pedido: MiPedido; onChat: (pedidoId: number) => void }>) {
     const [abierto, setAbierto] = useState(false)
     const [accesos, setAccesos] = useState<AccesoPerfil[] | null>(null)
     const [error, setError] = useState<string | null>(null)
@@ -93,7 +95,12 @@ function PedidoCard({ pedido }: Readonly<{ pedido: MiPedido }>) {
                 <p className="text-xs text-amber-300/90">Estamos verificando tu pago. Cuando lo aprobemos verás aquí tus datos de acceso.</p>
             )}
             {pedido.estado === "rechazado" && (
-                <Alert variant="error" message={`No pudimos verificar este pago${pedido.motivo_rechazo ? `: ${pedido.motivo_rechazo}` : "."} Si ya pagaste, contáctanos.`} />
+                <Alert variant="error" message={`No pudimos verificar este pago${pedido.motivo_rechazo ? `: ${pedido.motivo_rechazo}` : "."} Si ya pagaste, escríbele al asesor.`} />
+            )}
+            {pedido.estado !== "aprobado" && (
+                <Button variant="secondary" size="sm" onClick={() => onChat(pedido.id)} leftIcon={<MessageCircle className="h-4 w-4" />} className="self-start">
+                    Escribir al asesor sobre este pedido
+                </Button>
             )}
             {pedido.estado === "aprobado" && (
                 <div className="flex flex-col gap-3">
@@ -116,10 +123,47 @@ function PedidoCard({ pedido }: Readonly<{ pedido: MiPedido }>) {
     )
 }
 
+/** Acceso al chat con el asesor, con el aviso de respuestas sin leer. */
+function BarraAsesor({ noLeidos, onAbrir }: Readonly<{ noLeidos: number; onAbrir: () => void }>) {
+    return (
+        <Card padding="p-4" className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-secondary">¿Tienes dudas con un pago o tus accesos? Escríbele al asesor.</p>
+            <Button variant="secondary" onClick={onAbrir} leftIcon={<MessageCircle className="h-4 w-4" />}>
+                Chat con el asesor
+                {noLeidos > 0 && (
+                    <span className="ml-1 rounded-full bg-accent px-1.5 text-[11px] font-semibold text-white" aria-label={`${noLeidos} respuestas sin leer`}>
+                        {noLeidos}
+                    </span>
+                )}
+            </Button>
+        </Card>
+    )
+}
+
 /** undefined = cargando · null = error. */
-export default function ComprasClient({ pedidos }: Readonly<{ pedidos: MiPedido[] | null | undefined }>) {
+export default function ComprasClient({ pedidos, noLeidos: noLeidosInicial = 0 }: Readonly<{ pedidos: MiPedido[] | null | undefined; noLeidos?: number }>) {
     const router = useRouter()
     const [reintentando, startReintento] = useTransition()
+    const [chat, setChat] = useState<{ abierto: boolean; pedidoId: number | null }>({ abierto: false, pedidoId: null })
+    const [noLeidos, setNoLeidos] = useState(noLeidosInicial)
+    // La recarga automática trae un conteo nuevo del servidor: manda sobre el local.
+    const [conteoServidor, setConteoServidor] = useState(noLeidosInicial)
+    if (noLeidosInicial !== conteoServidor) {
+        setConteoServidor(noLeidosInicial)
+        setNoLeidos(noLeidosInicial)
+    }
+    const onLeidos = useCallback(() => setNoLeidos(0), [])
+    const abrirChat = (pedidoId: number | null) => setChat({ abierto: true, pedidoId })
+
+    const chatAsesor = (
+        <ChatAsesor
+            isOpen={chat.abierto}
+            onClose={() => setChat((c) => ({ ...c, abierto: false }))}
+            pedidoId={chat.pedidoId}
+            onQuitarPedido={() => setChat((c) => ({ ...c, pedidoId: null }))}
+            onLeidos={onLeidos}
+        />
+    )
 
     if (pedidos === undefined) {
         return (
@@ -147,19 +191,21 @@ export default function ComprasClient({ pedidos }: Readonly<{ pedidos: MiPedido[
         )
     }
 
-    if (pedidos.length === 0) {
-        return (
-            <Card padding="px-4 py-12" className="flex flex-col items-center justify-center text-center">
-                <ShoppingBag className="mb-3 h-7 w-7 text-secondary" aria-hidden="true" />
-                <p className="text-sm text-secondary">Aún no tienes compras.</p>
-                <Link href="/administrar/tienda" className="mt-4 text-sm font-medium text-accent hover:underline">Ir a la Tienda</Link>
-            </Card>
-        )
-    }
-
     return (
         <div className="flex flex-col gap-4">
-            {pedidos.map((p) => <PedidoCard key={p.id} pedido={p} />)}
+            {/* Un pago aprobado o rechazado (también desde Telegram) y las respuestas nuevas se ven sin recargar. */}
+            <AutoRefresh cadaMs={pedidos.some((p) => p.estado === "pendiente") ? 8_000 : 30_000} />
+            <BarraAsesor noLeidos={noLeidos} onAbrir={() => abrirChat(null)} />
+            {pedidos.length === 0 ? (
+                <Card padding="px-4 py-12" className="flex flex-col items-center justify-center text-center">
+                    <ShoppingBag className="mb-3 h-7 w-7 text-secondary" aria-hidden="true" />
+                    <p className="text-sm text-secondary">Aún no tienes compras.</p>
+                    <Link href="/administrar/tienda" className="mt-4 text-sm font-medium text-accent hover:underline">Ir a la Tienda</Link>
+                </Card>
+            ) : (
+                pedidos.map((p) => <PedidoCard key={p.id} pedido={p} onChat={abrirChat} />)
+            )}
+            {chatAsesor}
         </div>
     )
 }

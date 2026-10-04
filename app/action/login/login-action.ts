@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js"
 import { supabaseUrl, supabaseKey } from "@lib/const"
 import { notificar } from "@lib/notify"
 import { translateAuthError } from "@lib/supabase/auth-errors"
+import { DEMASIADOS_INTENTOS, descartarIntento, intentar, limpiarIntentos } from "@lib/limite-auth"
 
 // Al iniciar sesión solo se exige que haya datos: las reglas de complejidad son
 // para crear o cambiar la contraseña, no para comprobar una que ya existe.
@@ -50,6 +51,11 @@ export const loginAction = async (initialState: LoginState, formData: FormData) 
             errors: z.flattenError(data.error).fieldErrors,
         } satisfies LoginState
     }
+    const intento = await intentar("login", data.data.email)
+    if (intento.bloqueado) {
+        return { success: false, errors: {}, message: DEMASIADOS_INTENTOS } satisfies LoginState
+    }
+
     // Sin cookies: la sesión es solo de la pestaña que inicia sesión, que la recibe abajo.
     const supabase = createClient(supabaseUrl!, supabaseKey!, {
         auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -60,12 +66,16 @@ export const loginAction = async (initialState: LoginState, formData: FormData) 
     })
 
     if (error || !auth.session) {
+        // Los 429/5xx de Auth no son culpa del usuario: no cuentan como fallo.
+        if (error && error.status !== 400) await descartarIntento(intento)
         return {
             success: false,
             errors: {},
             message: translateAuthError(error?.message ?? ""),
         } satisfies LoginState
     }
+
+    await limpiarIntentos(data.data.email)
 
     // Una cuenta, un solo lugar: se cierran sus demás sesiones (otras pestañas u
     // otros navegadores), que vuelven al login en su siguiente petición.

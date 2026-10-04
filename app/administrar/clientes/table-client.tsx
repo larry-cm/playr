@@ -53,7 +53,7 @@ export default function TableClient({ esAdmin, esqueleto = false }: Readonly<Tab
             label: "Contraseña",
             type: "password",
             validate: validatePassword,
-            hint: "Entre 6 y 20 caracteres, con mayúscula, minúscula y un carácter especial (@$!%*?&).",
+            hint: "Mínimo 10 caracteres, con mayúscula, minúscula, número y símbolo.",
         },
         {
             key: "Rol",

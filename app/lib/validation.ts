@@ -7,13 +7,18 @@ export function validateEmail(value: string): string | null {
   return null
 }
 
+// Misma política que Supabase Auth (password_min_length 10 + minúsculas, mayúsculas, dígitos y símbolos): Auth la
+// exige igual aunque se llame directo a su API, así que la app no puede pedir menos. 72 = límite de bcrypt.
+export const SIMBOLOS_PASSWORD = "!@#$%^&*()_+-=[]{};'\\:\"|<>?,./`~"
+
 export function validatePassword(value: string): string | null {
   if (!value) return "Ingresa una contraseña."
-  if (value.length < 6) return "La contraseña debe tener al menos 6 caracteres."
-  if (value.length > 20) return "La contraseña no puede superar los 20 caracteres."
-  if (!/(?=.*[a-z])/.test(value)) return "Incluye al menos una letra minúscula."
-  if (!/(?=.*[A-Z])/.test(value)) return "Incluye al menos una letra mayúscula."
-  if (!/(?=.*[@$!%*?&])/.test(value)) return "Incluye al menos un carácter especial (@$!%*?&)."
+  if (value.length < 10) return "La contraseña debe tener al menos 10 caracteres."
+  if (value.length > 72) return "La contraseña no puede superar los 72 caracteres."
+  if (!/[a-z]/.test(value)) return "Incluye al menos una letra minúscula."
+  if (!/[A-Z]/.test(value)) return "Incluye al menos una letra mayúscula."
+  if (!/[0-9]/.test(value)) return "Incluye al menos un número."
+  if (![...value].some((c) => SIMBOLOS_PASSWORD.includes(c))) return "Incluye al menos un símbolo (por ejemplo ! @ # $ % & * . -)."
   return null
 }
 

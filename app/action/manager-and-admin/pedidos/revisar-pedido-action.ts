@@ -1,7 +1,9 @@
 "use server"
 
+import { after } from "next/server"
 import { revalidatePath } from "next/cache"
 import { esStaff, SIN_PERMISO } from "@lib/auth"
+import { precalentarLicencias } from "@lib/claves"
 
 export type RevisarPedidoResult = { ok: true } | { ok: false; error: string }
 
@@ -15,7 +17,8 @@ export async function revisarPedidoAction(pedidoId: number, decision: "aprobar" 
     if (!Number.isInteger(pedidoId) || (decision !== "aprobar" && decision !== "rechazar")) return { ok: false, error: "Datos no válidos." }
 
     const { createSupabase } = await import("@lib/supabase/server")
-    const db = (await createSupabase()).schema("business")
+    const supabase = await createSupabase()
+    const db = supabase.schema("business")
     const { error } = decision === "aprobar"
         ? await db.rpc("aprobar_pedido", { p_pedido_id: pedidoId, p_via: "panel" })
         : await db.rpc("rechazar_pedido", { p_pedido_id: pedidoId, p_motivo: String(motivo ?? "").slice(0, 300), p_via: "panel" })
@@ -26,6 +29,8 @@ export async function revisarPedidoAction(pedidoId: number, decision: "aprobar" 
         return { ok: false, error: "No se pudo guardar. Inténtalo de nuevo." }
     }
 
+    // Aprobado: el cliente va a abrir sus accesos; que la caché de licencias ya esté al día.
+    if (decision === "aprobar") after(() => precalentarLicencias(supabase))
     revalidatePath("/administrar/pedidos")
     revalidatePath("/administrar/compras")
     revalidatePath("/administrar/tienda")

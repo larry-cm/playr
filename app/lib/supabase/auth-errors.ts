@@ -15,6 +15,12 @@ const errorMap: Record<string, string> = {
         "No se pudo actualizar la contraseña. Intenta de nuevo.",
 }
 
+// Un mensaje sin traducir no se muestra tal cual (puede revelar detalles de la cuenta o de Auth): se registra y
+// el usuario ve uno genérico.
 export function translateAuthError(message: string): string {
-    return errorMap[message] ?? message
+    const traducido = errorMap[message]
+    if (traducido) return traducido
+    if (message.startsWith("Password should")) return "La contraseña no cumple los requisitos de seguridad."
+    if (message) console.error("Auth sin traducir:", message)
+    return "No se pudo completar la operación. Intenta de nuevo más tarde."
 }

@@ -8,6 +8,7 @@ import { SearchInput } from "@ui/data-frame"
 import Select from "@ui/select"
 import { AlertCircle, MessageCircle, RefreshCw } from "lucide-react"
 import ProductGrid from "@/app/administrar/tienda/product-grid"
+import { TIPO_ACCESO } from "@/app/administrar/tienda/product-card"
 import type { CatalogoDisponibleItem } from "@action/tienda/get-catalogo-disponible-action"
 import { formatCOP } from "@lib/currency"
 
@@ -39,7 +40,8 @@ export default function TiendaClient({ initialCatalogo, telefonoAsesor }: Tienda
             const matchesSearch =
                 term.length === 0 ||
                 item.perfil_nombre.toLowerCase().includes(term) ||
-                item.platform_nombre.toLowerCase().includes(term)
+                item.platform_nombre.toLowerCase().includes(term) ||
+                TIPO_ACCESO[item.access_type].toLowerCase().includes(term)
             const matchesCategoria = categoria.length === 0 || item.categoria === categoria
             return matchesSearch && matchesCategoria
         })
@@ -65,7 +67,7 @@ export default function TiendaClient({ initialCatalogo, telefonoAsesor }: Tienda
     const puedeEnviar = selectedItems.length > 0 && hayAsesor
 
     const lineasSeleccion = selectedItems
-        .map((item, i) => `${i + 1}. ${item.platform_nombre} - ${item.perfil_nombre} - ${formatCOP(item.precio_venta)}`)
+        .map((item, i) => `${i + 1}. ${item.platform_nombre} - ${TIPO_ACCESO[item.access_type]} - ${item.perfil_nombre} - ${formatCOP(item.precio_venta)}`)
         .join("\n")
 
     const mensaje = `Hola, quiero contratar estos perfiles:\n\n${lineasSeleccion}\n\nTotal: ${formatCOP(total)}`

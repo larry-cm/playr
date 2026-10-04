@@ -10,6 +10,8 @@ export interface CatalogoDisponibleItem {
     precio_venta: number
     platform_nombre: string
     categoria: string
+    /** completa = toda la cuenta · pantalla = un perfil de una cuenta compartida · otro = ni lo uno ni lo otro (p. ej. combos). */
+    access_type: "completa" | "pantalla" | "otro"
 }
 
 export async function getCatalogoDisponibleAction(): Promise<CatalogoDisponibleItem[] | null> {
@@ -19,7 +21,7 @@ export async function getCatalogoDisponibleAction(): Promise<CatalogoDisponibleI
         const { data, error } = await supabase
             .schema("business")
             .from("catalogo_disponible")
-            .select("profile_id,perfil_nombre,precio_venta,platform_nombre,categoria")
+            .select("profile_id,perfil_nombre,precio_venta,platform_nombre,categoria,access_type")
             .order("platform_nombre", { ascending: true })
             .order("perfil_nombre", { ascending: true })
 

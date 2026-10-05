@@ -2,8 +2,9 @@
 
 import { Menu } from "lucide-react"
 import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore } from "react"
-import Aside from "@/app/administrar/aside"
+import Aside, { Insignia } from "@/app/administrar/aside"
 import NotificacionesDrawer, { NotificacionesBell, useNotificaciones } from "@/app/administrar/notificaciones"
+import { useMensajesSinLeer } from "@/app/administrar/use-mensajes-sin-leer"
 
 // Debajo de lg el menú lateral es un panel que se abre y cierra; en escritorio siempre está visible.
 const mobileQuery = "(max-width: 63.999rem)"
@@ -35,6 +36,7 @@ export default function DashboardClient({
     const canNotify = role === "admin" || role === "manager"
     const notifs = useNotificaciones(canNotify)
     const bell = canNotify && <NotificacionesBell count={notifs.sinVer} onClick={notifs.open} />
+    const sinLeer = useMensajesSinLeer(canNotify)
 
     // Menú móvil abierto: lo de atrás (header y main) queda inerte y el foco no sale del menú.
     const behindInert = isMobile && sidebarOpen
@@ -82,12 +84,14 @@ export default function DashboardClient({
                 <button
                     ref={menuButtonRef}
                     onClick={() => setSidebarOpen(true)}
-                    className="p-3 -ml-3 rounded-xl hover:bg-white/5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                    aria-label="Abrir menú"
+                    className="relative p-3 -ml-3 rounded-xl hover:bg-white/5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                    aria-label={sinLeer > 0 ? `Abrir menú, ${sinLeer} mensajes sin leer` : "Abrir menú"}
                     aria-expanded={sidebarOpen}
                     aria-controls="menu-lateral"
                 >
                     <Menu className="w-5 h-5 text-secondary" />
+                    {/* Mensajes sin leer a la vista sin abrir el menú (misma posición que la de la campana). */}
+                    <Insignia count={sinLeer} className="absolute top-1.5 right-1.5" />
                 </button>
                 <span className="text-lg font-bold tracking-tight text-white">Playr</span>
                 {bell ? <div className="-mr-3">{bell}</div> : <div className="w-11" />}
@@ -110,6 +114,7 @@ export default function DashboardClient({
                     setSidebarOpen={setSidebarOpen}
                     role={role}
                     bell={bell}
+                    badges={{ "/administrar/mensajes": sinLeer }}
                     inert={isMobile && !sidebarOpen}
                 />
 

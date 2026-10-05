@@ -37,6 +37,8 @@ interface ChatCompositorProps {
     encabezado?: ReactNode
     /** Guarda el mensaje; devuelve el error a mostrar o null si se envió. */
     onEnviar: (texto: string, adjunto: AdjuntoSubido | null) => Promise<string | null>
+    /** Cada vez que cambia (y no es null) el foco va a la caja de texto (p. ej. al elegir "Responder"). */
+    focusKey?: string | number | null
 }
 
 export const reloj = (ms: number) => {
@@ -53,7 +55,7 @@ const botonEnviar =
  * Caja para escribir en el chat con el asesor, al estilo de las apps de mensajería: texto que crece solo, imagen
  * (botón, pegar o arrastrar) y nota de voz grabada en el navegador (con onda en vivo; se puede escuchar antes de enviar).
  */
-export default function ChatCompositor({ clienteId, etiqueta, placeholder, encabezado, onEnviar }: Readonly<ChatCompositorProps>) {
+export default function ChatCompositor({ clienteId, etiqueta, placeholder, encabezado, onEnviar, focusKey = null }: Readonly<ChatCompositorProps>) {
     const textoId = useId()
     const archivoRef = useRef<HTMLInputElement>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -66,6 +68,15 @@ export default function ChatCompositor({ clienteId, etiqueta, placeholder, encab
     const grabadora = useRef<Grabadora | null>(null)
     // El envío directo desde la grabación termina en un callback del MediaRecorder: lee el texto actual por acá.
     const textoRef = useRef("")
+    // Por lo mismo, el envío usa siempre el onEnviar del último render (la respuesta o el pedido elegidos mientras se grababa).
+    const onEnviarRef = useRef(onEnviar)
+    useEffect(() => {
+        onEnviarRef.current = onEnviar
+    })
+
+    useEffect(() => {
+        if (focusKey !== null) textareaRef.current?.focus()
+    }, [focusKey])
 
     const estaGrabando = grabando !== null
 
@@ -133,7 +144,7 @@ export default function ChatCompositor({ clienteId, etiqueta, placeholder, encab
         setEnviando(true)
         try {
             const adjunto = adjuntoLocal ? await subir(adjuntoLocal) : null
-            const errEnvio = typeof adjunto === "string" ? adjunto : await onEnviar(valor, adjunto)
+            const errEnvio = typeof adjunto === "string" ? adjunto : await onEnviarRef.current(valor, adjunto)
             setError(errEnvio)
             if (errEnvio) {
                 if (adjuntoLocal) setBorrador(adjuntoLocal)

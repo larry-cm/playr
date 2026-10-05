@@ -2,5 +2,5 @@
 import MensajesClient from "@/app/administrar/mensajes/mensajes-client"
 
 export default function Loading() {
-    return <MensajesClient conversaciones={undefined} clienteInicial={null} />
+    return <MensajesClient bandeja={undefined} clienteInicial={null} />
 }

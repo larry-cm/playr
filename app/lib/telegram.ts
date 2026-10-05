@@ -13,7 +13,8 @@ import { notificar } from "@lib/notify"
 import { formatCOP } from "@lib/currency"
 import { formatColombianDateTime } from "@lib/date"
 import { comprobanteEsImagen, ESTADO_PEDIDO, type EstadoPedido } from "@lib/pedido"
-import type { TipoAdjunto } from "@lib/chat-adjunto"
+import { resumenMensaje, type TipoAdjunto } from "@lib/chat-adjunto"
+import { recortar } from "@lib/chat-bandeja"
 
 const API = "https://api.telegram.org"
 
@@ -102,13 +103,43 @@ function detallePedido(p: PedidoTg): string[] {
     ]
 }
 
-/** Anota de qué cliente es un mensaje de Telegram (para grupos sin Temas: el asesor responde ese mensaje). */
-async function anotarHilo(db: SupabaseClient, m: MensajeTg, clienteId: string, pedidoId: number | null) {
+/**
+ * Anota de qué cliente es un mensaje de Telegram (para grupos sin Temas: el asesor responde ese mensaje) y, si copia un
+ * mensaje de Playr, cuál (`mensajeId`): así las respuestas se citan en los dos sentidos.
+ */
+async function anotarHilo(db: SupabaseClient, m: MensajeTg, clienteId: string, pedidoId: number | null, mensajeId: number | null = null) {
     const { error } = await db
         .schema("business")
         .from("telegram_hilo")
-        .insert({ chat_id: m.chat.id, message_id: m.message_id, cliente_id: clienteId, pedido_id: pedidoId })
+        .insert({ chat_id: m.chat.id, message_id: m.message_id, cliente_id: clienteId, pedido_id: pedidoId, mensaje_id: mensajeId })
     if (error) console.error("telegram: no se pudo guardar el hilo:", error.message)
+}
+
+/**
+ * Cómo mostrar en Telegram que un mensaje responde a otro: respondiendo la copia de ese mensaje en el grupo (la más
+ * reciente) o, si no tiene copia, con una línea que lo cita. Nunca lanza: sin datos, el mensaje va sin cita.
+ */
+async function citaTelegram(cfg: TelegramCfg, db: SupabaseClient, respondeA: number | null): Promise<{ reply: Record<string, unknown>; linea: string }> {
+    const sinCita = { reply: {}, linea: "" }
+    if (!respondeA) return sinCita
+    try {
+        const negocio = db.schema("business")
+        const { data: hilo } = await negocio
+            .from("telegram_hilo")
+            .select("message_id")
+            .eq("chat_id", Number(cfg.chatId))
+            .eq("mensaje_id", respondeA)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        if (hilo) return { reply: { reply_parameters: { message_id: Number(hilo.message_id), allow_sending_without_reply: true } }, linea: "" }
+        const { data: original } = await negocio.from("mensaje_asesor").select("texto,adjunto_tipo").eq("id", respondeA).maybeSingle()
+        if (!original) return sinCita
+        return { reply: {}, linea: `↩️ <i>«${html(recortar(resumenMensaje(original), 80))}»</i>` }
+    } catch (e) {
+        console.error("telegram: cita de la respuesta:", e instanceof Error ? e.message : e)
+        return sinCita
+    }
 }
 
 /**
@@ -277,7 +308,7 @@ export async function reenviarMensajeAsesor(mensajeId: number): Promise<boolean>
     if (!cfg || !db) return false
 
     try {
-        const { data: m, error } = await db.schema("business").from("mensaje_asesor").select("id,cliente_id,pedido_id,texto,adjunto_path,adjunto_tipo").eq("id", mensajeId).single()
+        const { data: m, error } = await db.schema("business").from("mensaje_asesor").select("id,cliente_id,pedido_id,texto,adjunto_path,adjunto_tipo,responde_a").eq("id", mensajeId).single()
         if (error || !m) throw new Error(error?.message ?? "mensaje no encontrado")
 
         const pedidos = db.schema("business").from("pedido").select(PEDIDO_COLUMNAS)
@@ -300,24 +331,29 @@ export async function reenviarMensajeAsesor(mensajeId: number): Promise<boolean>
             mostrarPedido = !count
         }
 
+        const cita = await citaTelegram(cfg, db, m.responde_a)
         const text = [
+            ...(cita.linea ? [cita.linea] : []),
             html(m.texto),
             ...(pedido && mostrarPedido ? ["", m.pedido_id ? "<i>Sobre este pedido:</i>" : "<i>Su último pedido:</i>", ...detallePedido(pedido)] : []),
         ].join("\n").trim().slice(0, 4096)
 
         const url = sitio()
-        const boton = url ? { reply_markup: { inline_keyboard: [[{ text: "Abrir en Playr", url: `${url}/administrar/mensajes?cliente=${m.cliente_id}` }]] } } : {}
+        const extra = {
+            ...cita.reply,
+            ...(url ? { reply_markup: { inline_keyboard: [[{ text: "Abrir en Playr", url: `${url}/administrar/mensajes?cliente=${m.cliente_id}` }]] } } : {}),
+        }
         const enviado = m.adjunto_path
-            ? await enviarAdjuntoAlCliente(cfg, db, m.cliente_id, { path: m.adjunto_path, tipo: m.adjunto_tipo }, text, boton)
+            ? await enviarAdjuntoAlCliente(cfg, db, m.cliente_id, { path: m.adjunto_path, tipo: m.adjunto_tipo }, text, extra)
             : await enviarAlCliente(cfg, db, m.cliente_id, "sendMessage", (thread) => ({
                   chat_id: cfg.chatId,
                   ...(thread !== null ? { message_thread_id: thread } : {}),
                   text,
                   parse_mode: "HTML",
-                  ...boton,
+                  ...extra,
               }))
         // Se anota el pedido mostrado (también "su último pedido"), así no se vuelve a repetir.
-        await anotarHilo(db, enviado, m.cliente_id, m.pedido_id ?? (mostrarPedido ? pedido?.id ?? null : null))
+        await anotarHilo(db, enviado, m.cliente_id, m.pedido_id ?? (mostrarPedido ? pedido?.id ?? null : null), Number(m.id))
         return true
     } catch (e) {
         await notificar({
@@ -337,18 +373,22 @@ export async function copiarMensajePanelTelegram(mensajeId: number): Promise<voi
     if (!cfg || !db) return
 
     try {
-        const { data: m, error } = await db.schema("business").from("mensaje_asesor").select("cliente_id,texto,autor_via,adjunto_path,adjunto_tipo").eq("id", mensajeId).single()
+        const { data: m, error } = await db.schema("business").from("mensaje_asesor").select("cliente_id,texto,autor_via,adjunto_path,adjunto_tipo,responde_a").eq("id", mensajeId).single()
         if (error || !m) throw new Error(error?.message ?? "mensaje no encontrado")
         const quien = (m.autor_via ?? "").replace(/^panel:/, "") || "el equipo"
-        const text = `🧑‍💼 <i>${html(quien)} respondió desde Playr:</i>${m.texto ? `\n${html(m.texto)}` : ""}`
-        if (m.adjunto_path) await enviarAdjuntoAlCliente(cfg, db, m.cliente_id, { path: m.adjunto_path, tipo: m.adjunto_tipo }, text)
-        else
-            await enviarAlCliente(cfg, db, m.cliente_id, "sendMessage", (thread) => ({
-                chat_id: cfg.chatId,
-                ...(thread !== null ? { message_thread_id: thread } : {}),
-                text,
-                parse_mode: "HTML",
-            }))
+        const cita = await citaTelegram(cfg, db, m.responde_a)
+        const text = [`🧑‍💼 <i>${html(quien)} respondió desde Playr:</i>`, ...(cita.linea ? [cita.linea] : []), ...(m.texto ? [html(m.texto)] : [])].join("\n")
+        const enviado = m.adjunto_path
+            ? await enviarAdjuntoAlCliente(cfg, db, m.cliente_id, { path: m.adjunto_path, tipo: m.adjunto_tipo }, text, cita.reply)
+            : await enviarAlCliente(cfg, db, m.cliente_id, "sendMessage", (thread) => ({
+                  chat_id: cfg.chatId,
+                  ...(thread !== null ? { message_thread_id: thread } : {}),
+                  text,
+                  parse_mode: "HTML",
+                  ...cita.reply,
+              }))
+        // Sin pedido: así no cuenta como "pedido ya mostrado" en reenviarMensajeAsesor.
+        await anotarHilo(db, enviado, m.cliente_id, null, mensajeId)
     } catch (e) {
         await notificar({
             origen: "plataforma",

@@ -185,16 +185,36 @@ async function atenderMensaje(cfg: TelegramCfg, m: Mensaje) {
     if (!db) throw new Error("Falta SUPABASE_SECRET_KEY")
     const negocio = db.schema("business")
 
+    // Mensaje que responde: en un tema, si no es una respuesta explícita, Telegram pone el mensaje que creó el tema (no
+    // tiene hilo anotado, así que no cita nada).
+    let hilo: { cliente_id: string; pedido_id: number | null; mensaje_id: number | null } | null = null
+    if (m.reply_to_message) {
+        const { data } = await negocio
+            .from("telegram_hilo")
+            .select("cliente_id,pedido_id,mensaje_id")
+            .eq("chat_id", m.chat.id)
+            .eq("message_id", m.reply_to_message.message_id)
+            .maybeSingle()
+        hilo = data
+    }
+
     let destino: { cliente_id: string; pedido_id: number | null } | null = null
     if (m.is_topic_message && m.message_thread_id) {
         const { data } = await negocio.from("telegram_tema").select("cliente_id").eq("chat_id", m.chat.id).eq("thread_id", m.message_thread_id).maybeSingle()
         if (data) destino = { cliente_id: data.cliente_id, pedido_id: null }
-    } else if (m.reply_to_message) {
-        const { data } = await negocio.from("telegram_hilo").select("cliente_id,pedido_id").eq("chat_id", m.chat.id).eq("message_id", m.reply_to_message.message_id).maybeSingle()
-        destino = data
+    } else if (hilo) {
+        destino = { cliente_id: hilo.cliente_id, pedido_id: hilo.pedido_id }
     }
     // Conversación del equipo (tema General u otro mensaje): no es para un cliente.
     if (!destino) return
+
+    // Respuesta a la copia de un mensaje de Playr: se cita en Playr, solo si es del mismo chat (si no, la base rechaza
+    // el mensaje entero).
+    let respondeA: number | null = null
+    if (hilo?.mensaje_id && hilo.cliente_id === destino.cliente_id) {
+        const { data } = await negocio.from("mensaje_asesor").select("id").eq("id", hilo.mensaje_id).eq("cliente_id", destino.cliente_id).maybeSingle()
+        if (data) respondeA = Number(data.id)
+    }
 
     const texto = (m.text ?? m.caption ?? "").trim()
     if (texto.startsWith("/")) return
@@ -223,21 +243,32 @@ async function atenderMensaje(cfg: TelegramCfg, m: Mensaje) {
         adjunto = { path, tipo: archivo.tipo }
     } else if (!texto) return
 
-    const { error } = await negocio.from("mensaje_asesor").insert({
-        cliente_id: destino.cliente_id,
-        pedido_id: destino.pedido_id,
-        autor: "asesor",
-        texto: texto.slice(0, 1000),
-        autor_via: `telegram:${nombre(m.from)}`.slice(0, 80),
-        adjunto_path: adjunto?.path ?? null,
-        adjunto_tipo: adjunto?.tipo ?? null,
-    })
-    if (error) {
-        console.error("telegram webhook: guardar respuesta", error.message)
+    const { data: guardado, error } = await negocio
+        .from("mensaje_asesor")
+        .insert({
+            cliente_id: destino.cliente_id,
+            pedido_id: destino.pedido_id,
+            autor: "asesor",
+            texto: texto.slice(0, 1000),
+            autor_via: `telegram:${nombre(m.from)}`.slice(0, 80),
+            adjunto_path: adjunto?.path ?? null,
+            adjunto_tipo: adjunto?.tipo ?? null,
+            responde_a: respondeA,
+        })
+        .select("id")
+        .single()
+    if (error || !guardado) {
+        console.error("telegram webhook: guardar respuesta", error?.message)
         await decir("No se pudo enviar tu mensaje al cliente. Inténtalo de nuevo.")
         return
     }
+    // Este mensaje de Telegram copia el de Playr: si alguien lo responde en Telegram, la respuesta lo cita.
+    const { error: errHilo } = await negocio
+        .from("telegram_hilo")
+        .insert({ chat_id: m.chat.id, message_id: m.message_id, cliente_id: destino.cliente_id, pedido_id: destino.pedido_id, mensaje_id: Number(guardado.id) })
+    if (errHilo) console.error("telegram webhook: guardar hilo", errHilo.message)
     revalidatePath("/administrar/compras")
+    revalidatePath("/administrar/mensajes")
     await telegram(cfg, "setMessageReaction", { chat_id: m.chat.id, message_id: m.message_id, reaction: [{ type: "emoji", emoji: "👍" }] })
         .catch(() => decir("✅ Enviado al cliente."))
 }

@@ -19,6 +19,18 @@ interface AsideProps {
     ref?: Ref<HTMLElement>;
     /** En móvil, con el menú cerrado, lo saca del foco y del árbol de accesibilidad. */
     inert?: boolean;
+    /** Pendientes por ítem del menú (clave = href), p. ej. mensajes sin leer. 0 o sin valor = sin insignia. */
+    badges?: Partial<Record<string, number>>;
+}
+
+/** Píldora con un número (tope "99+"). Decorativa: quien la usa pone el número en su aria-label. */
+export function Insignia({ count, className = "" }: { count: number; className?: string }) {
+    if (count <= 0) return null
+    return (
+        <span aria-hidden="true" className={`min-w-4 h-4 px-1 rounded-full bg-accent text-[10px] leading-4 font-bold text-white text-center tabular-nums ${className}`}>
+            {count > 99 ? "99+" : count}
+        </span>
+    )
 }
 
 const navItems = [
@@ -34,7 +46,7 @@ const navItems = [
     { name: "Mis compras", href: "/administrar/compras", icon: ShoppingBag, roles: ["user"] },
     { name: "Ajustes", href: "/administrar/ajustes", icon: Settings, roles: ["admin"] },
 ]
-export default function Aside({ sidebarOpen, setSidebarOpen, role, bell, ref, inert }: AsideProps) {
+export default function Aside({ sidebarOpen, setSidebarOpen, role, bell, ref, inert, badges }: AsideProps) {
     const pathname = usePathname()
     const router = useRouter()
     const ruta = useRuta()
@@ -84,20 +96,27 @@ export default function Aside({ sidebarOpen, setSidebarOpen, role, bell, ref, in
                 {filteredItems.map((item) => {
                     const Icon = item.icon
                     const isActive = actual === item.href
+                    const badge = badges?.[item.href] ?? 0
                     return (
                         <Link
                             key={item.href}
                             href={ruta(item.href)}
                             onClick={() => setSidebarOpen(false)}
                             aria-current={isActive ? "page" : undefined}
+                            aria-label={badge > 0 ? `${item.name}, ${badge} sin leer` : undefined}
                             title={compact ? item.name : undefined}
                             className={`flex items-center gap-3 px-3 py-3 lg:py-2.5 rounded-xl text-sm font-medium transition-all duration-200 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent ${rail("lg:justify-center lg:px-0")} ${isActive
                                 ? "bg-accent/10 border border-accent/20 text-accent"
                                 : "text-secondary border border-transparent hover:text-white hover:bg-white/5"
                                 }`}
                         >
-                            <Icon className="w-4 h-4 shrink-0" />
+                            {/* En el riel de iconos la insignia va en la esquina del icono; con el texto visible, a la derecha. */}
+                            <span className="relative shrink-0">
+                                <Icon className="w-4 h-4" />
+                                {compact && <Insignia count={badge} className="hidden lg:block absolute -top-2 -right-2.5" />}
+                            </span>
                             <span className={rail("lg:sr-only")}>{item.name}</span>
+                            <Insignia count={badge} className={`ml-auto ${rail("lg:hidden")}`} />
                         </Link>
                     )
                 })}

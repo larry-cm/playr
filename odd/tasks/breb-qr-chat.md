@@ -66,6 +66,8 @@ User request 2026-10-04. Decisions (verbatim from the user):
 - T6: CLAUDE.md section 21 (Pagar por QR, PWA share, PDF in chat).
 - T7: pnpm exec tsc --noEmit: exit 0 · pnpm lint: clean · pnpm build: OK (21 pages) · sandbox pedido_qr_check + pedido_check: OK (parent spot check). Pending: db push (user confirmation) and logged-in e2e (needs push; shares prod DB).
 
+- Commits: 3ff2b03 (T1 DB), 1306e01 (T2–T6 app/PWA/docs). DB push 2026-10-04 run by the user: 20261006100001 and 20261006100002 applied (confirmed in `migration list --linked`). Pending: `pedido_qr_check.sql` on the linked DB and logged-in e2e (both blocked for the agent by the permission classifier; user runs them).
+
 ## Review ledger
 - Candidate b2c53073 (base 58b68efa): risk medium (executable_change), 38 paths / 1782 lines, slice_budget_reached. Consent: granted, lens risk.
   - RISK-001 (risk, public/sw.js:42, WARNING, candidate, info): cross-site form POST to /compartir could plant a receipt on the victim's waiting order. Follow-up fixed: SW ignores Sec-Fetch-Site cross-site (candidate b8b77f64, under_budget, 7 lines).

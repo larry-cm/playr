@@ -45,3 +45,6 @@ export function normalizePhone(input: string | null | undefined): string {
     const { code, number } = splitPhoneNumber(input)
     return number ? `${code} ${number}` : ""
 }
+
+/** Cómo se muestra cada rol en la tabla de Clientes. */
+export const ETIQUETA_ROL: Record<string, string> = { user: "Cliente", manager: "Manager", admin: "Administrador" }

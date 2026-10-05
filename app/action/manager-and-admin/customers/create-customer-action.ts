@@ -1,16 +1,14 @@
 "use server"
 
-import { getRoleUser } from "@action/get-role-action"
-import { SIN_PERMISO } from "@lib/auth"
-import { createCustomerSchema, firstErrorOf, normalizePhone } from "@lib/customer-schema"
+import { esAdmin, SIN_PERMISO } from "@lib/auth"
+import { createCustomerSchema, ETIQUETA_ROL, firstErrorOf, normalizePhone } from "@lib/customer-schema"
 import { createSupabaseAdmin } from "@lib/supabase/admin"
 
 type CustomerInput = Record<string, unknown> | FormData
 
 export const createCustomerAction = async (formData: CustomerInput) => {
-    // Solo staff crea usuarios, y solo un admin puede crear otro admin/manager.
-    const quien = await getRoleUser()
-    if (quien !== "admin" && quien !== "manager") return SIN_PERMISO
+    // Solo el admin crea usuarios (clientes o staff).
+    if (!(await esAdmin())) return SIN_PERMISO
 
     const getVal = (...keys: string[]): string | undefined => {
         for (const key of keys) {
@@ -39,7 +37,6 @@ export const createCustomerAction = async (formData: CustomerInput) => {
     })
 
     if (!data.success) return firstErrorOf(data.error)
-    if (data.data.rol !== "user" && quien !== "admin") return "Solo un administrador puede crear usuarios staff."
 
     // El registro público está cerrado: el alta la hace el servidor con la clave secreta, sin tocar la
     // sesión (cookies) del staff que está creando al cliente.
@@ -98,6 +95,7 @@ export const createCustomerAction = async (formData: CustomerInput) => {
             Nombre: created.username,
             Correo: created.email,
             Teléfono: formatPhoneNumber(created.phone ?? ""),
+            Tipo: ETIQUETA_ROL[data.data.rol],
             "Fecha de Creación": fecha === "error" ? "--" : fecha,
         },
     }

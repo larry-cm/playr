@@ -18,7 +18,7 @@ type CustomerRow = Record<string, unknown>
 const SIN_FILAS: CustomerRow[] = []
 
 interface TableClientProps {
-    /** Solo un admin puede crear managers y administradores; un manager solo crea clientes. */
+    /** El módulo es solo del admin: puede crear clientes, managers y administradores. */
     esAdmin: boolean
     /** Solo el esqueleto (loading.tsx): la tabla queda cargando y no se piden los clientes. */
     esqueleto?: boolean
@@ -110,12 +110,12 @@ export default function TableClient({ esAdmin, esqueleto = false }: Readonly<Tab
 
     return (
         <article>
-            {/* La fecha la genera la base de datos: se muestra, pero no se edita ni se pide al crear. */}
+            {/* La fecha la genera la base de datos y el tipo sale del rol (se elige al crear): se muestran, pero no se editan. */}
             <Table
-                header={["Nombre", "Correo", "Teléfono", "Fecha de Creación"]}
+                header={["Nombre", "Correo", "Teléfono", "Tipo", "Fecha de Creación"]}
                 data={customers ?? SIN_FILAS}
                 loading={customers === undefined}
-                readOnlyColumns={["Fecha de Creación"]}
+                readOnlyColumns={["Tipo", "Fecha de Creación"]}
                 entityName="cliente"
                 createFields={createFields}
                 onEditSave={saveEditCustomer}

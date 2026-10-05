@@ -134,7 +134,7 @@ Usar estos aliases en lugar de rutas relativas largas. Es el patrón esperado po
 - `getRoleUser()` (`app/action/get-role-action.ts`, envuelto en React `cache()`) devuelve `user | admin | manager | error`. El rol vive en **`security.user_role`** (no en `user_metadata`, que el usuario puede editar); si falta, "user".
 - `business.es_staff()` (security definer) lee la misma tabla y es la base de toda la RLS.
 - **Nadie asigna roles desde el cliente**: `security.user_role`/`role` no tienen INSERT/UPDATE/DELETE para `authenticated`. Los asigna el servidor con `createSupabaseAdmin()` (clave secreta) después de verificar que quien llama es admin.
-- **Registro público cerrado** en Supabase Auth (`disable_signup`). Los usuarios los crea el staff en Clientes (`createCustomerAction` → `auth.admin.createUser`; contraseña escrita por el staff con las reglas de `validatePassword`; solo un admin puede crear admin/manager).
+- **Registro público cerrado** en Supabase Auth (`disable_signup`). Los usuarios los crea el **admin** en Clientes (`/administrar/clientes`, en el menú solo para admin; pedido del usuario 2026-10-04: listar, crear, editar y dar de baja es solo del admin, `esAdmin()` de `app/lib/auth.ts`; un manager no entra). Al crear elige el rol (cliente, manager o administrador) y la tabla lo muestra en la columna "Tipo" (`security.user_role`). `createCustomerAction` → `auth.admin.createUser`; contraseña escrita por el admin con las reglas de `validatePassword`.
 
 ### Sesión por pestaña y una sesión por cuenta
 - Cada pestaña tiene su propia sesión (pedido del usuario 2026-10-03: cuentas distintas por pestaña) y **la URL no lo muestra** (`/administrar/...` normal, pedido del usuario). La sesión de Supabase vive en el `sessionStorage` de la pestaña (`supabaseTab()` en `app/lib/supabase/client.ts`), no en cookies. Detalle en `app/lib/sesion-tab.ts`.
@@ -326,3 +326,13 @@ El cliente elige a cuál de las llaves Bre-B paga (`business.llave_breb`: nombre
 - CLI local (devDependency `vercel`, nunca global): `set -a && . ./.env.vercel && set +a && pnpm exec vercel deploy --prod --yes --token "$VERCEL_TOKEN"`. `.env.vercel` (ignorado por git) tiene `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`; `.vercel/project.json` lo deja `vercel link`.
 - `.vercelignore` excluye `.env*`, herramientas de agentes, `jobs/` y `supabase/` **anclados a la raíz** (`/supabase/`; sin la barra también excluye `app/lib/supabase` y el build falla).
 - Variables en Vercel (Production): las de `.env` y `.env.platform` (las que no son `NEXT_PUBLIC_*` como sensibles) + `NEXT_PUBLIC_SITE_URL=https://playr-eight.vercel.app`. Si cambia un valor local, actualizarlo con `vercel env add <NOMBRE> production --force` y redeployar (las `NEXT_PUBLIC_*` se fijan en el build).
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

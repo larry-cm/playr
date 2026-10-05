@@ -1,6 +1,6 @@
 "use client"
 
-import { LayoutDashboard, LogOut, X, Store, Tag, Network, Monitor, Warehouse, Settings, ShoppingBag, Receipt, MessageCircle } from "lucide-react"
+import { LayoutDashboard, LogOut, X, Store, Tag, Network, Monitor, Warehouse, Settings, ShoppingBag, Receipt, MessageCircle, Users } from "lucide-react"
 import type { ReactNode, Ref } from "react"
 
 import { usePathname, useRouter } from "next/navigation"
@@ -30,6 +30,7 @@ const navItems = [
     { name: "Bodega", href: "/administrar/bodega", icon: Warehouse, roles: ["admin", "manager"] },
     { name: "Pedidos", href: "/administrar/pedidos", icon: Receipt, roles: ["admin", "manager"] },
     { name: "Mensajes", href: "/administrar/mensajes", icon: MessageCircle, roles: ["admin", "manager"] },
+    { name: "Clientes", href: "/administrar/clientes", icon: Users, roles: ["admin"] },
     { name: "Tienda", href: "/administrar/tienda", icon: Store, roles: ["user"] },
     { name: "Mis compras", href: "/administrar/compras", icon: ShoppingBag, roles: ["user"] },
     { name: "Ajustes", href: "/administrar/ajustes", icon: Settings, roles: ["admin"] },

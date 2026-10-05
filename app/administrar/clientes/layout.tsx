@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 // El rol se revisa acá (no solo en page.tsx): el layout envuelve a loading.tsx, así nadie ve la pantalla de otro rol mientras carga.
 export default async function Layout({ children }: Readonly<{ children: React.ReactNode }>) {
   const role = await getRoleUser()
-  if (role !== "admin" && role !== "manager") redirect(await rutaServidor("/administrar"))
+  if (role !== "admin") redirect(await rutaServidor("/administrar"))
 
   return (
     <section className="flex flex-col gap-4">

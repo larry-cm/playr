@@ -325,7 +325,7 @@ El cliente elige a cuál de las llaves Bre-B paga (`business.llave_breb`: nombre
 
 ## 22) Hosting en Vercel
 
-- Proyecto `playr` en el team `larrys-projects-4278c2a2` (hobby); producción: https://playr-eight.vercel.app. Sin integración con Git: se despliega por CLI.
+- Proyecto `playr` en el team `larrys-projects-4278c2a2` (hobby); producción: https://playr-eight.vercel.app. Conectado a GitHub (`larry-cm/playr`, rama de producción `master`): **solo un commit nuevo en `master` despliega** (Ignored Build Step del proyecto: `[ "$VERCEL_GIT_COMMIT_REF" != "master" ]`; las demás ramas quedan "Canceled" sin construir). El CLI sigue sirviendo para un deploy manual.
 - CLI local (devDependency `vercel`, nunca global): `set -a && . ./.env.vercel && set +a && pnpm exec vercel deploy --prod --yes --token "$VERCEL_TOKEN"`. `.env.vercel` (ignorado por git) tiene `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`; `.vercel/project.json` lo deja `vercel link`.
 - `.vercelignore` excluye `.env*`, herramientas de agentes, `jobs/` y `supabase/` **anclados a la raíz** (`/supabase/`; sin la barra también excluye `app/lib/supabase` y el build falla).
 - Variables en Vercel (Production): las de `.env` y `.env.platform` (las que no son `NEXT_PUBLIC_*` como sensibles) + `NEXT_PUBLIC_SITE_URL=https://playr-eight.vercel.app`. Si cambia un valor local, actualizarlo con `vercel env add <NOMBRE> production --force` y redeployar (las `NEXT_PUBLIC_*` se fijan en el build).
